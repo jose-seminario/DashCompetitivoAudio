@@ -35,5 +35,7 @@ endif()
 # 1. Aplicación Principal de Escritorio (Orquestador COM + Inyector Equalizer APO + UI JUCE)
 add_subdirectory(App)
 
-# 2. Motor DSP Nativo (Plugin VST3 / Standalone con Compresión Híbrida ITU-R BS.1770)
+# 2. Motores DSP Nativos (Plugins VST3 / Standalone fieles a la auditoría)
 add_subdirectory(Plugins/LoudnessCompressor)
+add_subdirectory(Plugins/TransientSuppressor)
+add_subdirectory(Plugins/AmbienceGuard)
