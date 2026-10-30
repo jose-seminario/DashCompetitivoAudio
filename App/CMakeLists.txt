@@ -34,6 +34,30 @@ target_sources(DashCompetitivoAudio
         Source/Profiles/ProfileMigrator.cpp
         Source/Profiles/ProfileRepository.h
         Source/Profiles/ProfileRepository.cpp
+        Source/Theme/DashLookAndFeel.h
+        Source/Theme/DashLookAndFeel.cpp
+        Source/Components/StatusBarComponent.h
+        Source/Components/StatusBarComponent.cpp
+        Source/Components/DashboardComponent.h
+        Source/Components/DashboardComponent.cpp
+        Source/Components/ProfilePanel.h
+        Source/Components/ProfilePanel.cpp
+        Source/Components/AudioEnginePanel.h
+        Source/Components/AudioEnginePanel.cpp
+        Source/Components/DynamicsPanel.h
+        Source/Components/DynamicsPanel.cpp
+        Source/Components/TacticalProcessingPanel.h
+        Source/Components/TacticalProcessingPanel.cpp
+        Source/Components/EqualizerPanel.h
+        Source/Components/EqualizerPanel.cpp
+        Source/Components/SpatialAudioPanel.h
+        Source/Components/SpatialAudioPanel.cpp
+        Source/Components/HeadphonePanel.h
+        Source/Components/HeadphonePanel.cpp
+        Source/Components/BenchmarkPanel.h
+        Source/Components/BenchmarkPanel.cpp
+        Source/Components/SystemStatusPanel.h
+        Source/Components/SystemStatusPanel.cpp
 )
 
 target_include_directories(DashCompetitivoAudio
