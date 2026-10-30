@@ -64,10 +64,9 @@ private:
     DashLookAndFeel dashLookAndFeel_;
 
     // Servicios desacoplados
-    dash::audio::AudioPolicyManager policyManager_;
-    dash::audio::ApoConfigManager   apoManager_;
+    dash::audio::AudioPolicyManager  policyManager_;
     dash::profile::ProfileRepository profileRepo_;
-    dash::profile::AudioProfile     currentProfile_;
+    dash::profile::AudioProfile      currentProfile_;
 
     std::wstring originalEndpointId_;
     bool isProfileActive_ = false;

@@ -24,7 +24,7 @@ public:
     void refreshStatus();
 
 private:
-    dash::audio::SystemDependencyChecker checker_;
+    dash::audio::AudioPolicyManager policyManager_;
     dash::audio::DependencyStatus status_;
 
     juce::Label titleLabel_;

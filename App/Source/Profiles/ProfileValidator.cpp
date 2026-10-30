@@ -175,20 +175,29 @@ ProfileValidationResult ProfileValidator::validateProfile(const AudioProfile& pr
 
     // 6. Transitorios (Transient)
     const auto& trans = profile.dspParams.transient;
-    if (trans.centerReductionDb < 0.0f || trans.centerReductionDb > 24.0f)
+    if (trans.gun < 0.0f || trans.gun > 1.0f)
     {
-        result.addError("dsp.transient.centerReductionDb", "Atenuación de disparos fuera de rango [0.0 .. 24.0 dB].");
+        result.addError("dsp.transient.gun", "Ganancia objetivo de disparos (gun) fuera de rango [0.0 .. 1.0].");
     }
-    if (trans.crossoverFrequencyHz < 80.0f || trans.crossoverFrequencyHz > 1200.0f)
+    if (trans.frequencySplitHz < dash::core::TransientProcessor::kMinSplitHz
+        || trans.frequencySplitHz > dash::core::TransientProcessor::kMaxSplitHz)
     {
-        result.addError("dsp.transient.crossoverHz", "Crossover de transitorios fuera de rango [80.0 .. 1200.0 Hz].");
+        result.addError("dsp.transient.frequencySplitHz", "Crossover de transitorios fuera de rango [150.0 .. 1200.0 Hz].");
     }
 
     // 7. Ambiente (Ambience)
     const auto& amb = profile.dspParams.ambience;
-    if (amb.reductionDb < 0.0f || amb.reductionDb > 24.0f)
+    if (amb.ambGuar < 0.0f || amb.ambGuar > 1.0f)
     {
-        result.addError("dsp.ambience.reductionDb", "Reducción ambiental fuera de rango [0.0 .. 24.0 dB].");
+        result.addError("dsp.ambience.ambGuar", "Factor de reducción ambiental (ambGuar) fuera de rango [0.0 .. 1.0].");
+    }
+    if (amb.scLow < 0.0f || amb.scLow > 1.0f)
+    {
+        result.addError("dsp.ambience.scLow", "Corte inferior normalizado (scLow) fuera de rango [0.0 .. 1.0].");
+    }
+    if (amb.scHigh < 0.0f || amb.scHigh > 1.0f)
+    {
+        result.addError("dsp.ambience.scHigh", "Corte superior normalizado (scHigh) fuera de rango [0.0 .. 1.0].");
     }
 
     // 8. Ecualizador (EQ)

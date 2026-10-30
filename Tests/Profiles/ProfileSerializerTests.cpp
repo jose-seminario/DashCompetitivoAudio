@@ -36,11 +36,13 @@ void testProfileSerializerRoundTrip()
     original.audio.preampDb         = -6.0f;
 
     // Configuración DSP personalizada
-    original.dspParams.headroomDb               = -4.5f;
-    original.dspParams.equalizer.footstepsDb    = 2.8f;
-    original.dspParams.equalizer.bassDb         = 1.1f;
-    original.dspParams.transient.centerReductionDb = 5.2f;
-    original.dspParams.dynamics.targetLufs      = -14.5f;
+    original.dspParams.headroomDb                 = -4.5f;
+    original.dspParams.equalizer.footstepsDb      = 2.8f;
+    original.dspParams.equalizer.bassDb           = 1.1f;
+    original.dspParams.transient.gun              = 0.45f;
+    original.dspParams.transient.frequencySplitHz = 320.0f;
+    original.dspParams.ambience.ambGuar           = 0.85f;
+    original.dspParams.dynamics.targetLufs        = -14.5f;
 
     // Bandas paramétricas
     original.dspParams.useParametricEq = true;
@@ -68,6 +70,9 @@ void testProfileSerializerRoundTrip()
     assert(deserialized.audio.sampleRate == 96000.0);
     assert(std::abs(deserialized.dspParams.headroomDb - original.dspParams.headroomDb) < 0.001f);
     assert(std::abs(deserialized.dspParams.equalizer.footstepsDb - 2.8f) < 0.001f);
+    assert(std::abs(deserialized.dspParams.transient.gun - 0.45f) < 0.001f);
+    assert(std::abs(deserialized.dspParams.transient.frequencySplitHz - 320.0f) < 0.01f);
+    assert(std::abs(deserialized.dspParams.ambience.ambGuar - 0.85f) < 0.001f);
     assert(deserialized.dspParams.useParametricEq);
     assert(deserialized.dspParams.parametricBands[0].type == dash::core::ParametricFilterType::Peaking);
     assert(std::abs(deserialized.dspParams.parametricBands[0].frequencyHz - 3150.0f) < 0.01f);

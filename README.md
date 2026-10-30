@@ -36,7 +36,7 @@
 ```text
 DashCompetitivoAudio/
 ├── CMakeLists.txt              # Build raíz (C++20, AVX2, LTO/LTCG, FetchContent JUCE 8.0.4)
-├── LICENSE                     # Licencia GNU General Public License v3.0
+├── LICENSE                     # Licencia GNU Affero General Public License v3.0 (AGPL-3.0-or-later)
 ├── THIRD_PARTY_NOTICES.md      # Licencias de componentes de terceros
 ├── ARCHITECTURE.md             # Documentación exhaustiva de arquitectura de datos
 ├── CONTRIBUTING.md             # Guía de contribución y código en tiempo real
@@ -78,6 +78,6 @@ Los binarios e instalador quedarán listos en `build\App` y `build\Installer`.
 
 ## Licencia
 
-- **Código Fuente**: Licenciado bajo la [GNU General Public License v3.0 (GPLv3)](LICENSE).
+- **Código Fuente**: Licenciado bajo la [GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)](LICENSE).
 - **Perfiles y Calibraciones de DashAudioDB**: Licenciados bajo [Creative Commons Attribution 4.0 International (CC-BY-4.0)](DashAudioDB/LICENSES.md).
 - **Filtros AutoEq**: Licenciados bajo la [Licencia MIT](THIRD_PARTY_NOTICES.md).

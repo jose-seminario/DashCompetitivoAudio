@@ -47,16 +47,18 @@ target_compile_definitions(DashAudioSpatial
         JUCE_USE_CURL=0
 )
 
+# Propagamos los módulos JUCE como INTERFACE hacia los binarios finales (App y Tests)
+# para evitar compilar unidades de traducción de JUCE por duplicado (error MSVC LNK2005).
 target_link_libraries(DashAudioSpatial
     PUBLIC
         DashAudioCore
     PRIVATE
-        juce::juce_audio_formats
-        juce::juce_audio_basics
-        juce::juce_core
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
     INTERFACE
+        juce::juce_audio_formats
+        juce::juce_audio_basics
+        juce::juce_core
         juce::juce_dsp
 )

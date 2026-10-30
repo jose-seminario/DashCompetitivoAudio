@@ -46,6 +46,10 @@ add_subdirectory(Plugins/LoudnessCompressor)
 add_subdirectory(Plugins/TransientSuppressor)
 add_subdirectory(Plugins/AmbienceGuard)
 
+# 2.1 Suite Automatizada de Pruebas Unitarias y de Integración (CTest)
+enable_testing()
+add_subdirectory(Tests)
+
 # 3. Target opcional de empaquetado NSIS (DashCompetitivoAudio-setup.exe)
 find_program(MAKENSIS_EXECUTABLE
     NAMES makensis

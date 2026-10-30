@@ -1,6 +1,13 @@
 #include "SystemStatusPanel.h"
 #include "../Theme/DashLookAndFeel.h"
 
+#include <filesystem>
+
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>
+#endif
+
 namespace dash::ui
 {
 
@@ -67,30 +74,48 @@ void SystemStatusPanel::resized()
 
 void SystemStatusPanel::refreshStatus()
 {
-    status_ = checker_.checkAllDependencies();
+    status_ = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+
+    std::error_code ec;
+    const bool hasVstDir = !status_.apoDllPath.empty()
+        && std::filesystem::exists(status_.apoDllPath.parent_path() / "VSTPlugins", ec);
 
     juce::String report;
     report << "=== REPORTE DE DEPENDENCIAS DEL SISTEMA ===\n\n";
 
-    report << "1. Equalizer APO Instalado: " << (status_.isEqualizerApoInstalled ? "[OK] Detectado" : "[FALTA] No encontrado") << "\n";
-    if (status_.isEqualizerApoInstalled)
-        report << "   Ruta: " << status_.apoInstallPath.u8string().c_str() << "\n\n";
+    report << "1. Equalizer APO Instalado: " << (status_.hasEqualizerApo ? "[OK] Detectado" : "[FALTA] No encontrado") << "\n";
+    if (status_.hasEqualizerApo)
+        report << "   Ruta DLL: " << juce::String(status_.apoDllPath.string()) << "\n\n";
+    else
+        report << "\n";
 
-    report << "2. Directorio de Plugins VST: " << (status_.isApoVstDirPresent ? "[OK] Presente" : "[ADVERTENCIA] Requiere despliegue") << "\n\n";
+    report << "2. Directorio de Plugins VST (EqualizerAPO\\VSTPlugins): "
+           << (hasVstDir ? "[OK] Presente" : "[ADVERTENCIA] Requiere despliegue") << "\n\n";
 
-    report << "3. Permisos de Escritura NTFS en config.txt: " << (status_.hasApoConfigWriteAccess ? "[OK] Acceso concedido" : "[DENEGADO] Requiere elevación de permisos") << "\n\n";
+    report << "3. Motor Binaural HeSuVi: "
+           << (status_.hasHeSuVi ? "[OK] Detectado" : "[OPCIONAL] No detectado") << "\n";
+    if (status_.hasHeSuVi)
+        report << "   Ruta HeSuVi: " << juce::String(status_.hesuviDirPath.string()) << "\n\n";
+    else
+        report << "\n";
 
-    report << "4. Cable de Audio Virtual (VB-Audio / Hi-Fi): " << (status_.isVirtualCableInstalled ? "[OK] Detectado" : "[OPCIONAL] No detectado (usando modo directo)") << "\n\n";
+    report << "4. Cable de Audio Virtual (VB-Audio / Hi-Fi): "
+           << (status_.hasVbAudioCable ? "[OK] Detectado" : "[OPCIONAL] No detectado (usando modo directo)") << "\n";
+    if (status_.hasVbAudioCable && !status_.detectedCableName.empty())
+        report << "   Dispositivo: " << juce::String(status_.detectedCableName.c_str()) << "\n\n";
+    else
+        report << "\n";
 
-    report << "5. Privilegios de Administrador del Proceso: " << (status_.isRunningAsAdmin ? "[OK] Proceso elevado" : "[INFO] Usuario estándar") << "\n";
+    report << "5. Privilegios de Administrador del Proceso: "
+           << (status_.isRunningAsAdmin ? "[OK] Proceso elevado (acceso de escritura en Program Files)" : "[INFO] Usuario estándar (requiere elevación UAC para config.txt)") << "\n";
 
     detailsEditor_.setText(report);
 
-    const bool allOk = status_.isEqualizerApoInstalled && status_.hasApoConfigWriteAccess;
+    const bool allOk = status_.hasEqualizerApo && status_.isRunningAsAdmin;
     overallStatusLabel_.setText(allOk ? "ESTADO GENERAL: LISTO PARA PROCESAMIENTO" : "ESTADO GENERAL: ACCIÓN REQUERIDA", juce::dontSendNotification);
     overallStatusLabel_.setColour(juce::Label::textColourId, allOk ? DashLookAndFeel::kSuccessEmerald : DashLookAndFeel::kWarningAmber);
 
-    runAsAdminBtn_.setVisible(!status_.hasApoConfigWriteAccess && !status_.isRunningAsAdmin);
+    runAsAdminBtn_.setVisible(!status_.isRunningAsAdmin);
 }
 
 } // namespace dash::ui

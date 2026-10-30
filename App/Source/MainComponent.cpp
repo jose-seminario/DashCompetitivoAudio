@@ -1,5 +1,7 @@
 #include "MainComponent.h"
 
+#include <cmath>
+
 namespace dash::ui
 {
 
@@ -171,9 +173,9 @@ void MainComponent::loadProfile(const std::string& profileId)
 void MainComponent::syncAllPanelsWithProfile()
 {
     dashboardPanel_->updateQuickControls(
-        currentProfile_.dspParams.transient.centerReductionDb,
+        currentProfile_.dspParams.transient.gun,
         currentProfile_.dspParams.equalizer.footstepsDb,
-        currentProfile_.dspParams.ambience.reductionDb,
+        currentProfile_.dspParams.ambience.ambGuar,
         currentProfile_.enableSpatial
     );
 
@@ -204,17 +206,48 @@ void MainComponent::executeConfigInjection()
         return;
 
     dash::audio::ApoChainConfig config;
-    config.bypassAll = currentProfile_.dspParams.bypassAll;
-    config.amount    = juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.upwardAmount);
-    config.targetDb  = currentProfile_.dspParams.dynamics.targetLufs;
-    config.releaseMs = currentProfile_.dspParams.dynamics.releaseMs;
-    config.gunReductionDb = currentProfile_.dspParams.transient.centerReductionDb;
-    config.footstepsDb    = currentProfile_.dspParams.equalizer.footstepsDb;
-    config.bassDb         = currentProfile_.dspParams.equalizer.bassDb;
-    config.ambienceReductionDb = currentProfile_.dspParams.ambience.reductionDb;
+    config.profileName = currentProfile_.name;
+    config.preampDb    = static_cast<double>(currentProfile_.dspParams.headroomDb);
+
+    // 1. Supresor de Transitorios
+    config.enableTransientSuppressor = !currentProfile_.dspParams.bypassAll && !currentProfile_.dspParams.transient.bypass;
+    config.gunVolume    = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.transient.gun));
+    config.gunSteps     = static_cast<int>(std::round(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.transient.steps)));
+    config.gunFrontOnly = currentProfile_.dspParams.transient.front ? 1 : 0;
+    config.gunRestore   = static_cast<int>(std::round(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.transient.restore)));
+    config.gunBypass    = currentProfile_.dspParams.transient.bypass ? 1 : 0;
+
+    // 2. Compresor Dinámico Híbrido BS.1770
+    config.enableLoudnessCompressor = !currentProfile_.dspParams.bypassAll && !currentProfile_.dspParams.dynamics.bypass;
+    config.compAmount  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.amount));
+    config.compTarget  = juce::jlimit(0.0, 1.0, (static_cast<double>(currentProfile_.dspParams.dynamics.targetLufs) + 28.0) / 36.0);
+    config.compRelease = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.releaseNorm));
+    config.compDetRel  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.detRelNorm));
+    config.compLimRel  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.limRelNorm));
+    config.compScLow   = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.scLowNorm));
+    config.compScHigh  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.scHighNorm));
+
+    // 3. Protector Ambiental Multibanda
+    config.enableAmbienceGuard = !currentProfile_.dspParams.bypassAll && !currentProfile_.dspParams.ambience.bypass;
+    config.ambGuard   = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.ambGuar));
+    config.ambDistant = currentProfile_.dspParams.ambience.distant ? 1 : 0;
+    config.ambTarget  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.target));
+    config.ambRelease = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.release));
+    config.ambDetRel  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.detRel));
+    config.ambScLow   = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.scLow));
+    config.ambScHigh  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.scHigh));
+    config.ambBandMod = currentProfile_.dspParams.ambience.bandMod ? 1 : 0;
+
+    // 4. Ecualizador Gráfico de 31 Bandas y HeSuVi
+    config.enableGraphicEq = !currentProfile_.dspParams.bypassAll && !currentProfile_.dspParams.equalizer.bypass;
+    config.footstepsEqDb   = static_cast<double>(currentProfile_.dspParams.equalizer.footstepsDb);
+    config.bassEqDb        = static_cast<double>(currentProfile_.dspParams.equalizer.bassDb);
+    config.enableHeSuVi    = !currentProfile_.dspParams.bypassAll && currentProfile_.enableSpatial && !currentProfile_.spatialParams.bypass;
 
     std::string err;
-    if (apoManager_.injectChain(config, &err))
+    const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
+    const std::string directives = dash::audio::ApoConfigInjector::buildConfigContent(config, apoConfigPath);
+    if (dash::audio::ApoConfigManager::injectManagedSection(apoConfigPath, directives, &err) == dash::audio::ApoConfigResult::Success)
     {
         statusBar_.setStatusMessage("Configuración Equalizer APO sincronizada.");
     }
@@ -252,7 +285,8 @@ void MainComponent::deactivateAndRestoreAudio()
     statusBar_.setEngineStatus("MOTOR: DETENIDO", false);
 
     std::string err;
-    apoManager_.restoreBypass(&err);
+    const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
+    dash::audio::ApoConfigManager::removeManagedSection(apoConfigPath, &err);
 
     if (!originalEndpointId_.empty())
     {

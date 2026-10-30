@@ -97,9 +97,9 @@ DashboardComponent::DashboardComponent()
     };
     addAndMakeVisible(quickProfileSelector_);
 
-    initTacticalSlider(gunSlider_, gunLabel_, "Supresión de Disparos", 0.0, 12.0, 4.0, " dB");
+    initTacticalSlider(gunSlider_, gunLabel_, "Ganancia Pico (Gun)", 0.0, 1.0, 0.45, "");
     initTacticalSlider(stepsSlider_, stepsLabel_, "Realce de Pasos", -3.0, 6.0, 2.0, " dB");
-    initTacticalSlider(ambSlider_, ambLabel_, "Reducción Ambiental", 0.0, 12.0, 6.0, " dB");
+    initTacticalSlider(ambSlider_, ambLabel_, "Protección (AmbGuar)", 0.0, 1.0, 1.0, "");
 
     spatialToggle_.setButtonText("Audio Espacial Inmersivo (HRTF 3D)");
     spatialToggle_.setToggleState(true, juce::dontSendNotification);
@@ -113,7 +113,7 @@ void DashboardComponent::initTacticalSlider(
 {
     s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 68, 18);
-    s.setRange(min, max, 0.1);
+    s.setRange(min, max, (max <= 1.0) ? 0.01 : 0.1);
     s.setValue(def, juce::dontSendNotification);
     s.setTextValueSuffix(suffix);
     s.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);

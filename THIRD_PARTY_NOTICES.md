@@ -9,12 +9,12 @@ Este documento detalla las bibliotecas, herramientas de compilación y conjuntos
 ### JUCE Framework (v8.0.4)
 - **Autor / Titular:** Raw Material Software Limited
 - **Repositorio:** https://github.com/juce-framework/JUCE
-- **Licencia:** **GNU General Public License v3 (GPLv3)** (modalidad de código abierto).
+- **Licencia:** **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)** (modalidad de código abierto).
 - **Uso:** Interfaz gráfica de usuario, gestión de mensajes y eventos, formatos de audio y bloques matemáticos DSP.
 
 ### Steinberg VST3 SDK (a través de JUCE)
 - **Autor / Titular:** Steinberg Media Technologies GmbH
-- **Licencia:** **GNU General Public License v3 (GPLv3)**.
+- **Licencia:** **GPLv3 / Dual License (redistribuido en el conjunto binario bajo AGPL-3.0-or-later en compatibilidad con JUCE 8)**.
 - **Uso:** Estructura de plugins VST3.
 
 ---

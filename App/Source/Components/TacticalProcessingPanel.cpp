@@ -1,6 +1,8 @@
 #include "TacticalProcessingPanel.h"
 #include "../Theme/DashLookAndFeel.h"
 
+#include <cmath>
+
 namespace dash::ui
 {
 
@@ -17,10 +19,10 @@ TacticalProcessingPanel::TacticalProcessingPanel()
     transientBypass_.onClick = [this] { notifyChange(); };
     addAndMakeVisible(transientBypass_);
 
-    initKnob(gunReductionSlider_, gunReductionLabel_, "Atenuación Disparos", 0.0, 18.0, 4.0, " dB");
-    initKnob(gunCrossoverSlider_, gunCrossoverLabel_, "Crossover Linkwitz-Riley", 100.0, 800.0, 280.0, " Hz");
-    initKnob(gunAttackSlider_, gunAttackLabel_, "Ataque Envolvente", 0.2, 10.0, 1.5, " ms");
-    initKnob(gunReleaseSlider_, gunReleaseLabel_, "Relajación", 10.0, 200.0, 60.0, " ms");
+    initKnob(gunReductionSlider_, gunReductionLabel_, "Ganancia Pico (Gun)", 0.0, 1.0, 0.45, "");
+    initKnob(gunCrossoverSlider_, gunCrossoverLabel_, "Crossover Linkwitz-Riley", 150.0, 1200.0, 280.0, " Hz");
+    initKnob(gunAttackSlider_, gunAttackLabel_, "Ataque Envolvente", 0.05, 10.0, 0.20, " ms");
+    initKnob(gunReleaseSlider_, gunReleaseLabel_, "Relajación", 5.0, 250.0, 45.0, " ms");
 
     // 2. Ambience Guard
     ambHeader_.setText("2. PROTECTOR AMBIENTAL MULTIBANDA (AMBIENCE GUARD)", juce::dontSendNotification);
@@ -33,7 +35,7 @@ TacticalProcessingPanel::TacticalProcessingPanel()
     ambBypass_.onClick = [this] { notifyChange(); };
     addAndMakeVisible(ambBypass_);
 
-    initKnob(ambReductionSlider_, ambReductionLabel_, "Reducción Ruido", 0.0, 18.0, 6.0, " dB");
+    initKnob(ambReductionSlider_, ambReductionLabel_, "Protección (AmbGuar)", 0.0, 1.0, 1.0, "");
     initKnob(ambLowCutSlider_, ambLowCutLabel_, "Corte Inferior", 100.0, 600.0, 350.0, " Hz");
     initKnob(ambHighCutSlider_, ambHighCutLabel_, "Corte Superior", 1200.0, 4500.0, 2500.0, " Hz");
 
@@ -58,7 +60,7 @@ void TacticalProcessingPanel::initKnob(
 {
     s.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     s.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 16);
-    s.setRange(min, max, 0.1);
+    s.setRange(min, max, (max <= 1.0) ? 0.01 : 0.1);
     s.setValue(def, juce::dontSendNotification);
     s.setTextValueSuffix(suffix);
     s.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
@@ -154,22 +156,22 @@ void TacticalProcessingPanel::notifyChange()
     if (onParametersChanged)
     {
         dash::core::TransientParameters t;
-        t.centerReductionDb    = static_cast<float>(gunReductionSlider_.getValue());
-        t.crossoverFrequencyHz = static_cast<float>(gunCrossoverSlider_.getValue());
-        t.attackMs             = static_cast<float>(gunAttackSlider_.getValue());
-        t.releaseMs            = static_cast<float>(gunReleaseSlider_.getValue());
-        t.bypass               = transientBypass_.getToggleState();
+        t.gun              = static_cast<float>(gunReductionSlider_.getValue());
+        t.frequencySplitHz = static_cast<float>(gunCrossoverSlider_.getValue());
+        t.attackMs         = static_cast<float>(gunAttackSlider_.getValue());
+        t.releaseMs        = static_cast<float>(gunReleaseSlider_.getValue());
+        t.bypass           = transientBypass_.getToggleState();
 
         dash::core::AmbienceParameters a;
-        a.reductionDb  = static_cast<float>(ambReductionSlider_.getValue());
-        a.lowCutoffHz  = static_cast<float>(ambLowCutSlider_.getValue());
-        a.highCutoffHz = static_cast<float>(ambHighCutSlider_.getValue());
-        a.bypass       = ambBypass_.getToggleState();
+        a.ambGuar = static_cast<float>(ambReductionSlider_.getValue());
+        a.scLow   = juce::jlimit(0.0f, 1.0f, std::log10(static_cast<float>(ambLowCutSlider_.getValue()) / 20.0f) / 3.0f);
+        a.scHigh  = juce::jlimit(0.0f, 1.0f, std::log10(static_cast<float>(ambHighCutSlider_.getValue()) / 20.0f) / 3.0f);
+        a.bypass  = ambBypass_.getToggleState();
 
         dash::core::LimiterParameters l;
-        l.ceilingDb  = static_cast<float>(limCeilingSlider_.getValue());
-        l.releaseMs  = static_cast<float>(limReleaseSlider_.getValue());
-        l.bypass     = limBypass_.getToggleState();
+        l.ceilingDb = static_cast<float>(limCeilingSlider_.getValue());
+        l.releaseMs = static_cast<float>(limReleaseSlider_.getValue());
+        l.bypass    = limBypass_.getToggleState();
 
         onParametersChanged(t, a, l);
     }
@@ -180,15 +182,15 @@ void TacticalProcessingPanel::setParameters(
     const dash::core::AmbienceParameters& amb,
     const dash::core::LimiterParameters& lim)
 {
-    gunReductionSlider_.setValue(trans.centerReductionDb, juce::dontSendNotification);
-    gunCrossoverSlider_.setValue(trans.crossoverFrequencyHz, juce::dontSendNotification);
+    gunReductionSlider_.setValue(trans.gun, juce::dontSendNotification);
+    gunCrossoverSlider_.setValue(trans.frequencySplitHz, juce::dontSendNotification);
     gunAttackSlider_.setValue(trans.attackMs, juce::dontSendNotification);
     gunReleaseSlider_.setValue(trans.releaseMs, juce::dontSendNotification);
     transientBypass_.setToggleState(trans.bypass, juce::dontSendNotification);
 
-    ambReductionSlider_.setValue(amb.reductionDb, juce::dontSendNotification);
-    ambLowCutSlider_.setValue(amb.lowCutoffHz, juce::dontSendNotification);
-    ambHighCutSlider_.setValue(amb.highCutoffHz, juce::dontSendNotification);
+    ambReductionSlider_.setValue(amb.ambGuar, juce::dontSendNotification);
+    ambLowCutSlider_.setValue(dash::core::AmbienceProcessor::mapScNormToHz(amb.scLow), juce::dontSendNotification);
+    ambHighCutSlider_.setValue(dash::core::AmbienceProcessor::mapScNormToHz(amb.scHigh), juce::dontSendNotification);
     ambBypass_.setToggleState(amb.bypass, juce::dontSendNotification);
 
     limCeilingSlider_.setValue(lim.ceilingDb, juce::dontSendNotification);
