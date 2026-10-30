@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 
 namespace dash::core
@@ -29,18 +30,16 @@ struct AmbienceProcessor::Impl
     std::array<float, kMaxSupportedChannels> smoothedGainMidDb  {};
     std::array<float, kMaxSupportedChannels> smoothedGainHighDb {};
 
-    float shortAtkCoeff = 0.9f;
-    float shortRelCoeff = 0.99f;
-    float longAtkCoeff  = 0.999f;
-    float longRelCoeff  = 0.9998f;
+    float shortCoeff = 0.99f;
+    float longCoeff  = 0.999f;
 
     float gainAtkCoeff = 0.99f;
     float gainRelCoeff = 0.999f;
 
-    float currentHpHz = 350.0f;
-    float currentLpHz = 2500.0f;
-    float lastGainDb  = 0.0f;
-    float stationarityIndex = 0.0f;
+    std::atomic<float> currentHpHz       { 350.0f };
+    std::atomic<float> currentLpHz       { 2500.0f };
+    std::atomic<float> lastGainDb        { 0.0f };
+    std::atomic<float> stationarityIndex { 0.0f };
 
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
@@ -50,12 +49,14 @@ struct AmbienceProcessor::Impl
 
     void recalculateParameters() noexcept
     {
-        currentHpHz = mapScNormToHz(params.scLow);
-        currentLpHz = mapScNormToHz(params.scHigh);
+        const float hpHz = mapScNormToHz(params.scLow);
+        const float lpHz = mapScNormToHz(params.scHigh);
+        currentHpHz.store(hpHz, std::memory_order_relaxed);
+        currentLpHz.store(lpHz, std::memory_order_relaxed);
 
         const float nyquistGuard = static_cast<float>(sampleRate * 0.48);
-        const float safeLowHz    = juce::jlimit(40.0f, nyquistGuard - 200.0f, currentHpHz);
-        const float safeHighHz   = juce::jlimit(safeLowHz + 100.0f, nyquistGuard, currentLpHz);
+        const float safeLowHz    = juce::jlimit(40.0f, nyquistGuard - 200.0f, hpHz);
+        const float safeHighHz   = juce::jlimit(safeLowHz + 100.0f, nyquistGuard, lpHz);
 
         for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
         {
@@ -63,10 +64,9 @@ struct AmbienceProcessor::Impl
             midHighCrossovers[ch].setCutoffFrequency(safeHighHz);
         }
 
-        shortAtkCoeff = calcOnePoleCoeff(0.005f);
-        shortRelCoeff = calcOnePoleCoeff(0.040f);
-        longAtkCoeff  = calcOnePoleCoeff(0.120f);
-        longRelCoeff  = calcOnePoleCoeff(0.600f);
+        // Seguidores de envolvente simétricos de media absoluta
+        shortCoeff = calcOnePoleCoeff(0.015f);
+        longCoeff  = calcOnePoleCoeff(0.080f);
 
         if (params.useAdvancedMode)
         {
@@ -85,11 +85,13 @@ struct AmbienceProcessor::Impl
     {
         const float absX = std::abs(sample);
 
-        const float sCoeff = (absX > envShort[ch]) ? shortAtkCoeff : shortRelCoeff;
-        envShort[ch] = sCoeff * envShort[ch] + (1.0f - sCoeff) * absX;
+        // Integración simétrica de energía rectificada
+        envShort[ch] = shortCoeff * envShort[ch] + (1.0f - shortCoeff) * absX;
+        envLong[ch]  = longCoeff  * envLong[ch]  + (1.0f - longCoeff)  * absX;
 
-        const float lCoeff = (absX > envLong[ch]) ? longAtkCoeff : longRelCoeff;
-        envLong[ch] = lCoeff * envLong[ch] + (1.0f - lCoeff) * absX;
+        // Compuerta acústica de silencio: el silencio absoluto nunca debe ser clasificado como ruido
+        if (envLong[ch] < 0.002f && envShort[ch] < 0.002f)
+            return 0.0f;
 
         const float diff = std::abs(envShort[ch] - envLong[ch]);
         const float denom = envLong[ch] + 1.0e-4f;
@@ -152,8 +154,8 @@ void AmbienceProcessor::reset() noexcept
         impl_->smoothedGainMidDb[ch]    = 0.0f;
         impl_->smoothedGainHighDb[ch]   = 0.0f;
     }
-    impl_->lastGainDb        = 0.0f;
-    impl_->stationarityIndex = 0.0f;
+    impl_->lastGainDb.store(0.0f, std::memory_order_relaxed);
+    impl_->stationarityIndex.store(0.0f, std::memory_order_relaxed);
 }
 
 void AmbienceProcessor::updateParameters(const AmbienceParameters& params) noexcept
@@ -189,10 +191,12 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
     if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
 
+    juce::ScopedNoDenormals noDenormals;
+
     if (impl_->params.bypass)
     {
-        impl_->lastGainDb        = 0.0f;
-        impl_->stationarityIndex = 0.0f;
+        impl_->lastGainDb.store(0.0f, std::memory_order_relaxed);
+        impl_->stationarityIndex.store(0.0f, std::memory_order_relaxed);
         return;
     }
 
@@ -201,8 +205,6 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
     float blockStationaritySum = 0.0f;
 
     const float ambGuarNorm = juce::jlimit(0.0f, 1.0f, impl_->params.ambGuar);
-    if (ambGuarNorm <= 0.0001f)
-        return;
 
     const float lowMaxDb  = impl_->params.useAdvancedMode ? impl_->params.lowReductionDepthDb  : (-4.0f * ambGuarNorm);
     const float midMaxDb  = impl_->params.useAdvancedMode ? impl_->params.midReductionDepthDb  : (-6.5f * ambGuarNorm);
@@ -228,9 +230,9 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
             float bandHigh = 0.0f;
             impl_->midHighCrossovers[ch].processSample(0, restHigh, bandMid, bandHigh);
 
-            const float targetLowDb  = (impl_->params.useAdvancedMode && impl_->params.bypassLowBand)  ? 0.0f : (lowMaxDb * stat);
-            const float targetMidDb  = (impl_->params.useAdvancedMode && impl_->params.bypassMidBand)  ? 0.0f : (midMaxDb * stat);
-            const float targetHighDb = (impl_->params.useAdvancedMode && impl_->params.bypassHighBand) ? 0.0f : (highMaxDb * stat);
+            const float targetLowDb  = impl_->params.bypassLowBand  ? 0.0f : (lowMaxDb * stat);
+            const float targetMidDb  = impl_->params.bypassMidBand  ? 0.0f : (midMaxDb * stat);
+            const float targetHighDb = impl_->params.bypassHighBand ? 0.0f : (highMaxDb * stat);
 
             const auto smoothGain = [this](float target, float& smoothed) -> float {
                 const float coeff = (target < smoothed) ? impl_->gainAtkCoeff : impl_->gainRelCoeff;
@@ -253,28 +255,28 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
         }
     }
 
-    impl_->lastGainDb        = blockMaxReductionDb;
-    impl_->stationarityIndex = blockStationaritySum / static_cast<float>(numSamples * activeCh);
+    impl_->lastGainDb.store(blockMaxReductionDb, std::memory_order_relaxed);
+    impl_->stationarityIndex.store(blockStationaritySum / static_cast<float>(numSamples * activeCh), std::memory_order_relaxed);
 }
 
 float AmbienceProcessor::getCurrentHpHz() const noexcept
 {
-    return impl_->currentHpHz;
+    return impl_->currentHpHz.load(std::memory_order_relaxed);
 }
 
 float AmbienceProcessor::getCurrentLpHz() const noexcept
 {
-    return impl_->currentLpHz;
+    return impl_->currentLpHz.load(std::memory_order_relaxed);
 }
 
 float AmbienceProcessor::getCurrentGainDb() const noexcept
 {
-    return impl_->lastGainDb;
+    return impl_->lastGainDb.load(std::memory_order_relaxed);
 }
 
 float AmbienceProcessor::getStationarityIndex() const noexcept
 {
-    return impl_->stationarityIndex;
+    return impl_->stationarityIndex.load(std::memory_order_relaxed);
 }
 
 } // namespace dash::core

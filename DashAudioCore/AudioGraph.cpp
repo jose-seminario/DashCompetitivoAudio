@@ -113,6 +113,8 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     if (impl_->params.bypassAll)
         return;
 
+    juce::ScopedNoDenormals noDenormals;
+
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
 
     // 1. Etapa de Margen Dinámico / Entrada (Headroom)

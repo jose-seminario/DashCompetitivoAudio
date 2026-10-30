@@ -1,5 +1,7 @@
 #include "ParametricEQProcessor.h"
 
+#include <juce_audio_basics/juce_audio_basics.h>
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -123,6 +125,7 @@ struct ParametricEQProcessor::Impl
 {
     double sampleRate = 48000.0;
     bool   bypass     = false;
+    bool   hasProcessedAudio = false;
 
     std::array<ParametricBandParameters, kMaxBands> bandParams {};
     std::array<BiquadCoeffs, kMaxBands> targetCoeffs {};
@@ -183,6 +186,7 @@ void ParametricEQProcessor::prepare(double sampleRate, int /*maximumBlockSize*/,
 
 void ParametricEQProcessor::reset() noexcept
 {
+    impl_->hasProcessedAudio = false;
     for (size_t ch = 0; ch < kMaxChannels; ++ch)
     {
         for (size_t b = 0; b < kMaxBands; ++b)
@@ -200,6 +204,12 @@ void ParametricEQProcessor::setBand(size_t bandIndex, const ParametricBandParame
 
     impl_->bandParams[bandIndex] = params;
     impl_->recalculateBand(bandIndex);
+
+    // Si aún no ha iniciado el flujo de audio, aplicar de inmediato sin interpolación lenta
+    if (!impl_->hasProcessedAudio)
+    {
+        impl_->currentCoeffs[bandIndex] = impl_->targetCoeffs[bandIndex];
+    }
 }
 
 ParametricBandParameters ParametricEQProcessor::getBand(size_t bandIndex) const noexcept
@@ -245,20 +255,32 @@ void ParametricEQProcessor::process(float* const* channelPointers, int numChanne
     if (impl_->bypass)
         return;
 
+    juce::ScopedNoDenormals noDenormals;
+
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
 
-    // Suavizado de coeficientes por bloque
-    constexpr float kSmooth = 0.05f;
-    for (size_t b = 0; b < kMaxBands; ++b)
+    // Si es el primer bloque tras reset/prepare, sincronizar inmediatamente
+    if (!impl_->hasProcessedAudio)
     {
-        auto& cur = impl_->currentCoeffs[b];
-        const auto& tgt = impl_->targetCoeffs[b];
+        for (size_t b = 0; b < kMaxBands; ++b)
+            impl_->currentCoeffs[b] = impl_->targetCoeffs[b];
+        impl_->hasProcessedAudio = true;
+    }
+    else
+    {
+        // Suavizado dinámico suave ante cambios de parámetros en caliente
+        constexpr float kSmooth = 0.25f;
+        for (size_t b = 0; b < kMaxBands; ++b)
+        {
+            auto& cur = impl_->currentCoeffs[b];
+            const auto& tgt = impl_->targetCoeffs[b];
 
-        cur.b0 += kSmooth * (tgt.b0 - cur.b0);
-        cur.b1 += kSmooth * (tgt.b1 - cur.b1);
-        cur.b2 += kSmooth * (tgt.b2 - cur.b2);
-        cur.a1 += kSmooth * (tgt.a1 - cur.a1);
-        cur.a2 += kSmooth * (tgt.a2 - cur.a2);
+            cur.b0 += kSmooth * (tgt.b0 - cur.b0);
+            cur.b1 += kSmooth * (tgt.b1 - cur.b1);
+            cur.b2 += kSmooth * (tgt.b2 - cur.b2);
+            cur.a1 += kSmooth * (tgt.a1 - cur.a1);
+            cur.a2 += kSmooth * (tgt.a2 - cur.a2);
+        }
     }
 
     for (size_t ch = 0; ch < activeCh; ++ch)

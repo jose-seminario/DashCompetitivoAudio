@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 
 namespace dash::core
@@ -20,6 +21,8 @@ struct LimiterProcessor::Impl
     float releaseCoeff  = 0.999f;
     float gainLin       = 1.0f;
     float lfeGainLin    = 1.0f;
+
+    std::atomic<float> telemetryGainLin { 1.0f };
 
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
@@ -64,6 +67,7 @@ void LimiterProcessor::reset() noexcept
 {
     impl_->gainLin    = 1.0f;
     impl_->lfeGainLin = 1.0f;
+    impl_->telemetryGainLin.store(1.0f, std::memory_order_relaxed);
 }
 
 void LimiterProcessor::updateParameters(const LimiterParameters& params) noexcept
@@ -89,8 +93,9 @@ float LimiterProcessor::computeSampleGainLinear(float peakAmplitude) noexcept
     if (peakAmplitude > impl_->ceilingLin && peakAmplitude > 1.0e-12f)
         desiredGain = impl_->ceilingLin / peakAmplitude;
 
-    if (desiredGain < impl_->gainLin)
-        impl_->gainLin = desiredGain; // Ataque instantáneo de muestra exacta
+    // Ataque estricto de muestra exacta (<= evita liberar ganancia ante muestras idénticas que sobrepasan el techo)
+    if (desiredGain <= impl_->gainLin)
+        impl_->gainLin = desiredGain;
     else
         impl_->gainLin = impl_->releaseCoeff * impl_->gainLin + (1.0f - impl_->releaseCoeff) * 1.0f;
 
@@ -119,10 +124,13 @@ void LimiterProcessor::process(float* const* channelPointers, int numChannels, i
     if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
 
+    juce::ScopedNoDenormals noDenormals;
+
     if (impl_->params.bypass)
     {
         impl_->gainLin    = 1.0f;
         impl_->lfeGainLin = 1.0f;
+        impl_->telemetryGainLin.store(1.0f, std::memory_order_relaxed);
         return;
     }
 
@@ -164,7 +172,7 @@ void LimiterProcessor::process(float* const* channelPointers, int numChannels, i
             if (lfePeak > impl_->ceilingLin && lfePeak > 1.0e-12f)
                 desiredLfe = impl_->ceilingLin / lfePeak;
 
-            if (desiredLfe < impl_->lfeGainLin)
+            if (desiredLfe <= impl_->lfeGainLin)
                 impl_->lfeGainLin = desiredLfe;
             else
                 impl_->lfeGainLin = impl_->releaseCoeff * impl_->lfeGainLin + (1.0f - impl_->releaseCoeff) * 1.0f;
@@ -172,25 +180,29 @@ void LimiterProcessor::process(float* const* channelPointers, int numChannels, i
             gLfe = impl_->lfeGainLin;
         }
 
+        const float ceiling = impl_->ceilingLin;
         for (size_t ch = 0; ch < activeCh; ++ch)
         {
             if (channelPointers[ch] != nullptr)
             {
                 const float g = (isSurround && ch == kLfeChannelIdx && !impl_->params.includeLfeInPeakLink) ? gLfe : gMain;
-                channelPointers[ch][i] *= g;
+                const float limitedSample = channelPointers[ch][i] * g;
+                channelPointers[ch][i] = std::clamp(limitedSample, -ceiling, ceiling);
             }
         }
     }
+
+    impl_->telemetryGainLin.store(impl_->gainLin, std::memory_order_relaxed);
 }
 
 float LimiterProcessor::getCurrentGainLinear() const noexcept
 {
-    return impl_->gainLin;
+    return impl_->telemetryGainLin.load(std::memory_order_relaxed);
 }
 
 float LimiterProcessor::getCurrentReductionDb() const noexcept
 {
-    return juce::Decibels::gainToDecibels(impl_->gainLin, -60.0f);
+    return juce::Decibels::gainToDecibels(impl_->telemetryGainLin.load(std::memory_order_relaxed), -60.0f);
 }
 
 } // namespace dash::core

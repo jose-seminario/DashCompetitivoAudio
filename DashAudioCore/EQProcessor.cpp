@@ -174,6 +174,8 @@ void EQProcessor::process(float* const* channelPointers, int numChannels, int nu
     if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0 || impl_->params.bypass)
         return;
 
+    juce::ScopedNoDenormals noDenormals;
+
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
     const float preamp    = impl_->preampLin;
 

@@ -115,49 +115,57 @@ void SpatialProcessor::processBinaural(
 
     const size_t activeCh = static_cast<size_t>(std::clamp(numChannels, 1, static_cast<int>(kMaxChannels)));
 
-    // Reasignar punteros del buffer de memoria scratch
-    for (size_t ch = 0; ch < activeCh; ++ch)
+    int samplesProcessed = 0;
+    while (samplesProcessed < numSamples)
     {
-        if (inputChannels[ch] != nullptr)
-            std::copy(inputChannels[ch], inputChannels[ch] + numSamples, impl_->mappedPointers[ch]);
-        else
-            std::fill(impl_->mappedPointers[ch], impl_->mappedPointers[ch] + numSamples, 0.0f);
-    }
+        const int chunkSize = std::min(numSamples - samplesProcessed, impl_->maxBlockSize);
 
-    // Procesar modificaciones de anchura de escenario y separación frontal/trasera
-    if (std::abs(impl_->params.soundstageWidth - 1.0f) > 1.0e-3f ||
-        std::abs(impl_->params.frontBackSeparation - 1.0f) > 1.0e-3f)
-    {
-        const float widthMod = impl_->params.soundstageWidth;
-        const float fbMod    = impl_->params.frontBackSeparation;
-
+        // Reasignar punteros del buffer de memoria scratch para el fragmento actual
         for (size_t ch = 0; ch < activeCh; ++ch)
         {
-            const auto& spk = inputLayout_.getSpeaker(ch);
-            float* data = impl_->mappedPointers[ch];
+            if (inputChannels[ch] != nullptr)
+                std::copy(inputChannels[ch] + samplesProcessed, inputChannels[ch] + samplesProcessed + chunkSize, impl_->mappedPointers[ch]);
+            else
+                std::fill(impl_->mappedPointers[ch], impl_->mappedPointers[ch] + chunkSize, 0.0f);
+        }
 
-            // Escalar canales laterales por anchura de escenario
-            if (spk.role == ChannelRole::SideLeft || spk.role == ChannelRole::SideRight)
+        // Procesar modificaciones de anchura de escenario y separación frontal/trasera
+        if (std::abs(impl_->params.soundstageWidth - 1.0f) > 1.0e-3f ||
+            std::abs(impl_->params.frontBackSeparation - 1.0f) > 1.0e-3f)
+        {
+            const float widthMod = impl_->params.soundstageWidth;
+            const float fbMod    = impl_->params.frontBackSeparation;
+
+            for (size_t ch = 0; ch < activeCh; ++ch)
             {
-                for (int i = 0; i < numSamples; ++i)
-                    data[i] *= widthMod;
-            }
-            // Diferenciación frontal vs trasera
-            else if (spk.role == ChannelRole::BackLeft || spk.role == ChannelRole::BackRight)
-            {
-                for (int i = 0; i < numSamples; ++i)
-                    data[i] *= fbMod;
+                const auto& spk = inputLayout_.getSpeaker(ch);
+                float* data = impl_->mappedPointers[ch];
+
+                // Escalar canales laterales por anchura de escenario
+                if (spk.role == ChannelRole::SideLeft || spk.role == ChannelRole::SideRight)
+                {
+                    for (int i = 0; i < chunkSize; ++i)
+                        data[i] *= widthMod;
+                }
+                // Diferenciación frontal vs trasera
+                else if (spk.role == ChannelRole::BackLeft || spk.role == ChannelRole::BackRight)
+                {
+                    for (int i = 0; i < chunkSize; ++i)
+                        data[i] *= fbMod;
+                }
             }
         }
-    }
 
-    // Renderizar la mezcla binaural estéreo de alta fidelidad
-    renderer_.render(
-        impl_->mappedPointers.data(),
-        activeCh,
-        outputLeft,
-        outputRight,
-        numSamples);
+        // Renderizar la mezcla binaural estéreo de alta fidelidad
+        renderer_.render(
+            impl_->mappedPointers.data(),
+            activeCh,
+            outputLeft + samplesProcessed,
+            outputRight + samplesProcessed,
+            chunkSize);
+
+        samplesProcessed += chunkSize;
+    }
 }
 
 } // namespace dash::spatial

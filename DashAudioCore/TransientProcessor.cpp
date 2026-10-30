@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 
 namespace dash::core
@@ -28,23 +29,24 @@ struct TransientProcessor::Impl
     float gainAtkCoeff = 0.9f;
     float gainRelCoeff = 0.999f;
 
-    float activeSplitHz    = kDefaultSplitHz;
-    float maxAttenuationDb = -6.93575f;
-    float lastReductionDb  = 0.0f;
+    std::atomic<float> activeSplitHz    { kDefaultSplitHz };
+    float maxAttenuationDb              = -6.93575f;
+    std::atomic<float> lastReductionDb  { 0.0f };
 
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
-        const float safeTime = juce::jmax(0.00002f, timeSeconds);
+        const float safeTime = juce::jmax(0.00001f, timeSeconds);
         return std::exp(-1.0f / (safeTime * static_cast<float>(sampleRate)));
     }
 
     void recalculateParameters() noexcept
     {
-        activeSplitHz = juce::jlimit(kMinSplitHz, kMaxSplitHz,
-                                     params.useAdvancedMode ? params.frequencySplitHz : kDefaultSplitHz);
+        const float split = juce::jlimit(kMinSplitHz, kMaxSplitHz,
+                                         params.useAdvancedMode ? params.frequencySplitHz : kDefaultSplitHz);
+        activeSplitHz.store(split, std::memory_order_relaxed);
 
         for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
-            crossovers[ch].setCutoffFrequency(activeSplitHz);
+            crossovers[ch].setCutoffFrequency(split);
 
         if (params.useAdvancedMode)
         {
@@ -58,14 +60,15 @@ struct TransientProcessor::Impl
         }
         else
         {
-            fastAtkCoeff = calcOnePoleCoeff(0.00015f);
+            // Ataque ultrarrápido para suprimir el primer impulso del disparo (muestra exacta)
+            fastAtkCoeff = calcOnePoleCoeff(0.00002f);
             const float relSec = 0.020f + juce::jlimit(0.0f, 1.0f, params.release) * 0.160f;
             fastRelCoeff = calcOnePoleCoeff(relSec);
 
             slowAtkCoeff = calcOnePoleCoeff(0.018f);
             slowRelCoeff = calcOnePoleCoeff(0.220f);
 
-            gainAtkCoeff = calcOnePoleCoeff(0.00020f);
+            gainAtkCoeff = calcOnePoleCoeff(0.00003f);
             gainRelCoeff = calcOnePoleCoeff(relSec);
 
             const float clampedGun = juce::jlimit(0.10f, 1.0f, params.gun);
@@ -145,7 +148,7 @@ void TransientProcessor::prepare(double sampleRate, int maximumBlockSize, int /*
     {
         impl_->crossovers[ch].prepare(monoSpec);
         impl_->crossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass);
-        impl_->crossovers[ch].setCutoffFrequency(impl_->activeSplitHz);
+        impl_->crossovers[ch].setCutoffFrequency(impl_->activeSplitHz.load(std::memory_order_relaxed));
     }
 
     impl_->recalculateParameters();
@@ -166,7 +169,7 @@ void TransientProcessor::reset() noexcept
         impl_->envSlow[ch]        = 0.0f;
         impl_->smoothedGainDb[ch] = 0.0f;
     }
-    impl_->lastReductionDb = 0.0f;
+    impl_->lastReductionDb.store(0.0f, std::memory_order_relaxed);
 }
 
 void TransientProcessor::updateParameters(const TransientParameters& params) noexcept
@@ -202,9 +205,11 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
     if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
 
+    juce::ScopedNoDenormals noDenormals;
+
     if (impl_->params.bypass)
     {
-        impl_->lastReductionDb = 0.0f;
+        impl_->lastReductionDb.store(0.0f, std::memory_order_relaxed);
         return;
     }
 
@@ -251,15 +256,26 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
         for (int i = 0; i < numSamples; ++i)
         {
             float linkedGainDb = 0.0f;
+            float body0 = 0.0f, crack0 = 0.0f;
+            float body1 = 0.0f, crack1 = 0.0f;
+            bool ch0Filtered = false;
+            bool ch1Filtered = false;
+
             if (impl_->params.stereoLinking && activeCh >= 2 && !centerOnly)
             {
-                float body0 = 0.0f, crack0 = 0.0f;
-                float body1 = 0.0f, crack1 = 0.0f;
-                impl_->crossovers[0].processSample(0, channelPointers[0][i], body0, crack0);
-                impl_->crossovers[1].processSample(0, channelPointers[1][i], body1, crack1);
+                if (channelPointers[0] != nullptr)
+                {
+                    impl_->crossovers[0].processSample(0, channelPointers[0][i], body0, crack0);
+                    ch0Filtered = true;
+                }
+                if (channelPointers[1] != nullptr)
+                {
+                    impl_->crossovers[1].processSample(0, channelPointers[1][i], body1, crack1);
+                    ch1Filtered = true;
+                }
 
-                const float red0 = impl_->evaluateTransientSample(0, crack0);
-                const float red1 = impl_->evaluateTransientSample(1, crack1);
+                const float red0 = ch0Filtered ? impl_->evaluateTransientSample(0, crack0) : 0.0f;
+                const float red1 = ch1Filtered ? impl_->evaluateTransientSample(1, crack1) : 0.0f;
                 linkedGainDb = std::min(red0, red1);
             }
 
@@ -273,15 +289,31 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
 
                 float body = 0.0f;
                 float crack = 0.0f;
-                impl_->crossovers[ch].processSample(0, channelPointers[ch][i], body, crack);
-
                 float redDb = 0.0f;
-                if (impl_->params.stereoLinking && (ch == 0 || ch == 1) && !centerOnly)
+
+                if (impl_->params.stereoLinking && !centerOnly)
                 {
-                    redDb = linkedGainDb;
+                    if (ch == 0 && ch0Filtered)
+                    {
+                        body  = body0;
+                        crack = crack0;
+                        redDb = linkedGainDb;
+                    }
+                    else if (ch == 1 && ch1Filtered)
+                    {
+                        body  = body1;
+                        crack = crack1;
+                        redDb = linkedGainDb;
+                    }
+                    else
+                    {
+                        impl_->crossovers[ch].processSample(0, channelPointers[ch][i], body, crack);
+                        redDb = impl_->evaluateTransientSample(ch, crack);
+                    }
                 }
                 else
                 {
+                    impl_->crossovers[ch].processSample(0, channelPointers[ch][i], body, crack);
                     redDb = impl_->evaluateTransientSample(ch, crack);
                 }
 
@@ -295,17 +327,17 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
         }
     }
 
-    impl_->lastReductionDb = maxBlockReductionDb;
+    impl_->lastReductionDb.store(maxBlockReductionDb, std::memory_order_relaxed);
 }
 
 float TransientProcessor::getLastReductionDb() const noexcept
 {
-    return impl_->lastReductionDb;
+    return impl_->lastReductionDb.load(std::memory_order_relaxed);
 }
 
 float TransientProcessor::getCurrentSplitHz() const noexcept
 {
-    return impl_->activeSplitHz;
+    return impl_->activeSplitHz.load(std::memory_order_relaxed);
 }
 
 } // namespace dash::core

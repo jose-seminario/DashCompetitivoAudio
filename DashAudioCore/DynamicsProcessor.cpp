@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 
 namespace dash::core
@@ -57,13 +58,13 @@ struct DynamicsProcessor::Impl
     float gainAtkCoeff = 0.99f;
     float gainRelCoeff = 0.999f;
 
-    float meanSquareEnv    = 1.0e-8f;
+    float meanSquareEnv    = 0.0f;
     float smoothedGainDb   = 0.0f;
-    float lastLufs         = -70.0f;
-    float lastGainDb       = 0.0f;
-    float lastPeakDb       = -100.0f;
-    float lastUpwardDb     = 0.0f;
-    float lastDownwardDb   = 0.0f;
+    std::atomic<float> lastLufs       { -70.0f };
+    std::atomic<float> lastGainDb     { 0.0f };
+    std::atomic<float> lastPeakDb     { -100.0f };
+    std::atomic<float> lastUpwardDb   { 0.0f };
+    std::atomic<float> lastDownwardDb { 0.0f };
 
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
@@ -253,13 +254,13 @@ void DynamicsProcessor::reset() noexcept
     }
 
     impl_->peakLimiter.reset();
-    impl_->meanSquareEnv    = 1.0e-8f;
+    impl_->meanSquareEnv    = 0.0f;
     impl_->smoothedGainDb   = 0.0f;
-    impl_->lastLufs         = -70.0f;
-    impl_->lastGainDb       = 0.0f;
-    impl_->lastPeakDb       = -100.0f;
-    impl_->lastUpwardDb     = 0.0f;
-    impl_->lastDownwardDb   = 0.0f;
+    impl_->lastLufs.store(-70.0f, std::memory_order_relaxed);
+    impl_->lastGainDb.store(0.0f, std::memory_order_relaxed);
+    impl_->lastPeakDb.store(-100.0f, std::memory_order_relaxed);
+    impl_->lastUpwardDb.store(0.0f, std::memory_order_relaxed);
+    impl_->lastDownwardDb.store(0.0f, std::memory_order_relaxed);
 }
 
 void DynamicsProcessor::updateParameters(const DynamicsParameters& params) noexcept
@@ -295,11 +296,13 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
     if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
 
+    juce::ScopedNoDenormals noDenormals;
+
     if (impl_->params.bypass)
     {
-        impl_->lastGainDb     = 0.0f;
-        impl_->lastUpwardDb   = 0.0f;
-        impl_->lastDownwardDb = 0.0f;
+        impl_->lastGainDb.store(0.0f, std::memory_order_relaxed);
+        impl_->lastUpwardDb.store(0.0f, std::memory_order_relaxed);
+        impl_->lastDownwardDb.store(0.0f, std::memory_order_relaxed);
         return;
     }
 
@@ -307,8 +310,8 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
     const bool useHp = impl_->params.useAdvancedMode ? (impl_->params.scLowHz > 25.0f) : (impl_->params.scLowNorm > 0.001f);
     const bool useLp = impl_->params.useAdvancedMode ? (impl_->params.scHighHz < 19000.0f) : (impl_->params.scHighNorm < 0.999f);
 
-    float blockLufs     = impl_->lastLufs;
-    float blockGainDb   = impl_->lastGainDb;
+    float blockLufs     = impl_->lastLufs.load(std::memory_order_relaxed);
+    float blockGainDb   = impl_->lastGainDb.load(std::memory_order_relaxed);
     float blockPeakLin  = 0.0f;
     float blockUpward   = 0.0f;
     float blockDownward = 0.0f;
@@ -344,7 +347,7 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
         const float detCoeff = (weightedSquareSum > impl_->meanSquareEnv) ? impl_->detAtkCoeff : impl_->detRelCoeff;
         impl_->meanSquareEnv = detCoeff * impl_->meanSquareEnv + (1.0f - detCoeff) * weightedSquareSum;
 
-        const float currentLufs = -0.691f + 10.0f * std::log10(juce::jmax(impl_->meanSquareEnv, 1.0e-12f));
+        const float currentLufs = juce::jmax(-70.0f, -0.691f + 10.0f * std::log10(juce::jmax(impl_->meanSquareEnv, 1.0e-12f)));
         blockLufs = currentLufs;
 
         float curUpDb = 0.0f;
@@ -381,36 +384,36 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
         }
     }
 
-    impl_->lastLufs       = blockLufs;
-    impl_->lastGainDb     = blockGainDb + impl_->peakLimiter.getCurrentReductionDb();
-    impl_->lastPeakDb     = juce::Decibels::gainToDecibels(blockPeakLin, -100.0f);
-    impl_->lastUpwardDb   = blockUpward;
-    impl_->lastDownwardDb = blockDownward;
+    impl_->lastLufs.store(blockLufs, std::memory_order_relaxed);
+    impl_->lastGainDb.store(blockGainDb + impl_->peakLimiter.getCurrentReductionDb(), std::memory_order_relaxed);
+    impl_->lastPeakDb.store(juce::Decibels::gainToDecibels(blockPeakLin, -100.0f), std::memory_order_relaxed);
+    impl_->lastUpwardDb.store(blockUpward, std::memory_order_relaxed);
+    impl_->lastDownwardDb.store(blockDownward, std::memory_order_relaxed);
 }
 
 float DynamicsProcessor::getCurrentLufs() const noexcept
 {
-    return impl_->lastLufs;
+    return impl_->lastLufs.load(std::memory_order_relaxed);
 }
 
 float DynamicsProcessor::getCurrentGainDb() const noexcept
 {
-    return impl_->lastGainDb;
+    return impl_->lastGainDb.load(std::memory_order_relaxed);
 }
 
 float DynamicsProcessor::getCurrentPeakDb() const noexcept
 {
-    return impl_->lastPeakDb;
+    return impl_->lastPeakDb.load(std::memory_order_relaxed);
 }
 
 float DynamicsProcessor::getUpwardGainDb() const noexcept
 {
-    return impl_->lastUpwardDb;
+    return impl_->lastUpwardDb.load(std::memory_order_relaxed);
 }
 
 float DynamicsProcessor::getDownwardGainDb() const noexcept
 {
-    return impl_->lastDownwardDb;
+    return impl_->lastDownwardDb.load(std::memory_order_relaxed);
 }
 
 } // namespace dash::core

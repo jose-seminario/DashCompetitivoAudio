@@ -1,7 +1,10 @@
 #include "ConvolutionEngine.h"
 
+#include <juce_audio_basics/juce_audio_basics.h>
+
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstring>
 
 namespace dash::spatial
@@ -11,7 +14,7 @@ struct ConvolutionEngine::Impl
 {
     double sampleRate     = 48000.0;
     int    maxBlockSize   = 512;
-    size_t filterLength   = 256;
+    std::atomic<size_t> filterLength { 256 };
 
     // Doble buffer para conmutación lock-free de filtros
     struct FilterBank
@@ -42,16 +45,16 @@ void ConvolutionEngine::prepare(double sampleRate, int maximumBlockSize, size_t 
 {
     impl_->sampleRate     = (sampleRate > 8000.0) ? sampleRate : 48000.0;
     impl_->maxBlockSize   = std::max(1, maximumBlockSize);
-    impl_->filterLength   = std::clamp(maxFilterLength, size_t(32), kMaxFilterLength);
+    impl_->filterLength.store(std::clamp(maxFilterLength, size_t(32), kMaxFilterLength), std::memory_order_relaxed);
 
-    const size_t historyCapacity = static_cast<size_t>(impl_->maxBlockSize) + impl_->filterLength + 64;
+    const size_t historyCapacity = static_cast<size_t>(impl_->maxBlockSize) + kMaxFilterLength + 64;
 
     for (size_t b = 0; b < 2; ++b)
     {
         for (size_t ch = 0; ch < kMaxChannels; ++ch)
         {
-            impl_->banks[b].leftFilters[ch].assign(impl_->filterLength, 0.0f);
-            impl_->banks[b].rightFilters[ch].assign(impl_->filterLength, 0.0f);
+            impl_->banks[b].leftFilters[ch].assign(kMaxFilterLength, 0.0f);
+            impl_->banks[b].rightFilters[ch].assign(kMaxFilterLength, 0.0f);
             impl_->banks[b].channelHasFilter[ch] = false;
         }
     }
@@ -86,7 +89,11 @@ bool ConvolutionEngine::loadFilterPair(
     bank.leftFilters[channelIndex].assign(leftEarIR, leftEarIR + taps);
     bank.rightFilters[channelIndex].assign(rightEarIR, rightEarIR + taps);
     bank.channelHasFilter[channelIndex] = true;
-    impl_->filterLength = std::max(impl_->filterLength, taps);
+
+    size_t curLen = impl_->filterLength.load(std::memory_order_relaxed);
+    while (taps > curLen && !impl_->filterLength.compare_exchange_weak(curLen, taps, std::memory_order_relaxed))
+    {
+    }
 
     return true;
 }
@@ -108,6 +115,8 @@ void ConvolutionEngine::convolveAndAccumulate(
     if (channelIndex >= kMaxChannels || input == nullptr || outputLeft == nullptr || outputRight == nullptr || numSamples <= 0)
         return;
 
+    juce::ScopedNoDenormals noDenormals;
+
     const int bankIdx = impl_->activeBank.load(std::memory_order_acquire);
     const auto& bank = impl_->banks[static_cast<size_t>(bankIdx)];
 
@@ -123,36 +132,48 @@ void ConvolutionEngine::convolveAndAccumulate(
     auto& hist = impl_->history[channelIndex];
     const size_t histTail = numTaps - 1;
 
-    // Desplazar el bloque actual al buffer de historial preasignado
-    for (int i = 0; i < numSamples; ++i)
-        hist[histTail + static_cast<size_t>(i)] = input[i];
-
-    // Convolución directa en tiempo de muestra exacta
-    for (int n = 0; n < numSamples; ++n)
+    // Procesar en fragmentos acotados a maxBlockSize para evitar desbordamiento de búfer
+    int samplesProcessed = 0;
+    while (samplesProcessed < numSamples)
     {
-        const size_t offset = histTail + static_cast<size_t>(n);
-        float sumL = 0.0f;
-        float sumR = 0.0f;
+        const int chunkSize = std::min(numSamples - samplesProcessed, impl_->maxBlockSize);
+        if (histTail + static_cast<size_t>(chunkSize) > hist.size())
+            break;
 
-        for (size_t k = 0; k < numTaps; ++k)
+        const float* inChunk = input + samplesProcessed;
+        float* outLChunk = outputLeft + samplesProcessed;
+        float* outRChunk = outputRight + samplesProcessed;
+
+        for (int i = 0; i < chunkSize; ++i)
+            hist[histTail + static_cast<size_t>(i)] = inChunk[i];
+
+        for (int n = 0; n < chunkSize; ++n)
         {
-            const float x = hist[offset - k];
-            sumL += x * hL[k];
-            sumR += x * hR[k];
+            const size_t offset = histTail + static_cast<size_t>(n);
+            float sumL = 0.0f;
+            float sumR = 0.0f;
+
+            for (size_t k = 0; k < numTaps; ++k)
+            {
+                const float x = hist[offset - k];
+                sumL += x * hL[k];
+                sumR += x * hR[k];
+            }
+
+            outLChunk[n] += sumL;
+            outRChunk[n] += sumR;
         }
 
-        outputLeft[n]  += sumL;
-        outputRight[n] += sumR;
-    }
+        for (size_t k = 0; k < histTail; ++k)
+            hist[k] = hist[static_cast<size_t>(chunkSize) + k];
 
-    // Mantener la cola de historial para la continuidad de fase del siguiente bloque
-    for (size_t k = 0; k < histTail; ++k)
-        hist[k] = hist[static_cast<size_t>(numSamples) + k];
+        samplesProcessed += chunkSize;
+    }
 }
 
 size_t ConvolutionEngine::getFilterLength() const noexcept
 {
-    return impl_->filterLength;
+    return impl_->filterLength.load(std::memory_order_relaxed);
 }
 
 bool ConvolutionEngine::hasFilters(size_t channelIndex) const noexcept
