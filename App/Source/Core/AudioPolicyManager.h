@@ -5,6 +5,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
+#include <mmreg.h>
 #include <mmdeviceapi.h>
 #include <propsys.h>
 

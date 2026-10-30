@@ -69,7 +69,7 @@ MainComponent::MainComponent()
     addAndMakeVisible(configPathLabel_);
 
     configPathEditor_.setText(
-        juce::String(dash::audio::ApoConfigInjector::getDefaultApoConfigPath().wstring()),
+        juce::String(dash::audio::ApoConfigInjector::getDefaultApoConfigPath().wstring().c_str()),
         juce::dontSendNotification);
     addAndMakeVisible(configPathEditor_);
 
@@ -177,7 +177,7 @@ void MainComponent::refreshEndpoints()
     for (size_t i = 0; i < endpoints_.size(); ++i)
     {
         const auto& ep = endpoints_[i];
-        juce::String label(ep.friendlyName);
+        juce::String label(ep.friendlyName.c_str());
         if (ep.isDefaultConsole || ep.isDefaultMultimedia)
             label << "  [Predeterminado]";
 
@@ -209,7 +209,7 @@ void MainComponent::applySelectedEndpoint()
     if (policyManager_.setDefaultEndpoint(selected.id, &err))
     {
         logStatus("Endpoint predeterminado actualizado (eConsole + eMultimedia): "
-                  + juce::String(selected.friendlyName));
+                  + juce::String(selected.friendlyName.c_str()));
         refreshEndpoints();
     }
     else
@@ -233,7 +233,7 @@ void MainComponent::syncConfigFromControls()
         if (idx >= 0 && static_cast<size_t>(idx) < endpoints_.size())
         {
             apoConfig_.targetEndpointGuid =
-                juce::String(endpoints_[static_cast<size_t>(idx)].endpointGuid).toStdString();
+                juce::String(endpoints_[static_cast<size_t>(idx)].endpointGuid.c_str()).toStdString();
         }
     }
 }
