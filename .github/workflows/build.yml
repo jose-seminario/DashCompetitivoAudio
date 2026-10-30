@@ -26,3 +26,6 @@ jobs:
         path: |
           build/App/DashCompetitivoAudio_artefacts/Release/
           build/Plugins/LoudnessCompressor/LoudnessCompressor_artefacts/Release/
+          build/Plugins/TransientSuppressor/TransientSuppressor_artefacts/Release/
+          build/Plugins/AmbienceGuard/AmbienceGuard_artefacts/Release/
+        if-no-files-found: warn
