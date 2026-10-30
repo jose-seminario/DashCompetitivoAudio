@@ -11,7 +11,6 @@ namespace dash::core
 
 float AmbienceProcessor::mapScNormToHz(float norm) noexcept
 {
-    // Mapeo logarítmico canónico: norm=0.2269 -> 350 Hz; norm=0.5293 -> 2500 Hz
     return 20.0f * std::pow(1000.0f, juce::jlimit(0.0f, 1.0f, norm));
 }
 
@@ -20,15 +19,15 @@ struct AmbienceProcessor::Impl
     double sampleRate = 48000.0;
     AmbienceParameters params {};
 
-    std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxChannels> lowMidCrossovers;
-    std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxChannels> midHighCrossovers;
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxSupportedChannels> lowMidCrossovers;
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxSupportedChannels> midHighCrossovers;
 
-    std::array<float, kMaxChannels> envShort {};
-    std::array<float, kMaxChannels> envLong  {};
+    std::array<float, kMaxSupportedChannels> envShort {};
+    std::array<float, kMaxSupportedChannels> envLong  {};
 
-    std::array<float, kMaxChannels> smoothedGainLowDb  {};
-    std::array<float, kMaxChannels> smoothedGainMidDb  {};
-    std::array<float, kMaxChannels> smoothedGainHighDb {};
+    std::array<float, kMaxSupportedChannels> smoothedGainLowDb  {};
+    std::array<float, kMaxSupportedChannels> smoothedGainMidDb  {};
+    std::array<float, kMaxSupportedChannels> smoothedGainHighDb {};
 
     float shortAtkCoeff = 0.9f;
     float shortRelCoeff = 0.99f;
@@ -58,17 +57,16 @@ struct AmbienceProcessor::Impl
         const float safeLowHz    = juce::jlimit(40.0f, nyquistGuard - 200.0f, currentHpHz);
         const float safeHighHz   = juce::jlimit(safeLowHz + 100.0f, nyquistGuard, currentLpHz);
 
-        for (size_t ch = 0; ch < kMaxChannels; ++ch)
+        for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
         {
             lowMidCrossovers[ch].setCutoffFrequency(safeLowHz);
             midHighCrossovers[ch].setCutoffFrequency(safeHighHz);
         }
 
-        // Tiempos del detector de estacionariedad
-        shortAtkCoeff = calcOnePoleCoeff(0.005f); // 5 ms corto plazo
-        shortRelCoeff = calcOnePoleCoeff(0.040f); // 40 ms corto plazo
-        longAtkCoeff  = calcOnePoleCoeff(0.120f); // 120 ms largo plazo
-        longRelCoeff  = calcOnePoleCoeff(0.600f); // 600 ms largo plazo
+        shortAtkCoeff = calcOnePoleCoeff(0.005f);
+        shortRelCoeff = calcOnePoleCoeff(0.040f);
+        longAtkCoeff  = calcOnePoleCoeff(0.120f);
+        longRelCoeff  = calcOnePoleCoeff(0.600f);
 
         if (params.useAdvancedMode)
         {
@@ -83,9 +81,6 @@ struct AmbienceProcessor::Impl
         }
     }
 
-    /**
-     * Calcula el factor de estacionariedad (0.0 = transitorio activo; 1.0 = ruido estacionario).
-     */
     float estimateStationarity(size_t ch, float sample) noexcept
     {
         const float absX = std::abs(sample);
@@ -96,8 +91,6 @@ struct AmbienceProcessor::Impl
         const float lCoeff = (absX > envLong[ch]) ? longAtkCoeff : longRelCoeff;
         envLong[ch] = lCoeff * envLong[ch] + (1.0f - lCoeff) * absX;
 
-        // Si la energía a corto y largo plazo difiere notablemente (flujo dinámico alto),
-        // se clasifica como sonido útil o transitorio (paso, voz, disparo).
         const float diff = std::abs(envShort[ch] - envLong[ch]);
         const float denom = envLong[ch] + 1.0e-4f;
         const float dynamicFlux = diff / denom;
@@ -106,7 +99,7 @@ struct AmbienceProcessor::Impl
         const float fluxThreshold = 0.35f + (1.0f - sens) * 0.45f;
 
         if (dynamicFlux > fluxThreshold)
-            return 0.0f; // Sonido dinámico útil: protección total contra atenuación
+            return 0.0f;
 
         const float rawStat = 1.0f - (dynamicFlux / fluxThreshold);
         return juce::jlimit(0.0f, 1.0f, rawStat * rawStat);
@@ -134,7 +127,7 @@ void AmbienceProcessor::prepare(double sampleRate, int maximumBlockSize, int /*n
     monoSpec.maximumBlockSize = static_cast<juce::uint32>(safeBlock);
     monoSpec.numChannels      = 1;
 
-    for (size_t ch = 0; ch < kMaxChannels; ++ch)
+    for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
     {
         impl_->lowMidCrossovers[ch].prepare(monoSpec);
         impl_->lowMidCrossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass);
@@ -149,7 +142,7 @@ void AmbienceProcessor::prepare(double sampleRate, int maximumBlockSize, int /*n
 
 void AmbienceProcessor::reset() noexcept
 {
-    for (size_t ch = 0; ch < kMaxChannels; ++ch)
+    for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
     {
         impl_->lowMidCrossovers[ch].reset();
         impl_->midHighCrossovers[ch].reset();
@@ -203,15 +196,14 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
         return;
     }
 
-    const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
+    const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxSupportedChannels)));
     float blockMaxReductionDb = 0.0f;
     float blockStationaritySum = 0.0f;
 
     const float ambGuarNorm = juce::jlimit(0.0f, 1.0f, impl_->params.ambGuar);
     if (ambGuarNorm <= 0.0001f)
-        return; // Sin atenuación
+        return;
 
-    // Parámetros de profundidad por banda
     const float lowMaxDb  = impl_->params.useAdvancedMode ? impl_->params.lowReductionDepthDb  : (-4.0f * ambGuarNorm);
     const float midMaxDb  = impl_->params.useAdvancedMode ? impl_->params.midReductionDepthDb  : (-6.5f * ambGuarNorm);
     const float highMaxDb = impl_->params.useAdvancedMode ? impl_->params.highReductionDepthDb : (-3.5f * ambGuarNorm);
@@ -225,11 +217,9 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
 
             const float input = channelPointers[ch][i];
 
-            // 1. Clasificación acústica de estacionariedad espectral
             const float stat = impl_->estimateStationarity(ch, input);
             blockStationaritySum += stat;
 
-            // 2. División Linkwitz-Riley en 3 bandas alineadas en fase
             float bandLow = 0.0f;
             float restHigh = 0.0f;
             impl_->lowMidCrossovers[ch].processSample(0, input, bandLow, restHigh);
@@ -238,12 +228,10 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
             float bandHigh = 0.0f;
             impl_->midHighCrossovers[ch].processSample(0, restHigh, bandMid, bandHigh);
 
-            // 3. Cálculo de ganancia atenuadora por banda
             const float targetLowDb  = (impl_->params.useAdvancedMode && impl_->params.bypassLowBand)  ? 0.0f : (lowMaxDb * stat);
             const float targetMidDb  = (impl_->params.useAdvancedMode && impl_->params.bypassMidBand)  ? 0.0f : (midMaxDb * stat);
             const float targetHighDb = (impl_->params.useAdvancedMode && impl_->params.bypassHighBand) ? 0.0f : (highMaxDb * stat);
 
-            // Suavizado temporal continuo para evitar chasquidos
             const auto smoothGain = [this](float target, float& smoothed) -> float {
                 const float coeff = (target < smoothed) ? impl_->gainAtkCoeff : impl_->gainRelCoeff;
                 smoothed = coeff * smoothed + (1.0f - coeff) * target;
@@ -261,7 +249,6 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
             const float gMidLin  = juce::Decibels::decibelsToGain(gMidDb);
             const float gHighLin = juce::Decibels::decibelsToGain(gHighDb);
 
-            // 4. Recombinación de las 3 bandas espectrales
             channelPointers[ch][i] = (bandLow * gLowLin) + (bandMid * gMidLin) + (bandHigh * gHighLin);
         }
     }

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AudioConstants.h"
 #include "AudioGraphParameters.h"
 
 #include <cstddef>
@@ -11,25 +12,12 @@ namespace dash::core
 
 /**
  * Cadena Canónica de Procesamiento DSP en Tiempo Real (AudioGraph).
- *
- * Orquesta secuencialmente los procesadores centrales de DashAudioCore:
- *  1. Input / Headroom (Ajuste de ganancia inicial, -6 dB por defecto).
- *  2. DynamicsProcessor (Compresión híbrida Upward/Downward BS.1770-4).
- *  3. TransientProcessor (Supresión quirúrgica de Gun Crack en canal central/Mid).
- *  4. AmbienceProcessor (Atenuación de ruido estacionario y protección de 350 Hz - 2.5 kHz).
- *  5. EQProcessor (Ecualización acústica de 31 bandas ISO) y/o ParametricEQProcessor.
- *  6. LimiterProcessor (Limitador de techo de muestra exacta a -0.5 dBFS).
- *
- * Características:
- *  - Cero asignaciones de memoria dinámica dentro de process().
- *  - Libre de locks, operaciones de archivo o dependencias de UI.
- *  - Soporta mono (1.0), estéreo (2.0), 5.1 y 7.1 Surround.
- *  - Bypass general y bypass independiente por cada procesador.
+ * Soporta de 1 a 16 canales (kMaxSupportedChannels = 16).
  */
 class AudioGraph
 {
 public:
-    static constexpr size_t kMaxChannels = 8;
+    static constexpr size_t kMaxChannels = kMaxSupportedChannels;
 
     AudioGraph();
     ~AudioGraph();
@@ -58,7 +46,7 @@ public:
     [[nodiscard]] const AudioGraphParameters& getParameters() const noexcept;
 
     /**
-     * Procesa un bloque de audio multicanal planar en sitio.
+     * Procesa un bloque de audio multicanal planar (1 a 16 canales) en sitio.
      */
     void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 

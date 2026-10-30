@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AudioConstants.h"
+
 #include <cstddef>
 #include <memory>
 #include <vector>
@@ -25,26 +27,12 @@ struct LimiterParameters
 
 /**
  * Limitador de Techo de Muestra Exacta en Tiempo Real (LimiterProcessor).
- *
- * NOTA TÉCNICA Y DE ARQUITECTURA (ITU-R BS.1770-4):
- * Este procesador es un Limitador de Pico de Muestra (Sample-Peak Limiter) con ataque
- * instantáneo de cero latencia que garantiza matemáticamente que ninguna muestra digital
- * supere el umbral configurado (ceilingDb, -0.5 dBFS por defecto).
- *
- * ESPECIFICACIÓN PARA EVOLUCIÓN A TRUE PEAK (SOBREMUESTREO):
- *  - Para detectar picos inter-muestra (Inter-Sample Peaks) conforme al Anexo 2 de ITU-R BS.1770-4,
- *    se requiere un factor de sobremuestreo de 4x (o 2x a fs >= 88.2 kHz) mediante filtros FIR
- *    polifásicos semibanda (Half-Band Polyphase) y una ventana de anticipación (Lookahead) de
- *    al menos 0.5 a 1.0 ms (24 a 48 muestras a 48 kHz).
- *  - Dicho modo True Peak agregará una latencia determinista de N muestras, mientras que el
- *    modo actual opera con CERO latencia añadida, ideal para procesamiento táctico en juegos.
- *
- * Cero asignaciones de memoria dinámica dentro de process().
+ * Soporta de 1 a 16 canales simultáneos (kMaxSupportedChannels = 16).
  */
 class LimiterProcessor
 {
 public:
-    static constexpr size_t kMaxChannels = 8;
+    static constexpr size_t kMaxChannels = kMaxSupportedChannels;
 
     LimiterProcessor();
     ~LimiterProcessor();
@@ -66,7 +54,7 @@ public:
     /** Sobrecarga estándar C++ con std::vector<float> (sin reasignaciones). */
     void process(std::vector<float>& buffer) noexcept;
 
-    /** Procesa un bloque multicanal planar (1.0, 2.0, 5.1, 7.1) con enlace de pico. */
+    /** Procesa un bloque multicanal planar (1 a 16 canales) con enlace de pico. */
     void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
     /**

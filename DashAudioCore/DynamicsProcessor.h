@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AudioConstants.h"
+
 #include <cstddef>
 #include <memory>
 #include <vector>
@@ -9,10 +11,6 @@ namespace dash::core
 
 /**
  * Parámetros del Compresor Dinámico Híbrido ITU-R BS.1770-4.
- *
- * Mantiene compatibilidad total con la API previa mediante constructores
- * y asignaciones normalizadas, agregando controles acústicos avanzados en milisegundos,
- * decibeles y ratios de compresión.
  */
 struct DynamicsParameters
 {
@@ -45,27 +43,12 @@ struct DynamicsParameters
 
 /**
  * Motor DSP de Compresión Dinámica Híbrida (Upward + Downward).
- *
- * Características matemáticas:
- *  - Detección perceptual mediante filtro de ponderación K (ITU-R BS.1770-4):
- *      Etapa 1 (Pre-filter): Filtro High-Shelf @ 1681.97 Hz, +3.9998 dB, Q = 0.7071
- *      Etapa 2 (RLB filter): Filtro High-Pass @ 38.135 Hz, Q = 0.5003
- *  - Ponderación multicanal espacial:
- *      Canales Izquierdo, Derecho, Central (L, R, C): G_i = 1.0 (0 dB)
- *      Canal LFE (Subwoofer): G_LFE = 0.0 (estrictamente excluido de la medición de sonoridad)
- *      Canales Surround (Ls, Rs, Lrs, Rrs): G_s = 1.41 (~ +1.5 dB)
- *  - Conversión a LUFS estandarizada:
- *      L_K = -0.691 + 10 * log10( sum_i( G_i * z_i ) )
- *  - Curva de compresión dual con rodilla suave cuadrática (Soft-Knee):
- *      Downward: Atenúa picos y explosiones por encima del umbral.
- *      Upward: Eleva pasos y recargas por debajo del umbral sin amplificar el piso de ruido.
- *  - Telemetría en tiempo real no bloqueante.
- *  - Cero asignaciones de memoria dinámica dentro de process().
+ * Soporta de 1 a 16 canales simultáneos (kMaxSupportedChannels = 16).
  */
 class DynamicsProcessor
 {
 public:
-    static constexpr size_t kMaxChannels = 8;
+    static constexpr size_t kMaxChannels = kMaxSupportedChannels;
 
     DynamicsProcessor();
     ~DynamicsProcessor();
@@ -81,13 +64,13 @@ public:
     void updateParameters(const DynamicsParameters& params) noexcept;
     [[nodiscard]] const DynamicsParameters& getParameters() const noexcept;
 
-    /** Procesa un bloque mono en sitio (API estándar C++). */
+    /** Procesa un bloque mono en sitio. */
     void process(float* buffer, int numSamples) noexcept;
 
     /** Sobrecarga con std::vector<float> (sin asignaciones dinámicas). */
     void process(std::vector<float>& buffer) noexcept;
 
-    /** Procesa un bloque multicanal planar (1.0, 2.0, 5.1, 7.1) en sitio. */
+    /** Procesa un bloque multicanal planar (1 a 16 canales) en sitio. */
     void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
     // Métricas y telemetría en tiempo real

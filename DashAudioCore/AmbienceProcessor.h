@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AudioConstants.h"
+
 #include <cstddef>
 #include <memory>
 #include <vector>
@@ -9,9 +11,6 @@ namespace dash::core
 
 /**
  * Parámetros del Protector y Supresor Multibanda de Ruido Ambiental (AmbienceProcessor).
- *
- * Mantiene compatibilidad total con la configuración táctica previa (`ambGuar`, `distant`, etc.)
- * y añade control independiente sobre cada banda espectral y la sensibilidad de estacionariedad.
  */
 struct AmbienceParameters
 {
@@ -44,24 +43,12 @@ struct AmbienceParameters
 
 /**
  * Protector de Frecuencias Ambientales y Reductor de Ruido Estacionario (AmbienceProcessor).
- *
- * Principios operativos y matemáticos:
- *  - División espectral en 3 bandas mediante crossovers Linkwitz-Riley en cascada:
- *      Banda 1 (Low): 0 Hz a F_low (~350 Hz)
- *      Banda 2 (Mid): F_low (~350 Hz) a F_high (~2500 Hz) - Zona crítica de inteligibilidad de pasos
- *      Banda 3 (High): F_high (~2500 Hz) a Nyquist
- *  - Detector de Estacionariedad Espectral:
- *      Calcula la varianza temporal de la energía a corto y largo plazo. Las señales con alta
- *      varianza (pasos, recargas, disparos) son clasificadas como activas y NO son atenuadas.
- *      Las señales con varianza cercana a cero (zumbidos de viento, motores estáticos)
- *      son clasificadas como ruido ambiental y atenuadas de forma transparente.
- *  - Atenuación descendente suave con curvas sigmoides para evitar artefactos de "bombeo musical".
- *  - Cero asignaciones de memoria dinámica en process().
+ * Soporta de 1 a 16 canales simultáneos (kMaxSupportedChannels = 16).
  */
 class AmbienceProcessor
 {
 public:
-    static constexpr size_t kMaxChannels = 8;
+    static constexpr size_t kMaxChannels = kMaxSupportedChannels;
 
     AmbienceProcessor();
     ~AmbienceProcessor();
@@ -85,7 +72,7 @@ public:
     /** Sobrecarga con std::vector<float> (sin asignaciones dinámicas). */
     void process(std::vector<float>& buffer) noexcept;
 
-    /** Procesa un bloque multicanal planar en sitio. */
+    /** Procesa un bloque multicanal planar (1 a 16 canales) en sitio. */
     void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
     [[nodiscard]] float getCurrentHpHz() const noexcept;

@@ -35,6 +35,9 @@ endif()
 # 0. Motor DSP Central Independiente (Librería Estática C++20)
 add_subdirectory(DashAudioCore)
 
+# 0.1 Motor de Audio Espacial y Renderizador Binaural HRTF (Hasta 16 Canales)
+add_subdirectory(DashAudioSpatial)
+
 # 1. Aplicación Principal de Escritorio (Orquestador COM + Inyector Equalizer APO + UI JUCE)
 add_subdirectory(App)
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AudioConstants.h"
+
 #include <array>
 #include <cstddef>
 #include <memory>
@@ -18,18 +20,13 @@ struct EQParameters
 
 /**
  * Procesador de Ecualización Paramétrica/Gráfica de 31 Bandas ISO (20 Hz - 20 kHz).
- *
- * Implementa tanto el procesamiento DSP IIR en tiempo real con juce::dsp interno
- * (cero asignaciones de memoria en process / updateParameters) como el cálculo
- * unificado de ganancias por banda para el motor táctico.
- *
- * API pública C++20 estándar libre de dependencias de JUCE o VST.
+ * Soporta de 1 a 16 canales simultáneos (kMaxSupportedChannels = 16).
  */
 class EQProcessor
 {
 public:
     static constexpr size_t kNumBands    = 31;
-    static constexpr size_t kMaxChannels = 8;
+    static constexpr size_t kMaxChannels = kMaxSupportedChannels;
 
     static constexpr std::array<float, kNumBands> kIsoFrequencies {
         20.0f,    25.0f,    31.5f,    40.0f,    50.0f,    63.0f,    80.0f,    100.0f,
@@ -61,10 +58,6 @@ public:
     EQProcessor(const EQProcessor&) = delete;
     EQProcessor& operator=(const EQProcessor&) = delete;
 
-    /**
-     * Calcula las 31 ganancias en dB aplicando la modulación de Pasos (3.15 / 6.3 kHz)
-     * y Graves (80 - 250 Hz) sobre la línea base táctica del motor.
-     */
     [[nodiscard]] static std::array<double, kNumBands> computeBandGainsDb(
         double footstepsDb = 1.6,
         double bassDb = 1.5) noexcept;
@@ -79,7 +72,7 @@ public:
     /** Sobrecarga con std::vector<float> (sin asignaciones dinámicas). */
     void process(std::vector<float>& buffer) noexcept;
 
-    /** Procesa un bloque multicanal planar (1.0, 2.0, 5.1, 7.1) en sitio. */
+    /** Procesa un bloque multicanal planar (1 a 16 canales) en sitio. */
     void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
 private:

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AudioConstants.h"
+
 #include <memory>
 #include <vector>
 
@@ -12,15 +14,12 @@ namespace dash::core
 enum class TransientChannelMode
 {
     AllChannels,       // Procesa todos los canales activos
-    CenterOrMidOnly,   // Procesa el canal central (5.1/7.1) o la componente Mid en estéreo
-    FrontChannelsOnly  // Procesa canales frontales (L, R, C) excluyendo surround
+    CenterOrMidOnly,   // Procesa el canal central (5.1/7.1/inmersivo) o la componente Mid en estéreo
+    FrontChannelsOnly  // Procesa canales frontales (L, R, C) excluyendo surround y altura
 };
 
 /**
  * Parámetros del Supresor de Transitorios Impulsivos (TransientProcessor).
- *
- * Mantiene compatibilidad total con la configuración táctica previa (`gun`, `steps`, etc.)
- * y habilita parámetros acústicos avanzados para ajuste milimétrico de umbrales y envolventes.
  */
 struct TransientParameters
 {
@@ -45,24 +44,12 @@ struct TransientParameters
 
 /**
  * Supresor de Transitorios de Disparo e Impactos Acústicos (TransientProcessor).
- *
- * Principios operativos y matemáticos:
- *  - Crossover Linkwitz-Riley de 4.º orden (24 dB/octava): divide la señal en banda baja ("Body")
- *    y banda alta ("Crack") sumando con respuesta plana de amplitud y fase linealizada.
- *  - Detector de relación de cresta asimétrico:
- *      CrestRatio = EnvFast / (EnvSlow + epsilon)
- *    Distingue transitorios impulsivos abruptos (disparos) de micro-transitorios tácticos
- *    de menor energía (pasos, recargas de cargador, casquillos) para preservarlos intactos.
- *  - Atenuación confinada a la banda alta sin mutilar la energía de graves del cuerpo sonoro.
- *  - Enlace estéreo (Stereo Linking) para evitar alteraciones en la localización acústica lateral.
- *  - No efectúa clasificación semántica de audio (no asume "saber" qué es un arma); opera
- *    estrictamente mediante procesamiento determinista de señales de alto factor de cresta.
- *  - Cero asignaciones dinámicas en process().
+ * Soporta hasta 16 canales simultáneos (kMaxSupportedChannels = 16).
  */
 class TransientProcessor
 {
 public:
-    static constexpr int   kMaxChannels          = 8;
+    static constexpr int   kMaxChannels          = static_cast<int>(kMaxSupportedChannels);
     static constexpr float kDefaultSplitHz       = 280.0f;
     static constexpr float kMinSplitHz           = 150.0f;
     static constexpr float kMaxSplitHz           = 1200.0f;
@@ -88,7 +75,7 @@ public:
     /** Sobrecarga con std::vector<float> (sin asignaciones dinámicas). */
     void process(std::vector<float>& buffer) noexcept;
 
-    /** Procesa un bloque multicanal planar en sitio. */
+    /** Procesa un bloque multicanal planar (1 a 16 canales) en sitio. */
     void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
     [[nodiscard]] float getLastReductionDb() const noexcept;

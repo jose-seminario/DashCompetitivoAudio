@@ -40,14 +40,12 @@ struct TransientProcessor::Impl
 
     void recalculateParameters() noexcept
     {
-        // 1. Configuración de frecuencia de corte segura
         activeSplitHz = juce::jlimit(kMinSplitHz, kMaxSplitHz,
                                      params.useAdvancedMode ? params.frequencySplitHz : kDefaultSplitHz);
 
         for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
             crossovers[ch].setCutoffFrequency(activeSplitHz);
 
-        // 2. Balística temporal del detector
         if (params.useAdvancedMode)
         {
             fastAtkCoeff = calcOnePoleCoeff(juce::jmax(0.00005f, params.attackMs * 0.001f));
@@ -75,10 +73,6 @@ struct TransientProcessor::Impl
         }
     }
 
-    /**
-     * Procesa una muestra individual en la banda alta de transitorios ("Crack")
-     * devolviendo la ganancia en dB aplicada.
-     */
     float evaluateTransientSample(size_t ch, float crackSample, float externalMaxDb = 0.0f) noexcept
     {
         const float absCrack = std::abs(crackSample);
@@ -89,7 +83,6 @@ struct TransientProcessor::Impl
         const float sCoeff = (absCrack > envSlow[ch]) ? slowAtkCoeff : slowRelCoeff;
         envSlow[ch] = sCoeff * envSlow[ch] + (1.0f - sCoeff) * absCrack;
 
-        // Umbral de pico mínimo y ratio de cresta dinámico para preservar pasos suaves
         float minPeakThreshold   = 0.045f;
         float requiredCrestRatio = 1.70f;
 
@@ -151,7 +144,7 @@ void TransientProcessor::prepare(double sampleRate, int maximumBlockSize, int /*
     for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
     {
         impl_->crossovers[ch].prepare(monoSpec);
-        impl_->crossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass); // Genera LP y HP internamente
+        impl_->crossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass);
         impl_->crossovers[ch].setCutoffFrequency(impl_->activeSplitHz);
     }
 
@@ -230,7 +223,6 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
 
         for (int i = 0; i < numSamples; ++i)
         {
-            // Matriz Mid/Side (Mid = canal central fantasma, Side = lateralidad)
             const float mid  = 0.5f * (chL[i] + chR[i]);
             const float side = 0.5f * (chL[i] - chR[i]);
 
@@ -246,12 +238,11 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
             const float crackGainLin = juce::Decibels::decibelsToGain(reductionDb + restoreBoost);
             const float processedMid = body + (crack * crackGainLin);
 
-            // Reconstrucción del campo estéreo intacto
             chL[i] = processedMid + side;
             chR[i] = processedMid - side;
         }
     }
-    // Caso B: Multicanal Surround (5.1 / 7.1) o Modo Todos los Canales
+    // Caso B: Multicanal Surround / Inmersivo (hasta 16 canales)
     else
     {
         const bool centerOnly = centerOrMid && (activeCh >= 3);
@@ -259,7 +250,6 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
 
         for (int i = 0; i < numSamples; ++i)
         {
-            // Enlace estéreo opcional si se procesan L y R juntos
             float linkedGainDb = 0.0f;
             if (impl_->params.stereoLinking && activeCh >= 2 && !centerOnly)
             {
@@ -270,7 +260,7 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
 
                 const float red0 = impl_->evaluateTransientSample(0, crack0);
                 const float red1 = impl_->evaluateTransientSample(1, crack1);
-                linkedGainDb = std::min(red0, red1); // Máxima atenuación compartida
+                linkedGainDb = std::min(red0, red1);
             }
 
             for (size_t ch = 0; ch < activeCh; ++ch)
@@ -278,7 +268,6 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
                 if (channelPointers[ch] == nullptr)
                     continue;
 
-                // Si está en modo central, solo procesamos el canal center
                 if (centerOnly && static_cast<int>(ch) != targetCh)
                     continue;
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AudioConstants.h"
+
 #include <array>
 #include <cstddef>
 #include <memory>
@@ -35,21 +37,13 @@ struct ParametricBandParameters
 
 /**
  * Ecualizador Paramétrico Multicanal de Precisión (ParametricEQProcessor).
- *
- * Características:
- *  - Soporta hasta kMaxBands (10) bandas por canal totalmente configurables.
- *  - Implementación biquad en Forma Directa II Transpuesta (DF2T) numéricamente
- *    estable frente a errores de redondeo de punto flotante en bajas frecuencias.
- *  - Interpolación suave de coeficientes para eliminar chasquidos (zipper noise)
- *    al automatizar ganancias, frecuencias o resonancias.
- *  - Multicanal hasta kMaxChannels (8) canales: mono, estéreo, 5.1 y 7.1.
- *  - Cero asignaciones de memoria dinámica dentro de process().
+ * Soporta hasta 16 canales simultáneos (kMaxSupportedChannels = 16).
  */
 class ParametricEQProcessor
 {
 public:
     static constexpr size_t kMaxBands    = 10;
-    static constexpr size_t kMaxChannels = 8;
+    static constexpr size_t kMaxChannels = kMaxSupportedChannels;
 
     ParametricEQProcessor();
     ~ParametricEQProcessor();
@@ -75,7 +69,7 @@ public:
     /** Sobrecarga con std::vector<float> (sin asignaciones dinámicas). */
     void process(std::vector<float>& buffer) noexcept;
 
-    /** Procesa un bloque multicanal planar en sitio. */
+    /** Procesa un bloque multicanal planar (1 a 16 canales) en sitio. */
     void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
 private:
