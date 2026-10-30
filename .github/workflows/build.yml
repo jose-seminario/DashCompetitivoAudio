@@ -40,7 +40,9 @@ jobs:
       run: |
         $schemaPath = "Profiles\Schema\audio-profile.schema.json"
         if (Test-Path $schemaPath) {
-          Get-ChildItem -Path "Profiles\Games", "Profiles\Headphones", "DashAudioDB\Presets" -Filter "*.json" -Recurse | ForEach-Object {
+          Get-ChildItem -Path "Profiles\Games", "Profiles\Headphones", "DashAudioDB\Presets" -Filter "*.json" -Recurse | Where-Object {
+            $_.Name -notlike "*.schema.json" -and $_.FullName -notmatch '[\\/]schema([\\/]|$)'
+          } | ForEach-Object {
             Write-Host "Validando sintaxis JSON: $($_.FullName)"
             $content = Get-Content $_.FullName -Raw | ConvertFrom-Json
             if (-not $content.profileId) {
