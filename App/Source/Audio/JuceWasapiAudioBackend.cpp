@@ -47,7 +47,7 @@ std::vector<AudioDeviceInfo> JuceWasapiAudioBackend::enumerateRenderDevices(std:
     {
         type->scanForDevices();
         const auto names = type->getDeviceNames(false); // false = salida (render)
-        const int defaultIdx = type->getDefaultOutputDeviceIndex();
+        const int defaultIdx = type->getDefaultDeviceIndex(false);
 
         for (int i = 0; i < names.size(); ++i)
         {
@@ -72,7 +72,7 @@ std::vector<AudioDeviceInfo> JuceWasapiAudioBackend::enumerateCaptureDevices(std
     {
         type->scanForDevices();
         const auto names = type->getDeviceNames(true); // true = entrada (capture)
-        const int defaultIdx = type->getDefaultInputDeviceIndex();
+        const int defaultIdx = type->getDefaultDeviceIndex(true);
 
         for (int i = 0; i < names.size(); ++i)
         {
