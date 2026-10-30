@@ -13,18 +13,18 @@ namespace dash::core
 namespace
 {
     /**
-     * Ponderación espacial por canal según ITU-R BS.1770-4:
-     *  - L, R, C (0, 1, 2): 1.0 (0 dB)
-     *  - LFE (3 en configuraciones >= 6 canales): 0.0 (excluido de la medición LUFS)
-     *  - Surrounds Ls, Rs, Lrs, Rrs (4..7): 1.41 (~ +1.5 dB)
+     * Ponderación espacial multicanal según ITU-R BS.1770-4 (Sección 1.4):
+     *  - Canales Frontales L, R, C: G_i = 1.0 (0.0 dB)
+     *  - Canal de Efectos de Baja Frecuencia LFE: G_LFE = 0.0 (estrictamente excluido)
+     *  - Canales Surround Ls, Rs, Lrs, Rrs: G_s = 1.41 (~ +1.5 dB de ponderación energética)
      */
     [[nodiscard]] float getBs1770ChannelWeight(size_t channelIndex, size_t totalChannels) noexcept
     {
         if (totalChannels >= 6)
         {
-            if (channelIndex == 3)
+            if (channelIndex == 3) // Canal LFE estándar en layouts 5.1 / 7.1
                 return 0.0f;
-            if (channelIndex >= 4)
+            if (channelIndex >= 4) // Surrounds
                 return 1.41f;
         }
         return 1.0f;
@@ -32,7 +32,7 @@ namespace
 
     [[nodiscard]] float mapNormToFreqHz(float norm) noexcept
     {
-        return 20.0f * std::pow(1000.0f, norm);
+        return 20.0f * std::pow(1000.0f, juce::jlimit(0.0f, 1.0f, norm));
     }
 } // namespace
 
@@ -40,8 +40,8 @@ struct DynamicsProcessor::Impl
 {
     struct KWeightingChannel
     {
-        juce::dsp::IIR::Filter<float> preFilter;
-        juce::dsp::IIR::Filter<float> rlbFilter;
+        juce::dsp::IIR::Filter<float> preFilter; // Etapa 1: High-Shelf acústico
+        juce::dsp::IIR::Filter<float> rlbFilter; // Etapa 2: Filtro RLB pasa-altos
     };
 
     double sampleRate = 48000.0;
@@ -57,14 +57,17 @@ struct DynamicsProcessor::Impl
     float gainAtkCoeff = 0.99f;
     float gainRelCoeff = 0.999f;
 
-    float meanSquareEnv  = 1.0e-8f;
-    float smoothedGainDb = 0.0f;
-    float lastLufs       = -70.0f;
-    float lastGainDb     = 0.0f;
+    float meanSquareEnv    = 1.0e-8f;
+    float smoothedGainDb   = 0.0f;
+    float lastLufs         = -70.0f;
+    float lastGainDb       = 0.0f;
+    float lastPeakDb       = -100.0f;
+    float lastUpwardDb     = 0.0f;
+    float lastDownwardDb   = 0.0f;
 
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
-        const float safeTime = juce::jmax(0.0005f, timeSeconds);
+        const float safeTime = juce::jmax(0.0001f, timeSeconds);
         return std::exp(-1.0f / (safeTime * static_cast<float>(sampleRate)));
     }
 
@@ -75,45 +78,85 @@ struct DynamicsProcessor::Impl
         return kw.rlbFilter.processSample(afterStage1);
     }
 
-    [[nodiscard]] float computeHybridTargetGainDb(float currentLufs) const noexcept
+    /**
+     * Calcula la curva de ganancia objetivo combinando compresión ascendente (Upward)
+     * y descendente (Downward) con transición cuadrática suave (Soft-Knee).
+     */
+    [[nodiscard]] float computeHybridTargetGainDb(float currentLufs, float& outUpwardDb, float& outDownwardDb) const noexcept
     {
-        const float amount = juce::jlimit(0.0f, 1.0f, params.amount);
-        if (amount <= 0.0001f)
-            return 0.0f;
+        outUpwardDb = 0.0f;
+        outDownwardDb = 0.0f;
 
-        const float deltaLufs = currentLufs - params.targetLufs;
+        const float target = params.useAdvancedMode ? params.thresholdDb : params.targetLufs;
+        const float downAmt = params.useAdvancedMode ? params.downwardAmount : params.amount;
+        const float upAmt   = params.useAdvancedMode ? params.upwardAmount   : params.amount;
 
-        if (deltaLufs > 0.0f)
+        if (downAmt <= 0.0001f && upAmt <= 0.0001f)
+            return params.makeupGainDb;
+
+        const float deltaLufs = currentLufs - target;
+        const float knee = juce::jmax(0.1f, params.kneeWidthDb);
+        const float halfKnee = knee * 0.5f;
+
+        // 1. Computadora Downward Compression con Soft-Knee cuadrático
+        if (deltaLufs > -halfKnee && downAmt > 0.0001f)
         {
-            // Rama Downward Compression: atenúa explosiones/disparos que superan Target (Ratio máx ~ 4:1)
-            constexpr float kMaxDownwardSlope = 0.75f;
-            return -deltaLufs * (kMaxDownwardSlope * amount);
+            const float ratio = params.useAdvancedMode ? juce::jlimit(1.0f, 20.0f, params.ratio) : 4.0f;
+            const float slope = 1.0f - (1.0f / ratio);
+
+            if (deltaLufs < halfKnee)
+            {
+                // Región Soft-Knee cuadrática (Spline de Hermite de orden 2)
+                const float x = deltaLufs + halfKnee;
+                outDownwardDb = -slope * (x * x) / (2.0f * knee) * downAmt;
+            }
+            else
+            {
+                // Región puramente lineal por encima de la rodilla
+                outDownwardDb = -slope * deltaLufs * downAmt;
+            }
         }
 
-        // Rama Upward Compression: eleva micro-detalles (pasos, recargas) bajo Target con puerta suave
-        if (currentLufs <= params.gateFloorDb)
-            return 0.0f;
-
-        constexpr float kGateKneeWidthDb = 10.0f;
-        float gateWeight = 1.0f;
-        if (currentLufs < params.gateFloorDb + kGateKneeWidthDb)
+        // 2. Computadora Upward Compression con puerta de ruido acústica
+        const float gateFloor = params.useAdvancedMode ? params.gateThresholdDb : params.gateFloorDb;
+        if (deltaLufs < 0.0f && currentLufs > gateFloor && upAmt > 0.0001f)
         {
-            gateWeight = (currentLufs - params.gateFloorDb) / kGateKneeWidthDb;
-            gateWeight = gateWeight * gateWeight * (3.0f - 2.0f * gateWeight); // Smoothstep C1
+            constexpr float kGateKneeWidthDb = 8.0f;
+            float gateWeight = 1.0f;
+
+            if (currentLufs < gateFloor + kGateKneeWidthDb)
+            {
+                gateWeight = (currentLufs - gateFloor) / kGateKneeWidthDb;
+                gateWeight = gateWeight * gateWeight * (3.0f - 2.0f * gateWeight); // Smoothstep C1
+            }
+
+            const float deficitDb = -deltaLufs;
+            constexpr float kUpwardSlope = 0.55f;
+            const float rawBoostDb = deficitDb * kUpwardSlope * upAmt;
+            const float maxLift = params.maxLiftDb * upAmt;
+            const float clampedBoostDb = juce::jmin(rawBoostDb, maxLift);
+
+            outUpwardDb = clampedBoostDb * gateWeight;
         }
 
-        const float deficitDb = -deltaLufs;
-        constexpr float kUpwardRatioSlope = 0.55f;
-        const float rawBoostDb = deficitDb * kUpwardRatioSlope * amount;
-        const float clampedBoostDb = juce::jmin(rawBoostDb, params.maxLiftDb * amount);
-
-        return clampedBoostDb * gateWeight;
+        return outDownwardDb + outUpwardDb + params.makeupGainDb;
     }
 
     void recalculateParameters() noexcept
     {
-        const float hpHz = mapNormToFreqHz(juce::jlimit(0.0f, 0.95f, params.scLowNorm));
-        const float lpHz = juce::jmax(hpHz + 80.0f, mapNormToFreqHz(juce::jlimit(0.05f, 1.0f, params.scHighNorm)));
+        float hpHz = 20.0f;
+        float lpHz = 20000.0f;
+
+        if (params.useAdvancedMode)
+        {
+            hpHz = params.scLowHz;
+            lpHz = params.scHighHz;
+        }
+        else
+        {
+            hpHz = mapNormToFreqHz(params.scLowNorm);
+            lpHz = juce::jmax(hpHz + 80.0f, mapNormToFreqHz(params.scHighNorm));
+        }
 
         const float nyquistGuard = static_cast<float>(sampleRate * 0.48);
         const float safeHp = juce::jlimit(20.0f, nyquistGuard, hpHz);
@@ -125,13 +168,24 @@ struct DynamicsProcessor::Impl
             scLowPass[ch].setCutoffFrequency(safeLp);
         }
 
-        detAtkCoeff = calcOnePoleCoeff(0.015f);
-        const float detRelSec = 0.040f + juce::jlimit(0.0f, 1.0f, params.detRelNorm) * 0.620f;
-        detRelCoeff = calcOnePoleCoeff(detRelSec);
+        // Balística temporal del detector y del suavizado de ganancia
+        if (params.useAdvancedMode)
+        {
+            detAtkCoeff  = calcOnePoleCoeff(0.010f); // 10 ms para detección de envolvente
+            detRelCoeff  = calcOnePoleCoeff(0.400f); // 400 ms estándar BS.1770 Momentary
+            gainAtkCoeff = calcOnePoleCoeff(juce::jmax(0.0001f, params.attackMs * 0.001f));
+            gainRelCoeff = calcOnePoleCoeff(juce::jmax(0.005f, params.releaseMs * 0.001f));
+        }
+        else
+        {
+            detAtkCoeff = calcOnePoleCoeff(0.015f);
+            const float detRelSec = 0.040f + juce::jlimit(0.0f, 1.0f, params.detRelNorm) * 0.620f;
+            detRelCoeff = calcOnePoleCoeff(detRelSec);
 
-        gainAtkCoeff = calcOnePoleCoeff(0.006f);
-        const float compRelSec = 0.025f + juce::jlimit(0.0f, 1.0f, params.releaseNorm) * 0.450f;
-        gainRelCoeff = calcOnePoleCoeff(compRelSec);
+            gainAtkCoeff = calcOnePoleCoeff(0.006f);
+            const float compRelSec = 0.025f + juce::jlimit(0.0f, 1.0f, params.releaseNorm) * 0.450f;
+            gainRelCoeff = calcOnePoleCoeff(compRelSec);
+        }
 
         LimiterParameters limParams {};
         limParams.ceilingDb   = -0.5f;
@@ -208,16 +262,24 @@ void DynamicsProcessor::reset() noexcept
     }
 
     impl_->peakLimiter.reset();
-    impl_->meanSquareEnv  = 1.0e-8f;
-    impl_->smoothedGainDb = 0.0f;
-    impl_->lastLufs       = -70.0f;
-    impl_->lastGainDb     = 0.0f;
+    impl_->meanSquareEnv    = 1.0e-8f;
+    impl_->smoothedGainDb   = 0.0f;
+    impl_->lastLufs         = -70.0f;
+    impl_->lastGainDb       = 0.0f;
+    impl_->lastPeakDb       = -100.0f;
+    impl_->lastUpwardDb     = 0.0f;
+    impl_->lastDownwardDb   = 0.0f;
 }
 
 void DynamicsProcessor::updateParameters(const DynamicsParameters& params) noexcept
 {
     impl_->params = params;
     impl_->recalculateParameters();
+}
+
+const DynamicsParameters& DynamicsProcessor::getParameters() const noexcept
+{
+    return impl_->params;
 }
 
 void DynamicsProcessor::process(float* buffer, int numSamples) noexcept
@@ -244,20 +306,25 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
 
     if (impl_->params.bypass)
     {
-        impl_->lastGainDb = 0.0f;
+        impl_->lastGainDb     = 0.0f;
+        impl_->lastUpwardDb   = 0.0f;
+        impl_->lastDownwardDb = 0.0f;
         return;
     }
 
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
-    const bool useHp = (impl_->params.scLowNorm > 0.001f);
-    const bool useLp = (impl_->params.scHighNorm < 0.999f);
+    const bool useHp = impl_->params.useAdvancedMode ? (impl_->params.scLowHz > 25.0f) : (impl_->params.scLowNorm > 0.001f);
+    const bool useLp = impl_->params.useAdvancedMode ? (impl_->params.scHighHz < 19000.0f) : (impl_->params.scHighNorm < 0.999f);
 
-    float blockLufs   = impl_->lastLufs;
-    float blockGainDb = impl_->lastGainDb;
+    float blockLufs     = impl_->lastLufs;
+    float blockGainDb   = impl_->lastGainDb;
+    float blockPeakLin  = 0.0f;
+    float blockUpward   = 0.0f;
+    float blockDownward = 0.0f;
 
     for (int i = 0; i < numSamples; ++i)
     {
-        // 1. Energía instantánea ponderada K (ITU-R BS.1770-4) + filtrado Sidechain TPT
+        // 1. Energía instantánea ponderada K (ITU-R BS.1770-4) + filtrado Sidechain
         float weightedSquareSum = 0.0f;
 
         for (size_t ch = 0; ch < activeCh; ++ch)
@@ -268,8 +335,12 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
             const float x = channelPointers[ch][i];
             const float weight = getBs1770ChannelWeight(ch, activeCh);
 
+            const float absX = std::abs(x);
+            if (absX > blockPeakLin)
+                blockPeakLin = absX;
+
             if (weight <= 0.0f)
-                continue;
+                continue; // LFE u otros canales no ponderados
 
             float sc = impl_->processKWeightedSample(ch, x);
             if (useHp)
@@ -280,23 +351,28 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
             weightedSquareSum += weight * (sc * sc);
         }
 
-        // 2. Detector RMS con balística asimétrica
+        // 2. Integrador RMS con balística asimétrica (400 ms de relajación nominal)
         const float detCoeff = (weightedSquareSum > impl_->meanSquareEnv) ? impl_->detAtkCoeff : impl_->detRelCoeff;
         impl_->meanSquareEnv = detCoeff * impl_->meanSquareEnv + (1.0f - detCoeff) * weightedSquareSum;
 
-        // Conversión ITU-R BS.1770-4: L_K = -0.691 + 10 * log10(sum(G_i * z_i))
+        // Medición perceptual estandarizada ITU-R BS.1770-4: L_K = -0.691 + 10 * log10(sum(G_i * z_i))
         const float currentLufs = -0.691f + 10.0f * std::log10(juce::jmax(impl_->meanSquareEnv, 1.0e-12f));
         blockLufs = currentLufs;
 
-        // 3. Computadora de ganancia híbrida (Upward + Downward)
-        const float targetGainDb = impl_->computeHybridTargetGainDb(currentLufs);
+        // 3. Computadora de ganancia híbrida (Upward + Downward + Soft-Knee)
+        float curUpDb = 0.0f;
+        float curDownDb = 0.0f;
+        const float targetGainDb = impl_->computeHybridTargetGainDb(currentLufs, curUpDb, curDownDb);
+
         const float gainCoeff = (targetGainDb < impl_->smoothedGainDb) ? impl_->gainAtkCoeff : impl_->gainRelCoeff;
         impl_->smoothedGainDb = gainCoeff * impl_->smoothedGainDb + (1.0f - gainCoeff) * targetGainDb;
-        blockGainDb = impl_->smoothedGainDb;
+        blockGainDb   = impl_->smoothedGainDb;
+        blockUpward   = curUpDb;
+        blockDownward = curDownDb;
 
         const float compGainLin = juce::Decibels::decibelsToGain(impl_->smoothedGainDb);
 
-        // 4. Limitador de seguridad de muestra exacta a través de LimiterProcessor (-0.5 dBFS)
+        // 4. Limitador de seguridad de muestra exacta post-compresión (-0.5 dBFS)
         float peakPostComp = 0.0f;
         for (size_t ch = 0; ch < activeCh; ++ch)
         {
@@ -318,8 +394,11 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
         }
     }
 
-    impl_->lastLufs   = blockLufs;
-    impl_->lastGainDb = blockGainDb + impl_->peakLimiter.getCurrentReductionDb();
+    impl_->lastLufs       = blockLufs;
+    impl_->lastGainDb     = blockGainDb + impl_->peakLimiter.getCurrentReductionDb();
+    impl_->lastPeakDb     = juce::Decibels::gainToDecibels(blockPeakLin, -100.0f);
+    impl_->lastUpwardDb   = blockUpward;
+    impl_->lastDownwardDb = blockDownward;
 }
 
 float DynamicsProcessor::getCurrentLufs() const noexcept
@@ -330,6 +409,21 @@ float DynamicsProcessor::getCurrentLufs() const noexcept
 float DynamicsProcessor::getCurrentGainDb() const noexcept
 {
     return impl_->lastGainDb;
+}
+
+float DynamicsProcessor::getCurrentPeakDb() const noexcept
+{
+    return impl_->lastPeakDb;
+}
+
+float DynamicsProcessor::getUpwardGainDb() const noexcept
+{
+    return impl_->lastUpwardDb;
+}
+
+float DynamicsProcessor::getDownwardGainDb() const noexcept
+{
+    return impl_->lastDownwardDb;
 }
 
 } // namespace dash::core

@@ -12,12 +12,12 @@ namespace dash::core
 /**
  * Cadena Canónica de Procesamiento DSP en Tiempo Real (AudioGraph).
  *
- * Orquesta secuencialmente los 5 procesadores centrales de DashAudioCore:
+ * Orquesta secuencialmente los procesadores centrales de DashAudioCore:
  *  1. Input / Headroom (Ajuste de ganancia inicial, -6 dB por defecto).
  *  2. DynamicsProcessor (Compresión híbrida Upward/Downward BS.1770-4).
  *  3. TransientProcessor (Supresión quirúrgica de Gun Crack en canal central/Mid).
  *  4. AmbienceProcessor (Atenuación de ruido estacionario y protección de 350 Hz - 2.5 kHz).
- *  5. EQProcessor (Ecualización acústica de 31 bandas ISO).
+ *  5. EQProcessor (Ecualización acústica de 31 bandas ISO) y/o ParametricEQProcessor.
  *  6. LimiterProcessor (Limitador de techo de muestra exacta a -0.5 dBFS).
  *
  * Características:
@@ -78,6 +78,7 @@ public:
     [[nodiscard]] float getDynamicsGainDb() const noexcept;
     [[nodiscard]] float getTransientReductionDb() const noexcept;
     [[nodiscard]] float getAmbienceGainDb() const noexcept;
+    [[nodiscard]] float getStationarityIndex() const noexcept;
     [[nodiscard]] float getLimiterReductionDb() const noexcept;
 
 private:

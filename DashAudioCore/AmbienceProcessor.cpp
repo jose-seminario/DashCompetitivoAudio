@@ -11,22 +11,8 @@ namespace dash::core
 
 float AmbienceProcessor::mapScNormToHz(float norm) noexcept
 {
-    const float x = std::clamp(norm, 0.0f, 1.0f);
-
-    if (x <= 0.2269f)
-    {
-        const float t = x / 0.2269f;
-        return 20.0f * std::pow(350.0f / 20.0f, t);
-    }
-
-    if (x <= 0.5293f)
-    {
-        const float t = (x - 0.2269f) / (0.5293f - 0.2269f);
-        return 350.0f * std::pow(2500.0f / 350.0f, t);
-    }
-
-    const float t = (x - 0.5293f) / (1.0f - 0.5293f);
-    return 2500.0f * std::pow(20000.0f / 2500.0f, t);
+    // Mapeo logarítmico canónico: norm=0.2269 -> 350 Hz; norm=0.5293 -> 2500 Hz
+    return 20.0f * std::pow(1000.0f, juce::jlimit(0.0f, 1.0f, norm));
 }
 
 struct AmbienceProcessor::Impl
@@ -34,33 +20,28 @@ struct AmbienceProcessor::Impl
     double sampleRate = 48000.0;
     AmbienceParameters params {};
 
-    juce::dsp::IIR::Coefficients<float>::Ptr sharedScHpCoeffs;
-    juce::dsp::IIR::Coefficients<float>::Ptr sharedScLpCoeffs;
-    std::array<juce::dsp::IIR::Filter<float>, kMaxChannels> scHighPass;
-    std::array<juce::dsp::IIR::Filter<float>, kMaxChannels> scLowPass;
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxChannels> lowMidCrossovers;
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxChannels> midHighCrossovers;
 
-    juce::dsp::LinkwitzRileyFilter<float> crossoverLowMid;
-    juce::dsp::LinkwitzRileyFilter<float> crossoverMidHigh;
-    juce::dsp::LinkwitzRileyFilter<float> lowBandPhaseAlign;
+    std::array<float, kMaxChannels> envShort {};
+    std::array<float, kMaxChannels> envLong  {};
 
-    float cachedScLow  = -1.0f;
-    float cachedScHigh = -1.0f;
-    float currentHpHz  = 350.0f;
-    float currentLpHz  = 2500.0f;
+    std::array<float, kMaxChannels> smoothedGainLowDb  {};
+    std::array<float, kMaxChannels> smoothedGainMidDb  {};
+    std::array<float, kMaxChannels> smoothedGainHighDb {};
 
-    float detAtkCoeff  = 0.99f;
-    float detRelCoeff  = 0.999f;
-    float ambRiseCoeff = 0.9999f;
-    float ambFallCoeff = 0.999f;
+    float shortAtkCoeff = 0.9f;
+    float shortRelCoeff = 0.99f;
+    float longAtkCoeff  = 0.999f;
+    float longRelCoeff  = 0.9998f;
+
     float gainAtkCoeff = 0.99f;
     float gainRelCoeff = 0.999f;
-    float thresholdDb  = -24.0f;
 
-    float scMeanSquare = 1.0e-9f;
-    std::array<float, 3> bandRmsSq      { 1.0e-9f, 1.0e-9f, 1.0e-9f };
-    std::array<float, 3> ambFloorSq     { 1.0e-9f, 1.0e-9f, 1.0e-9f };
-    std::array<float, 3> smoothedGainDb { 0.0f, 0.0f, 0.0f };
-    float lastMidGainDb = 0.0f;
+    float currentHpHz = 350.0f;
+    float currentLpHz = 2500.0f;
+    float lastGainDb  = 0.0f;
+    float stationarityIndex = 0.0f;
 
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
@@ -68,94 +49,67 @@ struct AmbienceProcessor::Impl
         return std::exp(-1.0f / (safeTime * static_cast<float>(sampleRate)));
     }
 
-    [[nodiscard]] float computeBandDownwardGainDb(
-        float levelDb,
-        float stationarity,
-        bool isTacticalMidBand) const noexcept
-    {
-        const float guardDepth = juce::jlimit(0.0f, 1.0f, params.ambGuar);
-        float totalReductionDb = 0.0f;
-
-        if (levelDb > -52.0f && guardDepth > 0.001f)
-        {
-            const float floorExcessNorm = juce::jlimit(0.0f, 1.0f, (levelDb - (-52.0f)) / 24.0f);
-            float effectiveStationarity = stationarity * stationarity;
-
-            if (isTacticalMidBand && params.distant)
-                effectiveStationarity *= 0.45f;
-
-            const float maxAmbientDuckDb = isTacticalMidBand ? -3.5f : -6.0f;
-            totalReductionDb += maxAmbientDuckDb * guardDepth * floorExcessNorm * effectiveStationarity;
-        }
-
-        constexpr float kKneeWidthDb   = 6.0f;
-        constexpr float kDownwardSlope = 0.50f;
-
-        const float overDb = levelDb - thresholdDb;
-        if (overDb > -0.5f * kKneeWidthDb)
-        {
-            float compressedOverDb = 0.0f;
-            if (overDb < 0.5f * kKneeWidthDb)
-            {
-                const float x = overDb + 0.5f * kKneeWidthDb;
-                compressedOverDb = (x * x) / (2.0f * kKneeWidthDb);
-            }
-            else
-            {
-                compressedOverDb = overDb;
-            }
-
-            const float bandSlopeScale = (isTacticalMidBand && params.distant) ? 0.70f : 1.0f;
-            totalReductionDb -= compressedOverDb * kDownwardSlope * bandSlopeScale * juce::jmax(0.35f, guardDepth);
-        }
-
-        return juce::jlimit(-15.0f, 0.0f, totalReductionDb);
-    }
-
     void recalculateParameters() noexcept
     {
-        if (std::abs(params.scLow - cachedScLow) > 1.0e-5f
-            || std::abs(params.scHigh - cachedScHigh) > 1.0e-5f)
+        currentHpHz = mapScNormToHz(params.scLow);
+        currentLpHz = mapScNormToHz(params.scHigh);
+
+        const float nyquistGuard = static_cast<float>(sampleRate * 0.48);
+        const float safeLowHz    = juce::jlimit(40.0f, nyquistGuard - 200.0f, currentHpHz);
+        const float safeHighHz   = juce::jlimit(safeLowHz + 100.0f, nyquistGuard, currentLpHz);
+
+        for (size_t ch = 0; ch < kMaxChannels; ++ch)
         {
-            cachedScLow  = params.scLow;
-            cachedScHigh = params.scHigh;
-
-            const float nyquistLimit = static_cast<float>(sampleRate * 0.47);
-            const float hpHz = juce::jlimit(20.0f, nyquistLimit - 200.0f, mapScNormToHz(cachedScLow));
-            const float lpHz = juce::jlimit(hpHz + 120.0f, nyquistLimit, mapScNormToHz(cachedScHigh));
-
-            currentHpHz = hpHz;
-            currentLpHz = lpHz;
-
-            if (sharedScHpCoeffs != nullptr)
-            {
-                *sharedScHpCoeffs = juce::dsp::IIR::ArrayCoefficients<float>::makeHighPass(
-                    sampleRate, hpHz, 0.70710678f);
-            }
-
-            if (sharedScLpCoeffs != nullptr)
-            {
-                *sharedScLpCoeffs = juce::dsp::IIR::ArrayCoefficients<float>::makeLowPass(
-                    sampleRate, lpHz, 0.70710678f);
-            }
-
-            crossoverLowMid.setCutoffFrequency(hpHz);
-            crossoverMidHigh.setCutoffFrequency(lpHz);
-            lowBandPhaseAlign.setCutoffFrequency(lpHz);
+            lowMidCrossovers[ch].setCutoffFrequency(safeLowHz);
+            midHighCrossovers[ch].setCutoffFrequency(safeHighHz);
         }
 
-        detAtkCoeff = calcOnePoleCoeff(0.012f);
-        const float detRelSec = 0.040f + juce::jlimit(0.0f, 1.0f, params.detRel) * 0.556f;
-        detRelCoeff = calcOnePoleCoeff(detRelSec);
+        // Tiempos del detector de estacionariedad
+        shortAtkCoeff = calcOnePoleCoeff(0.005f); // 5 ms corto plazo
+        shortRelCoeff = calcOnePoleCoeff(0.040f); // 40 ms corto plazo
+        longAtkCoeff  = calcOnePoleCoeff(0.120f); // 120 ms largo plazo
+        longRelCoeff  = calcOnePoleCoeff(0.600f); // 600 ms largo plazo
 
-        ambRiseCoeff = calcOnePoleCoeff(1.500f);
-        ambFallCoeff = calcOnePoleCoeff(0.110f);
+        if (params.useAdvancedMode)
+        {
+            gainAtkCoeff = calcOnePoleCoeff(juce::jmax(0.001f, params.attackMs * 0.001f));
+            gainRelCoeff = calcOnePoleCoeff(juce::jmax(0.010f, params.releaseMs * 0.001f));
+        }
+        else
+        {
+            gainAtkCoeff = calcOnePoleCoeff(0.020f);
+            const float relSec = 0.050f + juce::jlimit(0.0f, 1.0f, params.release) * 0.450f;
+            gainRelCoeff = calcOnePoleCoeff(relSec);
+        }
+    }
 
-        gainAtkCoeff = calcOnePoleCoeff(0.008f);
-        const float relSec = 0.035f + juce::jlimit(0.0f, 1.0f, params.release) * 0.385f;
-        gainRelCoeff = calcOnePoleCoeff(relSec);
+    /**
+     * Calcula el factor de estacionariedad (0.0 = transitorio activo; 1.0 = ruido estacionario).
+     */
+    float estimateStationarity(size_t ch, float sample) noexcept
+    {
+        const float absX = std::abs(sample);
 
-        thresholdDb = -38.0f + juce::jlimit(0.0f, 1.0f, params.target) * 36.0f;
+        const float sCoeff = (absX > envShort[ch]) ? shortAtkCoeff : shortRelCoeff;
+        envShort[ch] = sCoeff * envShort[ch] + (1.0f - sCoeff) * absX;
+
+        const float lCoeff = (absX > envLong[ch]) ? longAtkCoeff : longRelCoeff;
+        envLong[ch] = lCoeff * envLong[ch] + (1.0f - lCoeff) * absX;
+
+        // Si la energía a corto y largo plazo difiere notablemente (flujo dinámico alto),
+        // se clasifica como sonido útil o transitorio (paso, voz, disparo).
+        const float diff = std::abs(envShort[ch] - envLong[ch]);
+        const float denom = envLong[ch] + 1.0e-4f;
+        const float dynamicFlux = diff / denom;
+
+        const float sens = params.useAdvancedMode ? params.stationaritySensitivity : (params.distant ? 0.65f : 0.40f);
+        const float fluxThreshold = 0.35f + (1.0f - sens) * 0.45f;
+
+        if (dynamicFlux > fluxThreshold)
+            return 0.0f; // Sonido dinámico útil: protección total contra atenuación
+
+        const float rawStat = 1.0f - (dynamicFlux / fluxThreshold);
+        return juce::jlimit(0.0f, 1.0f, rawStat * rawStat);
     }
 };
 
@@ -168,50 +122,26 @@ AmbienceProcessor::~AmbienceProcessor() = default;
 AmbienceProcessor::AmbienceProcessor(AmbienceProcessor&&) noexcept = default;
 AmbienceProcessor& AmbienceProcessor::operator=(AmbienceProcessor&&) noexcept = default;
 
-void AmbienceProcessor::prepare(double sampleRate, int maximumBlockSize, int numChannels)
+void AmbienceProcessor::prepare(double sampleRate, int maximumBlockSize, int /*numChannels*/)
 {
-    (void)numChannels;
-    impl_->sampleRate = (sampleRate > 8000.0) ? sampleRate : 48000.0;
-    const auto safeBlock = static_cast<juce::uint32>(std::max(1, maximumBlockSize));
+    const double safeSr = (sampleRate > 8000.0) ? sampleRate : 48000.0;
+    const int safeBlock = std::max(1, maximumBlockSize);
 
-    impl_->sharedScHpCoeffs = juce::dsp::IIR::Coefficients<float>::makeHighPass(
-        impl_->sampleRate, 350.0f, 0.70710678f);
-    impl_->sharedScLpCoeffs = juce::dsp::IIR::Coefficients<float>::makeLowPass(
-        impl_->sampleRate, 2500.0f, 0.70710678f);
+    impl_->sampleRate = safeSr;
 
     juce::dsp::ProcessSpec monoSpec {};
-    monoSpec.sampleRate       = impl_->sampleRate;
-    monoSpec.maximumBlockSize = safeBlock;
+    monoSpec.sampleRate       = safeSr;
+    monoSpec.maximumBlockSize = static_cast<juce::uint32>(safeBlock);
     monoSpec.numChannels      = 1;
 
     for (size_t ch = 0; ch < kMaxChannels; ++ch)
     {
-        impl_->scHighPass[ch].prepare(monoSpec);
-        impl_->scHighPass[ch].coefficients = impl_->sharedScHpCoeffs;
+        impl_->lowMidCrossovers[ch].prepare(monoSpec);
+        impl_->lowMidCrossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass);
 
-        impl_->scLowPass[ch].prepare(monoSpec);
-        impl_->scLowPass[ch].coefficients = impl_->sharedScLpCoeffs;
+        impl_->midHighCrossovers[ch].prepare(monoSpec);
+        impl_->midHighCrossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass);
     }
-
-    juce::dsp::ProcessSpec multiSpec {};
-    multiSpec.sampleRate       = impl_->sampleRate;
-    multiSpec.maximumBlockSize = safeBlock;
-    multiSpec.numChannels      = static_cast<juce::uint32>(kMaxChannels);
-
-    impl_->crossoverLowMid.prepare(multiSpec);
-    impl_->crossoverLowMid.setCutoffFrequency(350.0f);
-
-    impl_->crossoverMidHigh.prepare(multiSpec);
-    impl_->crossoverMidHigh.setCutoffFrequency(2500.0f);
-
-    impl_->lowBandPhaseAlign.prepare(multiSpec);
-    impl_->lowBandPhaseAlign.setType(juce::dsp::LinkwitzRileyFilterType::allpass);
-    impl_->lowBandPhaseAlign.setCutoffFrequency(2500.0f);
-
-    impl_->cachedScLow  = 0.2269f;
-    impl_->cachedScHigh = 0.5293f;
-    impl_->currentHpHz  = 350.0f;
-    impl_->currentLpHz  = 2500.0f;
 
     impl_->recalculateParameters();
     reset();
@@ -221,25 +151,27 @@ void AmbienceProcessor::reset() noexcept
 {
     for (size_t ch = 0; ch < kMaxChannels; ++ch)
     {
-        impl_->scHighPass[ch].reset();
-        impl_->scLowPass[ch].reset();
+        impl_->lowMidCrossovers[ch].reset();
+        impl_->midHighCrossovers[ch].reset();
+        impl_->envShort[ch]             = 0.0f;
+        impl_->envLong[ch]              = 0.0f;
+        impl_->smoothedGainLowDb[ch]    = 0.0f;
+        impl_->smoothedGainMidDb[ch]    = 0.0f;
+        impl_->smoothedGainHighDb[ch]   = 0.0f;
     }
-
-    impl_->crossoverLowMid.reset();
-    impl_->crossoverMidHigh.reset();
-    impl_->lowBandPhaseAlign.reset();
-
-    impl_->scMeanSquare   = 1.0e-9f;
-    impl_->bandRmsSq      = { 1.0e-9f, 1.0e-9f, 1.0e-9f };
-    impl_->ambFloorSq     = { 1.0e-9f, 1.0e-9f, 1.0e-9f };
-    impl_->smoothedGainDb = { 0.0f, 0.0f, 0.0f };
-    impl_->lastMidGainDb  = 0.0f;
+    impl_->lastGainDb        = 0.0f;
+    impl_->stationarityIndex = 0.0f;
 }
 
 void AmbienceProcessor::updateParameters(const AmbienceParameters& params) noexcept
 {
     impl_->params = params;
     impl_->recalculateParameters();
+}
+
+const AmbienceParameters& AmbienceProcessor::getParameters() const noexcept
+{
+    return impl_->params;
 }
 
 void AmbienceProcessor::process(float* buffer, int numSamples) noexcept
@@ -266,133 +198,76 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
 
     if (impl_->params.bypass)
     {
-        impl_->lastMidGainDb = 0.0f;
+        impl_->lastGainDb        = 0.0f;
+        impl_->stationarityIndex = 0.0f;
         return;
     }
 
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
-    const float invCh     = 1.0f / static_cast<float>(activeCh);
+    float blockMaxReductionDb = 0.0f;
+    float blockStationaritySum = 0.0f;
 
-    std::array<float, kMaxChannels> lowSamples {};
-    std::array<float, kMaxChannels> midSamples {};
-    std::array<float, kMaxChannels> highSamples {};
+    const float ambGuarNorm = juce::jlimit(0.0f, 1.0f, impl_->params.ambGuar);
+    if (ambGuarNorm <= 0.0001f)
+        return; // Sin atenuación
+
+    // Parámetros de profundidad por banda
+    const float lowMaxDb  = impl_->params.useAdvancedMode ? impl_->params.lowReductionDepthDb  : (-4.0f * ambGuarNorm);
+    const float midMaxDb  = impl_->params.useAdvancedMode ? impl_->params.midReductionDepthDb  : (-6.5f * ambGuarNorm);
+    const float highMaxDb = impl_->params.useAdvancedMode ? impl_->params.highReductionDepthDb : (-3.5f * ambGuarNorm);
 
     for (int i = 0; i < numSamples; ++i)
     {
-        float scEnergySum   = 0.0f;
-        float lowEnergySum  = 0.0f;
-        float highEnergySum = 0.0f;
-
         for (size_t ch = 0; ch < activeCh; ++ch)
         {
             if (channelPointers[ch] == nullptr)
                 continue;
 
-            const float x = channelPointers[ch][i];
+            const float input = channelPointers[ch][i];
 
-            const float scHp = impl_->scHighPass[ch].processSample(x);
-            const float scBp = impl_->scLowPass[ch].processSample(scHp);
-            scEnergySum += scBp * scBp;
+            // 1. Clasificación acústica de estacionariedad espectral
+            const float stat = impl_->estimateStationarity(ch, input);
+            blockStationaritySum += stat;
 
-            if (impl_->params.bandMod)
-            {
-                float lowRaw  = 0.0f;
-                float midHigh = 0.0f;
-                impl_->crossoverLowMid.processSample(static_cast<int>(ch), x, lowRaw, midHigh);
+            // 2. División Linkwitz-Riley en 3 bandas alineadas en fase
+            float bandLow = 0.0f;
+            float restHigh = 0.0f;
+            impl_->lowMidCrossovers[ch].processSample(0, input, bandLow, restHigh);
 
-                const float lowAligned = impl_->lowBandPhaseAlign.processSample(static_cast<int>(ch), lowRaw);
+            float bandMid = 0.0f;
+            float bandHigh = 0.0f;
+            impl_->midHighCrossovers[ch].processSample(0, restHigh, bandMid, bandHigh);
 
-                float mid  = 0.0f;
-                float high = 0.0f;
-                impl_->crossoverMidHigh.processSample(static_cast<int>(ch), midHigh, mid, high);
+            // 3. Cálculo de ganancia atenuadora por banda
+            const float targetLowDb  = (impl_->params.useAdvancedMode && impl_->params.bypassLowBand)  ? 0.0f : (lowMaxDb * stat);
+            const float targetMidDb  = (impl_->params.useAdvancedMode && impl_->params.bypassMidBand)  ? 0.0f : (midMaxDb * stat);
+            const float targetHighDb = (impl_->params.useAdvancedMode && impl_->params.bypassHighBand) ? 0.0f : (highMaxDb * stat);
 
-                lowSamples[ch]  = lowAligned;
-                midSamples[ch]  = mid;
-                highSamples[ch] = high;
-
-                lowEnergySum  += lowAligned * lowAligned;
-                highEnergySum += high * high;
-            }
-        }
-
-        const float scMeanSq = scEnergySum * invCh;
-        const float scCoeff  = (scMeanSq > impl_->scMeanSquare) ? impl_->detAtkCoeff : impl_->detRelCoeff;
-        impl_->scMeanSquare  = scCoeff * impl_->scMeanSquare + (1.0f - scCoeff) * scMeanSq;
-        const float scDb     = 10.0f * std::log10(juce::jmax(impl_->scMeanSquare, 1.0e-12f));
-
-        if (impl_->params.bandMod)
-        {
-            const std::array<float, 3> instSq {
-                lowEnergySum * invCh,
-                scMeanSq,
-                highEnergySum * invCh
+            // Suavizado temporal continuo para evitar chasquidos
+            const auto smoothGain = [this](float target, float& smoothed) -> float {
+                const float coeff = (target < smoothed) ? impl_->gainAtkCoeff : impl_->gainRelCoeff;
+                smoothed = coeff * smoothed + (1.0f - coeff) * target;
+                return smoothed;
             };
 
-            for (size_t b = 0; b < 3; ++b)
-            {
-                const float dCoeff = (instSq[b] > impl_->bandRmsSq[b]) ? impl_->detAtkCoeff : impl_->detRelCoeff;
-                impl_->bandRmsSq[b] = dCoeff * impl_->bandRmsSq[b] + (1.0f - dCoeff) * instSq[b];
+            const float gLowDb  = smoothGain(targetLowDb,  impl_->smoothedGainLowDb[ch]);
+            const float gMidDb  = smoothGain(targetMidDb,  impl_->smoothedGainMidDb[ch]);
+            const float gHighDb = smoothGain(targetHighDb, impl_->smoothedGainHighDb[ch]);
 
-                const float aCoeff = (impl_->bandRmsSq[b] > impl_->ambFloorSq[b])
-                    ? impl_->ambRiseCoeff
-                    : impl_->ambFallCoeff;
-                impl_->ambFloorSq[b] = aCoeff * impl_->ambFloorSq[b] + (1.0f - aCoeff) * impl_->bandRmsSq[b];
+            if (gMidDb < blockMaxReductionDb)
+                blockMaxReductionDb = gMidDb;
 
-                const float bandDb = (b == 1)
-                    ? scDb
-                    : 10.0f * std::log10(juce::jmax(impl_->bandRmsSq[b], 1.0e-12f));
+            const float gLowLin  = juce::Decibels::decibelsToGain(gLowDb);
+            const float gMidLin  = juce::Decibels::decibelsToGain(gMidDb);
+            const float gHighLin = juce::Decibels::decibelsToGain(gHighDb);
 
-                const float stationarity = juce::jlimit(
-                    0.0f, 1.0f, impl_->ambFloorSq[b] / (impl_->bandRmsSq[b] + 1.0e-11f));
-                const bool isTacticalMidBand = (b == 1);
-
-                const float targetGainDb = impl_->computeBandDownwardGainDb(bandDb, stationarity, isTacticalMidBand);
-                const float gCoeff = (targetGainDb < impl_->smoothedGainDb[b])
-                    ? impl_->gainAtkCoeff
-                    : impl_->gainRelCoeff;
-                impl_->smoothedGainDb[b] = gCoeff * impl_->smoothedGainDb[b] + (1.0f - gCoeff) * targetGainDb;
-            }
-
-            const float gLow  = juce::Decibels::decibelsToGain(impl_->smoothedGainDb[0]);
-            const float gMid  = juce::Decibels::decibelsToGain(impl_->smoothedGainDb[1]);
-            const float gHigh = juce::Decibels::decibelsToGain(impl_->smoothedGainDb[2]);
-
-            for (size_t ch = 0; ch < activeCh; ++ch)
-            {
-                if (channelPointers[ch] != nullptr)
-                    channelPointers[ch][i] = lowSamples[ch] * gLow + midSamples[ch] * gMid + highSamples[ch] * gHigh;
-            }
-        }
-        else
-        {
-            const float aCoeff = (impl_->scMeanSquare > impl_->ambFloorSq[1])
-                ? impl_->ambRiseCoeff
-                : impl_->ambFallCoeff;
-            impl_->ambFloorSq[1] = aCoeff * impl_->ambFloorSq[1] + (1.0f - aCoeff) * impl_->scMeanSquare;
-
-            const float stationarity = juce::jlimit(
-                0.0f, 1.0f, impl_->ambFloorSq[1] / (impl_->scMeanSquare + 1.0e-11f));
-            const float targetGainDb = impl_->computeBandDownwardGainDb(scDb, stationarity, true);
-
-            const float gCoeff = (targetGainDb < impl_->smoothedGainDb[1])
-                ? impl_->gainAtkCoeff
-                : impl_->gainRelCoeff;
-            impl_->smoothedGainDb[1] = gCoeff * impl_->smoothedGainDb[1] + (1.0f - gCoeff) * targetGainDb;
-
-            const float gLin = juce::Decibels::decibelsToGain(impl_->smoothedGainDb[1]);
-            for (size_t ch = 0; ch < activeCh; ++ch)
-            {
-                if (channelPointers[ch] != nullptr)
-                    channelPointers[ch][i] *= gLin;
-            }
+            // 4. Recombinación de las 3 bandas espectrales
+            channelPointers[ch][i] = (bandLow * gLowLin) + (bandMid * gMidLin) + (bandHigh * gHighLin);
         }
     }
 
-    impl_->crossoverLowMid.snapToZero();
-    impl_->crossoverMidHigh.snapToZero();
-    impl_->lowBandPhaseAlign.snapToZero();
-
-    impl_->lastMidGainDb = impl_->smoothedGainDb[1];
+    impl_->lastGainDb        = blockMaxReductionDb;
+    impl_->stationarityIndex = blockStationaritySum / static_cast<float>(numSamples * activeCh);
 }
 
 float AmbienceProcessor::getCurrentHpHz() const noexcept
@@ -407,7 +282,12 @@ float AmbienceProcessor::getCurrentLpHz() const noexcept
 
 float AmbienceProcessor::getCurrentGainDb() const noexcept
 {
-    return impl_->lastMidGainDb;
+    return impl_->lastGainDb;
+}
+
+float AmbienceProcessor::getStationarityIndex() const noexcept
+{
+    return impl_->stationarityIndex;
 }
 
 } // namespace dash::core

@@ -4,7 +4,10 @@
 #include "TransientProcessor.h"
 #include "AmbienceProcessor.h"
 #include "EQProcessor.h"
+#include "ParametricEQProcessor.h"
 #include "LimiterProcessor.h"
+
+#include <array>
 
 namespace dash::core
 {
@@ -21,6 +24,10 @@ struct AudioGraphParameters
     AmbienceParameters  ambience {};   // 3. Protector ambiental multibanda (350 Hz - 2.5 kHz)
     EQParameters        equalizer {};  // 4. Ecualización acústica de 31 bandas ISO
     LimiterParameters   limiter {};    // 5. Limitador final de seguridad (-0.5 dBFS)
+
+    // Módulo opcional de ecualización paramétrica de precisión
+    bool useParametricEq = false;
+    std::array<ParametricBandParameters, ParametricEQProcessor::kMaxBands> parametricBands {};
 
     bool bypassAll = false; // Bypass global de la cadena
 };

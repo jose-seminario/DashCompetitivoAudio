@@ -15,7 +15,7 @@ struct TransientProcessor::Impl
     int    centerChannelIdx = 2;
     TransientParameters params {};
 
-    juce::dsp::LinkwitzRileyFilter<float> bodyCrackCrossover;
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, static_cast<size_t>(kMaxChannels)> crossovers;
 
     std::array<float, static_cast<size_t>(kMaxChannels)> envFast {};
     std::array<float, static_cast<size_t>(kMaxChannels)> envSlow {};
@@ -28,74 +28,102 @@ struct TransientProcessor::Impl
     float gainAtkCoeff = 0.9f;
     float gainRelCoeff = 0.999f;
 
-    float maxAttenuationDb = -6.93575f; // Gun = 0.45 -> -6.94 dB (~ -7 dB)
+    float activeSplitHz    = kDefaultSplitHz;
+    float maxAttenuationDb = -6.93575f;
     float lastReductionDb  = 0.0f;
 
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
-        const float safeTime = juce::jmax(0.00005f, timeSeconds);
+        const float safeTime = juce::jmax(0.00002f, timeSeconds);
         return std::exp(-1.0f / (safeTime * static_cast<float>(sampleRate)));
     }
 
     void recalculateParameters() noexcept
     {
-        fastAtkCoeff = calcOnePoleCoeff(0.00015f);
+        // 1. Configuración de frecuencia de corte segura
+        activeSplitHz = juce::jlimit(kMinSplitHz, kMaxSplitHz,
+                                     params.useAdvancedMode ? params.frequencySplitHz : kDefaultSplitHz);
 
-        const float relSec = 0.020f + juce::jlimit(0.0f, 1.0f, params.release) * 0.160f;
-        fastRelCoeff = calcOnePoleCoeff(relSec);
+        for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
+            crossovers[ch].setCutoffFrequency(activeSplitHz);
 
-        slowAtkCoeff = calcOnePoleCoeff(0.018f);
-        slowRelCoeff = calcOnePoleCoeff(0.220f);
+        // 2. Balística temporal del detector
+        if (params.useAdvancedMode)
+        {
+            fastAtkCoeff = calcOnePoleCoeff(juce::jmax(0.00005f, params.attackMs * 0.001f));
+            fastRelCoeff = calcOnePoleCoeff(juce::jmax(0.005f, params.releaseMs * 0.001f));
+            slowAtkCoeff = calcOnePoleCoeff(0.020f);
+            slowRelCoeff = calcOnePoleCoeff(0.240f);
+            gainAtkCoeff = calcOnePoleCoeff(juce::jmax(0.0001f, params.attackMs * 0.001f));
+            gainRelCoeff = calcOnePoleCoeff(juce::jmax(0.005f, params.releaseMs * 0.001f));
+            maxAttenuationDb = juce::jlimit(-30.0f, 0.0f, params.maxAttenuationDb);
+        }
+        else
+        {
+            fastAtkCoeff = calcOnePoleCoeff(0.00015f);
+            const float relSec = 0.020f + juce::jlimit(0.0f, 1.0f, params.release) * 0.160f;
+            fastRelCoeff = calcOnePoleCoeff(relSec);
 
-        gainAtkCoeff = calcOnePoleCoeff(0.00020f);
-        gainRelCoeff = calcOnePoleCoeff(relSec);
+            slowAtkCoeff = calcOnePoleCoeff(0.018f);
+            slowRelCoeff = calcOnePoleCoeff(0.220f);
 
-        // Calibración de atenuación táctica de nuestro DSP: Gun = 0.45 -> 20*log10(0.45) = -6.9357 dB
-        const float clampedGun = juce::jlimit(0.10f, 1.0f, params.gun);
-        maxAttenuationDb = juce::Decibels::gainToDecibels(clampedGun, -24.0f);
+            gainAtkCoeff = calcOnePoleCoeff(0.00020f);
+            gainRelCoeff = calcOnePoleCoeff(relSec);
+
+            const float clampedGun = juce::jlimit(0.10f, 1.0f, params.gun);
+            maxAttenuationDb = juce::Decibels::gainToDecibels(clampedGun, -24.0f);
+        }
     }
 
-    float processChannelSample(int ch, float& sample) noexcept
+    /**
+     * Procesa una muestra individual en la banda alta de transitorios ("Crack")
+     * devolviendo la ganancia en dB aplicada.
+     */
+    float evaluateTransientSample(size_t ch, float crackSample, float externalMaxDb = 0.0f) noexcept
     {
-        float gunBody  = 0.0f;
-        float gunCrack = 0.0f;
+        const float absCrack = std::abs(crackSample);
 
-        bodyCrackCrossover.processSample(ch, sample, gunBody, gunCrack);
+        const float fCoeff = (absCrack > envFast[ch]) ? fastAtkCoeff : fastRelCoeff;
+        envFast[ch] = fCoeff * envFast[ch] + (1.0f - fCoeff) * absCrack;
 
-        const float absCrack = std::abs(gunCrack);
-        const size_t idx = static_cast<size_t>(ch);
+        const float sCoeff = (absCrack > envSlow[ch]) ? slowAtkCoeff : slowRelCoeff;
+        envSlow[ch] = sCoeff * envSlow[ch] + (1.0f - sCoeff) * absCrack;
 
-        const float fCoeff = (absCrack > envFast[idx]) ? fastAtkCoeff : fastRelCoeff;
-        envFast[idx] = fCoeff * envFast[idx] + (1.0f - fCoeff) * absCrack;
+        // Umbral de pico mínimo y ratio de cresta dinámico para preservar pasos suaves
+        float minPeakThreshold   = 0.045f;
+        float requiredCrestRatio = 1.70f;
 
-        const float sCoeff = (absCrack > envSlow[idx]) ? slowAtkCoeff : slowRelCoeff;
-        envSlow[idx] = sCoeff * envSlow[idx] + (1.0f - sCoeff) * absCrack;
-
-        const float minPeakThreshold   = 0.050f + params.steps * 0.085f;
-        const float requiredCrestRatio = 1.65f + params.steps * 1.35f;
+        if (params.useAdvancedMode)
+        {
+            const float sens = juce::jlimit(0.0f, 1.0f, params.sensitivity);
+            minPeakThreshold   = 0.080f - (sens * 0.055f);
+            requiredCrestRatio = 2.40f - (sens * 1.00f);
+        }
+        else
+        {
+            minPeakThreshold   = 0.050f + params.steps * 0.085f;
+            requiredCrestRatio = 1.65f + params.steps * 1.35f;
+        }
 
         float targetDb = 0.0f;
-        if (envFast[idx] > minPeakThreshold)
+        if (envFast[ch] > minPeakThreshold)
         {
-            const float crestRatio = envFast[idx] / (envSlow[idx] + 1.0e-5f);
+            const float crestRatio = envFast[ch] / (envSlow[ch] + 1.0e-5f);
             if (crestRatio > requiredCrestRatio)
             {
-                const float excessNorm = juce::jlimit(0.0f, 1.0f, (crestRatio - requiredCrestRatio) / 2.5f);
-                const float levelNorm  = juce::jlimit(0.0f, 1.0f, (envFast[idx] - minPeakThreshold) / 0.25f);
+                const float excessNorm = juce::jlimit(0.0f, 1.0f, (crestRatio - requiredCrestRatio) / 2.2f);
+                const float levelNorm  = juce::jlimit(0.0f, 1.0f, (envFast[ch] - minPeakThreshold) / 0.30f);
                 const float transientSeverity = juce::jmax(excessNorm, levelNorm);
-                targetDb = maxAttenuationDb * transientSeverity;
+
+                const float maxDb = (externalMaxDb < 0.0f) ? externalMaxDb : maxAttenuationDb;
+                targetDb = maxDb * transientSeverity;
             }
         }
 
-        const float gCoeff = (targetDb < smoothedGainDb[idx]) ? gainAtkCoeff : gainRelCoeff;
-        smoothedGainDb[idx] = gCoeff * smoothedGainDb[idx] + (1.0f - gCoeff) * targetDb;
+        const float gCoeff = (targetDb < smoothedGainDb[ch]) ? gainAtkCoeff : gainRelCoeff;
+        smoothedGainDb[ch] = gCoeff * smoothedGainDb[ch] + (1.0f - gCoeff) * targetDb;
 
-        const float restoreBoostDb =
-            params.restore * 2.5f * (1.0f - juce::jlimit(0.0f, 1.0f, -smoothedGainDb[idx] / 6.0f));
-        const float crackGainLin = juce::Decibels::decibelsToGain(smoothedGainDb[idx] + restoreBoostDb);
-
-        sample = gunBody + (gunCrack * crackGainLin);
-        return smoothedGainDb[idx];
+        return smoothedGainDb[ch];
     }
 };
 
@@ -108,18 +136,24 @@ TransientProcessor::~TransientProcessor() = default;
 TransientProcessor::TransientProcessor(TransientProcessor&&) noexcept = default;
 TransientProcessor& TransientProcessor::operator=(TransientProcessor&&) noexcept = default;
 
-void TransientProcessor::prepare(double sampleRate, int maximumBlockSize, int numChannels)
+void TransientProcessor::prepare(double sampleRate, int maximumBlockSize, int /*numChannels*/)
 {
-    (void)numChannels;
-    impl_->sampleRate = (sampleRate > 8000.0) ? sampleRate : 48000.0;
+    const double safeSr = (sampleRate > 8000.0) ? sampleRate : 48000.0;
+    const int safeBlock = std::max(1, maximumBlockSize);
 
-    juce::dsp::ProcessSpec filterSpec {};
-    filterSpec.sampleRate       = impl_->sampleRate;
-    filterSpec.maximumBlockSize = static_cast<juce::uint32>(std::max(1, maximumBlockSize));
-    filterSpec.numChannels      = static_cast<juce::uint32>(kMaxChannels);
+    impl_->sampleRate = safeSr;
 
-    impl_->bodyCrackCrossover.prepare(filterSpec);
-    impl_->bodyCrackCrossover.setCutoffFrequency(kBodyCrackCrossoverHz);
+    juce::dsp::ProcessSpec monoSpec {};
+    monoSpec.sampleRate       = safeSr;
+    monoSpec.maximumBlockSize = static_cast<juce::uint32>(safeBlock);
+    monoSpec.numChannels      = 1;
+
+    for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
+    {
+        impl_->crossovers[ch].prepare(monoSpec);
+        impl_->crossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass); // Genera LP y HP internamente
+        impl_->crossovers[ch].setCutoffFrequency(impl_->activeSplitHz);
+    }
 
     impl_->recalculateParameters();
     reset();
@@ -127,15 +161,18 @@ void TransientProcessor::prepare(double sampleRate, int maximumBlockSize, int nu
 
 void TransientProcessor::setCenterChannelIndex(int centerChannelIdx) noexcept
 {
-    impl_->centerChannelIdx = (centerChannelIdx >= 0 && centerChannelIdx < kMaxChannels) ? centerChannelIdx : 2;
+    impl_->centerChannelIdx = std::clamp(centerChannelIdx, 0, kMaxChannels - 1);
 }
 
 void TransientProcessor::reset() noexcept
 {
-    impl_->bodyCrackCrossover.reset();
-    impl_->envFast.fill(0.0f);
-    impl_->envSlow.fill(0.0f);
-    impl_->smoothedGainDb.fill(0.0f);
+    for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
+    {
+        impl_->crossovers[ch].reset();
+        impl_->envFast[ch]        = 0.0f;
+        impl_->envSlow[ch]        = 0.0f;
+        impl_->smoothedGainDb[ch] = 0.0f;
+    }
     impl_->lastReductionDb = 0.0f;
 }
 
@@ -143,6 +180,11 @@ void TransientProcessor::updateParameters(const TransientParameters& params) noe
 {
     impl_->params = params;
     impl_->recalculateParameters();
+}
+
+const TransientParameters& TransientProcessor::getParameters() const noexcept
+{
+    return impl_->params;
 }
 
 void TransientProcessor::process(float* buffer, int numSamples) noexcept
@@ -173,91 +215,108 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
         return;
     }
 
-    const int activeCh = std::min(numChannels, kMaxChannels);
-    float peakReductionDb = 0.0f;
+    const size_t activeCh = static_cast<size_t>(std::min(numChannels, kMaxChannels));
+    float maxBlockReductionDb = 0.0f;
 
-    // Caso A: Multicanal 5.1 / 7.1 -> Aislar Canal Central (o trío frontal si Front == false)
-    if (activeCh >= 6)
-    {
-        const int cIdx = (impl_->centerChannelIdx >= 0 && impl_->centerChannelIdx < activeCh)
-            ? impl_->centerChannelIdx
-            : 2;
+    const bool centerOrMid = impl_->params.useAdvancedMode ?
+        (impl_->params.channelMode == TransientChannelMode::CenterOrMidOnly) :
+        impl_->params.front;
 
-        if (impl_->params.front)
-        {
-            float* centerData = channelPointers[cIdx];
-            if (centerData != nullptr)
-            {
-                for (int i = 0; i < numSamples; ++i)
-                {
-                    const float grDb = impl_->processChannelSample(cIdx, centerData[i]);
-                    if (grDb < peakReductionDb)
-                        peakReductionDb = grDb;
-                }
-            }
-        }
-        else
-        {
-            const std::array<int, 3> targetChannels { 0, 1, cIdx };
-            for (int ch : targetChannels)
-            {
-                if (ch >= 0 && ch < activeCh && channelPointers[ch] != nullptr)
-                {
-                    float* chData = channelPointers[ch];
-                    for (int i = 0; i < numSamples; ++i)
-                    {
-                        const float grDb = impl_->processChannelSample(ch, chData[i]);
-                        if (grDb < peakReductionDb)
-                            peakReductionDb = grDb;
-                    }
-                }
-            }
-        }
-    }
-    // Caso B: Estéreo (2.0) -> Si Front == 1, aísla el Centro Fantasma Mid = (L+R)*0.5 dejando Side intacto
-    else if (activeCh == 2 && impl_->params.front && channelPointers[0] != nullptr && channelPointers[1] != nullptr)
+    // Caso A: Estéreo (2.0) con aislamiento de Mid (Centro acústico)
+    if (activeCh == 2 && centerOrMid && channelPointers[0] != nullptr && channelPointers[1] != nullptr)
     {
-        float* leftData  = channelPointers[0];
-        float* rightData = channelPointers[1];
+        float* chL = channelPointers[0];
+        float* chR = channelPointers[1];
 
         for (int i = 0; i < numSamples; ++i)
         {
-            float mid        = 0.5f * (leftData[i] + rightData[i]);
-            const float side = 0.5f * (leftData[i] - rightData[i]);
+            // Matriz Mid/Side (Mid = canal central fantasma, Side = lateralidad)
+            const float mid  = 0.5f * (chL[i] + chR[i]);
+            const float side = 0.5f * (chL[i] - chR[i]);
 
-            const float grDb = impl_->processChannelSample(0, mid);
-            if (grDb < peakReductionDb)
-                peakReductionDb = grDb;
+            float body = 0.0f;
+            float crack = 0.0f;
+            impl_->crossovers[0].processSample(0, mid, body, crack);
 
-            leftData[i]  = mid + side;
-            rightData[i] = mid - side;
+            const float reductionDb = impl_->evaluateTransientSample(0, crack);
+            if (reductionDb < maxBlockReductionDb)
+                maxBlockReductionDb = reductionDb;
+
+            const float restoreBoost = impl_->params.restore * 2.0f;
+            const float crackGainLin = juce::Decibels::decibelsToGain(reductionDb + restoreBoost);
+            const float processedMid = body + (crack * crackGainLin);
+
+            // Reconstrucción del campo estéreo intacto
+            chL[i] = processedMid + side;
+            chR[i] = processedMid - side;
         }
     }
-    // Caso C: Mono o Estéreo completo (Front == 0)
+    // Caso B: Multicanal Surround (5.1 / 7.1) o Modo Todos los Canales
     else
     {
-        for (int ch = 0; ch < activeCh; ++ch)
+        const bool centerOnly = centerOrMid && (activeCh >= 3);
+        const int targetCh = impl_->centerChannelIdx;
+
+        for (int i = 0; i < numSamples; ++i)
         {
-            float* chData = channelPointers[ch];
-            if (chData != nullptr)
+            // Enlace estéreo opcional si se procesan L y R juntos
+            float linkedGainDb = 0.0f;
+            if (impl_->params.stereoLinking && activeCh >= 2 && !centerOnly)
             {
-                for (int i = 0; i < numSamples; ++i)
+                float body0 = 0.0f, crack0 = 0.0f;
+                float body1 = 0.0f, crack1 = 0.0f;
+                impl_->crossovers[0].processSample(0, channelPointers[0][i], body0, crack0);
+                impl_->crossovers[1].processSample(0, channelPointers[1][i], body1, crack1);
+
+                const float red0 = impl_->evaluateTransientSample(0, crack0);
+                const float red1 = impl_->evaluateTransientSample(1, crack1);
+                linkedGainDb = std::min(red0, red1); // Máxima atenuación compartida
+            }
+
+            for (size_t ch = 0; ch < activeCh; ++ch)
+            {
+                if (channelPointers[ch] == nullptr)
+                    continue;
+
+                // Si está en modo central, solo procesamos el canal center
+                if (centerOnly && static_cast<int>(ch) != targetCh)
+                    continue;
+
+                float body = 0.0f;
+                float crack = 0.0f;
+                impl_->crossovers[ch].processSample(0, channelPointers[ch][i], body, crack);
+
+                float redDb = 0.0f;
+                if (impl_->params.stereoLinking && (ch == 0 || ch == 1) && !centerOnly)
                 {
-                    const float grDb = impl_->processChannelSample(ch, chData[i]);
-                    if (grDb < peakReductionDb)
-                        peakReductionDb = grDb;
+                    redDb = linkedGainDb;
                 }
+                else
+                {
+                    redDb = impl_->evaluateTransientSample(ch, crack);
+                }
+
+                if (redDb < maxBlockReductionDb)
+                    maxBlockReductionDb = redDb;
+
+                const float restoreBoost = impl_->params.restore * 2.0f;
+                const float crackGainLin = juce::Decibels::decibelsToGain(redDb + restoreBoost);
+                channelPointers[ch][i]   = body + (crack * crackGainLin);
             }
         }
     }
 
-    impl_->bodyCrackCrossover.snapToZero();
-    impl_->lastReductionDb = peakReductionDb;
+    impl_->lastReductionDb = maxBlockReductionDb;
 }
 
 float TransientProcessor::getLastReductionDb() const noexcept
 {
     return impl_->lastReductionDb;
+}
+
+float TransientProcessor::getCurrentSplitHz() const noexcept
+{
+    return impl_->activeSplitHz;
 }
 
 } // namespace dash::core

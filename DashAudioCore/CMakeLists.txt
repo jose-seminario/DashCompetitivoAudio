@@ -14,6 +14,8 @@ add_library(DashAudioCore STATIC
     AmbienceProcessor.cpp
     EQProcessor.h
     EQProcessor.cpp
+    ParametricEQProcessor.h
+    ParametricEQProcessor.cpp
 )
 
 target_include_directories(DashAudioCore

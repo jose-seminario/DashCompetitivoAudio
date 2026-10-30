@@ -3,6 +3,7 @@
 #include <juce_dsp/juce_dsp.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace dash::core
@@ -10,29 +11,30 @@ namespace dash::core
 
 struct AudioGraph::Impl
 {
-    double sampleRate       = 48000.0;
-    int    maxBlockSize     = 512;
-    int    activeChannels   = 2;
+    double sampleRate     = 48000.0;
+    int    maxBlockSize   = 512;
+    int    activeChannels = 2;
+
     AudioGraphParameters params {};
+    float headroomLin = 0.50118723f; // -6 dBFS
 
-    DynamicsProcessor  dynamics;
-    TransientProcessor transient;
-    AmbienceProcessor  ambience;
-    EQProcessor        equalizer;
-    LimiterProcessor   limiter;
+    DynamicsProcessor     dynamics;
+    TransientProcessor    transient;
+    AmbienceProcessor     ambience;
+    EQProcessor           equalizer;
+    ParametricEQProcessor parametricEq;
+    LimiterProcessor      limiter;
 
-    float headroomLin = 0.50118723f; // Decibels::decibelsToGain(-6.0f)
-
-    void refreshHeadroomGain() noexcept
+    void updateHeadroom() noexcept
     {
-        headroomLin = juce::Decibels::decibelsToGain(params.headroomDb);
+        headroomLin = juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 6.0f, params.headroomDb));
     }
 };
 
 AudioGraph::AudioGraph()
     : impl_(std::make_unique<Impl>())
 {
-    impl_->refreshHeadroomGain();
+    impl_->updateHeadroom();
 }
 
 AudioGraph::~AudioGraph() = default;
@@ -43,19 +45,20 @@ void AudioGraph::prepare(double sampleRate, int maximumBlockSize, int numChannel
 {
     const double safeSr = (sampleRate > 8000.0) ? sampleRate : 48000.0;
     const int safeBlock = std::max(1, maximumBlockSize);
-    const int clampedCh = std::clamp(numChannels, 1, static_cast<int>(kMaxChannels));
+    const int safeCh    = std::clamp(numChannels, 1, static_cast<int>(kMaxChannels));
 
     impl_->sampleRate     = safeSr;
     impl_->maxBlockSize   = safeBlock;
-    impl_->activeChannels = clampedCh;
+    impl_->activeChannels = safeCh;
 
-    impl_->dynamics.prepare(safeSr, safeBlock, clampedCh);
-    impl_->transient.prepare(safeSr, safeBlock, clampedCh);
-    impl_->ambience.prepare(safeSr, safeBlock, clampedCh);
-    impl_->equalizer.prepare(safeSr, safeBlock, clampedCh);
-    impl_->limiter.prepare(safeSr, safeBlock, clampedCh);
+    impl_->dynamics.prepare(safeSr, safeBlock, safeCh);
+    impl_->transient.prepare(safeSr, safeBlock, safeCh);
+    impl_->ambience.prepare(safeSr, safeBlock, safeCh);
+    impl_->equalizer.prepare(safeSr, safeBlock, safeCh);
+    impl_->parametricEq.prepare(safeSr, safeBlock, safeCh);
+    impl_->limiter.prepare(safeSr, safeBlock, safeCh);
 
-    impl_->refreshHeadroomGain();
+    impl_->updateHeadroom();
     reset();
 }
 
@@ -65,18 +68,24 @@ void AudioGraph::reset() noexcept
     impl_->transient.reset();
     impl_->ambience.reset();
     impl_->equalizer.reset();
+    impl_->parametricEq.reset();
     impl_->limiter.reset();
 }
 
 void AudioGraph::updateParameters(const AudioGraphParameters& parameters) noexcept
 {
     impl_->params = parameters;
-    impl_->refreshHeadroomGain();
+    impl_->updateHeadroom();
 
     impl_->dynamics.updateParameters(impl_->params.dynamics);
     impl_->transient.updateParameters(impl_->params.transient);
     impl_->ambience.updateParameters(impl_->params.ambience);
     impl_->equalizer.updateParameters(impl_->params.equalizer);
+
+    for (size_t b = 0; b < ParametricEQProcessor::kMaxBands; ++b)
+        impl_->parametricEq.setBand(b, impl_->params.parametricBands[b]);
+    impl_->parametricEq.setBypass(!impl_->params.useParametricEq);
+
     impl_->limiter.updateParameters(impl_->params.limiter);
 }
 
@@ -130,8 +139,10 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     // 4. Protector de Frecuencias Ambientales (Multibanda 350 Hz - 2.5 kHz)
     impl_->ambience.process(channelPointers, numChannels, numSamples);
 
-    // 5. Ecualización Acústica de 31 Bandas ISO
+    // 5. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
     impl_->equalizer.process(channelPointers, numChannels, numSamples);
+    if (impl_->params.useParametricEq)
+        impl_->parametricEq.process(channelPointers, numChannels, numSamples);
 
     // 6. Limitador de Picos de Muestra Exacta (-0.5 dBFS)
     impl_->limiter.process(channelPointers, numChannels, numSamples);
@@ -172,6 +183,11 @@ float AudioGraph::getTransientReductionDb() const noexcept
 float AudioGraph::getAmbienceGainDb() const noexcept
 {
     return impl_->ambience.getCurrentGainDb();
+}
+
+float AudioGraph::getStationarityIndex() const noexcept
+{
+    return impl_->ambience.getStationarityIndex();
 }
 
 float AudioGraph::getLimiterReductionDb() const noexcept
