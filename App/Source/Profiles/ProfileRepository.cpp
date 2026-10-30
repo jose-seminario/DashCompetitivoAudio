@@ -179,6 +179,14 @@ bool ProfileRepository::deleteUserProfile(const std::string& profileId, std::str
 
 bool ProfileRepository::importProfile(const std::filesystem::path& sourceFilePath, AudioProfile& outProfile, std::string* outError)
 {
+    std::error_code ec;
+    if (std::filesystem::is_symlink(sourceFilePath, ec))
+    {
+        if (outError)
+            *outError = "Rechazado por seguridad: el archivo de perfil es un enlace simbólico no permitido.";
+        return false;
+    }
+
     if (!ProfileSerializer::loadFromFile(sourceFilePath, outProfile, outError))
         return false;
 

@@ -1,5 +1,6 @@
 #include "ProfileSerializer.h"
 #include "ProfileValidator.h"
+#include "ProfileMigrator.h"
 
 #include <juce_core/juce_core.h>
 
@@ -186,9 +187,27 @@ bool ProfileSerializer::deserializeFromJson(const std::string& jsonText, AudioPr
         return false;
     }
 
+    std::string textToParse = jsonText;
+
+    // Detectar si el esquema requiere migración previa
+    juce::var probeRoot;
+    if (juce::JSON::parse(juce::String::fromUTF8(jsonText.data(), static_cast<int>(jsonText.size())), probeRoot).wasOk() && probeRoot.isObject())
+    {
+        const int schemaVer = static_cast<int>(probeRoot.getProperty("schemaVersion", 0));
+        if (schemaVer < AudioProfile::kCurrentSchemaVersion && ProfileMigrator::canMigrate(schemaVer))
+        {
+            std::string migratedJson;
+            std::string migErr;
+            if (ProfileMigrator::migrateJson(jsonText, migratedJson, &migErr))
+            {
+                textToParse = std::move(migratedJson);
+            }
+        }
+    }
+
     // 2. Parseo mediante motor nativo JUCE
     juce::var root;
-    const auto parseResult = juce::JSON::parse(juce::String::fromUTF8(jsonText.data(), static_cast<int>(jsonText.size())), root);
+    const auto parseResult = juce::JSON::parse(juce::String::fromUTF8(textToParse.data(), static_cast<int>(textToParse.size())), root);
     if (parseResult.failed())
     {
         if (outError)

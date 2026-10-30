@@ -66,6 +66,7 @@ private:
     };
 
     ProfileListModel listModel_;
+    std::unique_ptr<juce::FileChooser> fileChooser_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ProfilePanel)
 };

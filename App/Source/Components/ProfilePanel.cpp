@@ -217,13 +217,50 @@ void ProfilePanel::saveCurrentProfile()
 
 void ProfilePanel::importProfileFile()
 {
-    // Cargar archivo seguro
-    refreshProfileList();
+    fileChooser_ = std::make_unique<juce::FileChooser>(
+        "Importar Perfil de Audio Táctico",
+        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
+        "*.json");
+
+    auto chooserFlags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
+    fileChooser_->launchAsync(chooserFlags, [this](const juce::FileChooser& fc) {
+        auto result = fc.getResult();
+        if (result.existsAsFile())
+        {
+            dash::profile::AudioProfile imported;
+            std::string err;
+            if (repo_.importProfile(result.getFullPathName().toStdString(), imported, &err))
+            {
+                refreshProfileList();
+                setLoadedProfile(imported);
+                if (onProfileSelected)
+                    onProfileSelected(imported.profileId);
+            }
+        }
+    });
 }
 
 void ProfilePanel::exportProfileFile()
 {
-    // Exportar archivo seguro
+    const int selected = profileListBox_.getSelectedRow();
+    if (selected < 0 || selected >= static_cast<int>(listModel_.items.size()))
+        return;
+
+    const auto& item = listModel_.items[static_cast<size_t>(selected)];
+    fileChooser_ = std::make_unique<juce::FileChooser>(
+        "Exportar Perfil de Audio Táctico",
+        juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile(juce::String(item.profileId) + ".json"),
+        "*.json");
+
+    auto chooserFlags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting;
+    fileChooser_->launchAsync(chooserFlags, [this, profileId = item.profileId](const juce::FileChooser& fc) {
+        auto result = fc.getResult();
+        if (result != juce::File{})
+        {
+            std::string err;
+            repo_.exportProfile(profileId, result.getFullPathName().toStdString(), &err);
+        }
+    });
 }
 
 void ProfilePanel::deleteSelectedProfile()

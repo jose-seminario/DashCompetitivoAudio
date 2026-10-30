@@ -1,10 +1,124 @@
 #include "EqualizerPanel.h"
 #include "../Theme/DashLookAndFeel.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace dash::ui
 {
+
+namespace
+{
+    float computeBiquadMagnitudeDb(
+        float freqHz,
+        dash::core::ParametricFilterType type,
+        float bandFreqHz,
+        float gainDb,
+        float q,
+        double sampleRate) noexcept
+    {
+        constexpr float kPi = 3.14159265358979323846f;
+        const float nyquist = static_cast<float>(sampleRate * 0.49);
+        const float f0 = std::clamp(bandFreqHz, 20.0f, nyquist);
+        const float safeQ = std::max(0.1f, q);
+
+        const float w0 = 2.0f * kPi * f0 / static_cast<float>(sampleRate);
+        const float cosW = std::cos(w0);
+        const float sinW = std::sin(w0);
+        const float alpha = sinW / (2.0f * safeQ);
+        const float A = std::pow(10.0f, gainDb / 40.0f); // sqrt(gain lineal)
+
+        float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f;
+        float a0 = 1.0f, a1 = 0.0f, a2 = 0.0f;
+
+        switch (type)
+        {
+            case dash::core::ParametricFilterType::Peaking:
+            {
+                b0 = 1.0f + alpha * A;
+                b1 = -2.0f * cosW;
+                b2 = 1.0f - alpha * A;
+                a0 = 1.0f + alpha / A;
+                a1 = -2.0f * cosW;
+                a2 = 1.0f - alpha / A;
+                break;
+            }
+            case dash::core::ParametricFilterType::LowShelf:
+            {
+                const float sqrtA = std::sqrt(A);
+                b0 = A * ((A + 1.0f) - (A - 1.0f) * cosW + 2.0f * sqrtA * alpha);
+                b1 = 2.0f * A * ((A - 1.0f) - (A + 1.0f) * cosW);
+                b2 = A * ((A + 1.0f) - (A - 1.0f) * cosW - 2.0f * sqrtA * alpha);
+                a0 = (A + 1.0f) + (A - 1.0f) * cosW + 2.0f * sqrtA * alpha;
+                a1 = -2.0f * ((A - 1.0f) + (A + 1.0f) * cosW);
+                a2 = (A + 1.0f) - (A - 1.0f) * cosW - 2.0f * sqrtA * alpha;
+                break;
+            }
+            case dash::core::ParametricFilterType::HighShelf:
+            {
+                const float sqrtA = std::sqrt(A);
+                b0 = A * ((A + 1.0f) + (A - 1.0f) * cosW + 2.0f * sqrtA * alpha);
+                b1 = -2.0f * A * ((A - 1.0f) + (A + 1.0f) * cosW);
+                b2 = A * ((A + 1.0f) - (A - 1.0f) * cosW - 2.0f * sqrtA * alpha);
+                a0 = (A + 1.0f) - (A - 1.0f) * cosW + 2.0f * sqrtA * alpha;
+                a1 = 2.0f * ((A - 1.0f) - (A + 1.0f) * cosW);
+                a2 = (A + 1.0f) - (A - 1.0f) * cosW - 2.0f * sqrtA * alpha;
+                break;
+            }
+            case dash::core::ParametricFilterType::HighPass:
+            {
+                b0 = (1.0f + cosW) * 0.5f;
+                b1 = -(1.0f + cosW);
+                b2 = (1.0f + cosW) * 0.5f;
+                a0 = 1.0f + alpha;
+                a1 = -2.0f * cosW;
+                a2 = 1.0f - alpha;
+                break;
+            }
+            case dash::core::ParametricFilterType::LowPass:
+            {
+                b0 = (1.0f - cosW) * 0.5f;
+                b1 = 1.0f - cosW;
+                b2 = (1.0f - cosW) * 0.5f;
+                a0 = 1.0f + alpha;
+                a1 = -2.0f * cosW;
+                a2 = 1.0f - alpha;
+                break;
+            }
+            case dash::core::ParametricFilterType::Notch:
+            {
+                b0 = 1.0f;
+                b1 = -2.0f * cosW;
+                b2 = 1.0f;
+                a0 = 1.0f + alpha;
+                a1 = -2.0f * cosW;
+                a2 = 1.0f - alpha;
+                break;
+            }
+        }
+
+        const float omega = 2.0f * kPi * freqHz / static_cast<float>(sampleRate);
+        const float cos1 = std::cos(omega);
+        const float sin1 = std::sin(omega);
+        const float cos2 = std::cos(2.0f * omega);
+        const float sin2 = std::sin(2.0f * omega);
+
+        const float numReal = b0 + b1 * cos1 + b2 * cos2;
+        const float numImag = -(b1 * sin1 + b2 * sin2);
+
+        const float denReal = a0 + a1 * cos1 + a2 * cos2;
+        const float denImag = -(a1 * sin1 + a2 * sin2);
+
+        const float numMagSq = numReal * numReal + numImag * numImag;
+        const float denMagSq = denReal * denReal + denImag * denImag;
+
+        if (denMagSq < 1.0e-12f)
+            return 0.0f;
+
+        const float magSq = std::max(1.0e-10f, numMagSq / denMagSq);
+        return 10.0f * std::log10(magSq);
+    }
+} // namespace
 
 EqualizerPanel::EqualizerPanel()
 {
@@ -299,20 +413,14 @@ void EqualizerPanel::drawFrequencyResponseCurve(juce::Graphics& g, const juce::R
             }
         }
 
-        // Sumar bandas paramétricas si están activas
+        // Sumar bandas paramétricas calculando su respuesta en frecuencia compleja real (Cookbook RBJ)
         if (useParametric_)
         {
             for (const auto& band : bands_)
             {
                 if (band.enabled)
                 {
-                    const float octDiff = std::abs(std::log2(freq / band.frequencyHz));
-                    const float widthOct = 1.0f / juce::jmax(0.1f, band.q);
-                    if (octDiff < widthOct)
-                    {
-                        const float w = 1.0f - (octDiff / widthOct);
-                        totalDb += band.gainDb * w;
-                    }
+                    totalDb += computeBiquadMagnitudeDb(freq, band.type, band.frequencyHz, band.gainDb, band.q, 48000.0);
                 }
             }
         }

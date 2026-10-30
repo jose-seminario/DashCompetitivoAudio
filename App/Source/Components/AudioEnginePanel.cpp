@@ -72,6 +72,47 @@ AudioEnginePanel::AudioEnginePanel()
     layoutSelector_.setSelectedId(3, juce::dontSendNotification);
     addAndMakeVisible(layoutSelector_);
 
+    auto notifyFormatConfig = [this] {
+        if (!onFormatConfigChanged)
+            return;
+
+        double sr = 48000.0;
+        switch (sampleRateSelector_.getSelectedId())
+        {
+            case 1: sr = 44100.0; break;
+            case 2: sr = 48000.0; break;
+            case 3: sr = 96000.0; break;
+            default: break;
+        }
+
+        int bs = 256;
+        switch (bufferSizeSelector_.getSelectedId())
+        {
+            case 1: bs = 128; break;
+            case 2: bs = 256; break;
+            case 3: bs = 512; break;
+            case 4: bs = 1024; break;
+            default: break;
+        }
+
+        int ch = 8;
+        switch (layoutSelector_.getSelectedId())
+        {
+            case 1: ch = 2; break;
+            case 2: ch = 6; break;
+            case 3: ch = 8; break;
+            case 4: ch = 12; break;
+            case 5: ch = 16; break;
+            default: break;
+        }
+
+        onFormatConfigChanged(sr, bs, ch);
+    };
+
+    sampleRateSelector_.onChange = notifyFormatConfig;
+    bufferSizeSelector_.onChange = notifyFormatConfig;
+    layoutSelector_.onChange = notifyFormatConfig;
+
     infoTextLabel_.setText("Nota: El motor DashCompetitivoAudio procesa hasta 16 canales nativos en tiempo real con SIMD AVX2. Para Call of Duty: Warzone, se recomienda configurar Windows en 7.1 Surround con 48 kHz y 256 muestras de búfer.", juce::dontSendNotification);
     infoTextLabel_.setFont(juce::FontOptions(11.5f));
     infoTextLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);

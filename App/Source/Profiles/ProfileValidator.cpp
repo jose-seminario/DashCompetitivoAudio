@@ -1,7 +1,9 @@
 #include "ProfileValidator.h"
 
+#include <juce_core/juce_core.h>
 #include <algorithm>
 #include <cctype>
+#include <functional>
 #include <sstream>
 
 namespace dash::profile
@@ -94,21 +96,121 @@ ProfileValidationResult ProfileValidator::validateRawJsonText(const std::string&
         return result;
     }
 
-    // 2. Prohibición estricta de extensiones y comandos ejecutables
-    static const std::vector<std::string> forbiddenTokens = {
-        ".exe", ".dll", ".bat", ".cmd", ".ps1", ".vbs", ".msi",
-        "powershell", "cmd.exe", "wscript", "cscript", "reg.exe",
-        "system32", "<script", "exec(", "eval("
-    };
+    // 2. Control de profundidad para prevenir Stack Overflow por recursión excesiva
+    int currentDepth = 0;
+    int maxDepth = 0;
+    bool inString = false;
+    bool escapeNext = false;
 
-    for (const auto& token : forbiddenTokens)
+    for (char c : rawJson)
     {
-        if (containsCaseInsensitive(rawJson, token))
+        if (escapeNext)
         {
-            result.addError("security", "Se detectó contenido ejecutable no permitido en el perfil: '" + token + "'");
+            escapeNext = false;
+            continue;
+        }
+        if (c == '\\' && inString)
+        {
+            escapeNext = true;
+            continue;
+        }
+        if (c == '"')
+        {
+            inString = !inString;
+            continue;
+        }
+        if (!inString)
+        {
+            if (c == '{' || c == '[')
+            {
+                ++currentDepth;
+                if (currentDepth > maxDepth)
+                    maxDepth = currentDepth;
+            }
+            else if (c == '}' || c == ']')
+            {
+                --currentDepth;
+            }
         }
     }
 
+    constexpr int kMaxAllowedNestingDepth = 16;
+    if (maxDepth > kMaxAllowedNestingDepth)
+    {
+        result.addError("security", "Profundidad de anidamiento JSON excesiva (supera el límite de seguridad de 16 niveles).");
+        return result;
+    }
+
+    // 3. Parseo estructural mediante JUCE
+    juce::var parsed;
+    const auto parseRes = juce::JSON::parse(juce::String::fromUTF8(rawJson.data(), static_cast<int>(rawJson.size())), parsed);
+    if (parseRes.failed())
+    {
+        result.addError("syntax", "Sintaxis JSON malformada: " + parseRes.getErrorMessage().toStdString());
+        return result;
+    }
+
+    // 4. Validación estructural de claves prohibidas y ejecutables
+    static const std::vector<std::string> forbiddenKeys = {
+        "cmd", "command", "exec", "script", "library", "powershell", "shell",
+        "run", "eval", "process", "system", "wscript", "cscript"
+    };
+
+    static const std::vector<std::string> executableExtensions = {
+        ".exe", ".dll", ".bat", ".cmd", ".ps1", ".vbs", ".msi", ".com"
+    };
+
+    std::function<void(const juce::var&)> inspectVar = [&](const juce::var& v) {
+        if (v.isObject())
+        {
+            if (auto* obj = v.getDynamicObject())
+            {
+                for (const auto& prop : obj->getProperties())
+                {
+                    const std::string keyLower = toLowerString(prop.name.toString().toStdString());
+                    for (const auto& fk : forbiddenKeys)
+                    {
+                        if (keyLower == fk)
+                        {
+                            result.addError("security", "Clave no permitida detectada en el perfil: '" + keyLower + "'");
+                            return;
+                        }
+                    }
+
+                    if (prop.value.isString())
+                    {
+                        const std::string valLower = toLowerString(prop.value.toString().toStdString());
+                        if (keyLower != "description" && keyLower != "name" && keyLower != "changelog" && keyLower != "variant")
+                        {
+                            for (const auto& ext : executableExtensions)
+                            {
+                                if (valLower.size() >= ext.size() &&
+                                    valLower.compare(valLower.size() - ext.size(), ext.size(), ext) == 0)
+                                {
+                                    result.addError("security", "Se detectó extensión ejecutable no permitida en propiedad '" + keyLower + "': " + valLower);
+                                    return;
+                                }
+                            }
+                        }
+                    }
+
+                    inspectVar(prop.value);
+                }
+            }
+        }
+        else if (v.isArray())
+        {
+            if (auto* arr = v.getArray())
+            {
+                for (const auto& item : *arr)
+                {
+                    inspectVar(item);
+                }
+            }
+        }
+    };
+
+    inspectVar(parsed);
     return result;
 }
 

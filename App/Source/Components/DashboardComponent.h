@@ -32,6 +32,7 @@ public:
     std::function<void()> onActivateClicked;
     std::function<void()> onDeactivateClicked;
     std::function<void(const juce::String& profileId)> onQuickProfileSelected;
+    std::function<void(float gun, float stepsDb, float ambGuard, bool spatialEnabled)> onQuickControlsChanged;
 
     void setEngineRunning(bool running);
     void setDeviceName(const juce::String& name);

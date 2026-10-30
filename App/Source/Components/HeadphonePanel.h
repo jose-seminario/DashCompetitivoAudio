@@ -25,7 +25,24 @@ public:
     std::function<void(const juce::String& headphoneModelId)> onHeadphoneModelChanged;
 
 private:
+    struct HeadphoneProfileItem
+    {
+        juce::String id;
+        juce::String displayName;
+        juce::String manufacturer;
+        juce::String model;
+        juce::String statusBadge;
+        juce::String targetCurve;
+        juce::String measurementSource;
+        juce::String license;
+        juce::String description;
+        bool isCalibrated = false;
+    };
+
+    void scanHeadphoneProfiles();
     void updateModelInfo();
+
+    std::vector<HeadphoneProfileItem> headphoneItems_;
 
     juce::Label titleLabel_;
     juce::Label modelSelectLabel_;

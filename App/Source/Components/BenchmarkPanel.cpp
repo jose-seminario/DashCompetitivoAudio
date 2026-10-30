@@ -1,6 +1,17 @@
 #include "BenchmarkPanel.h"
 #include "../Theme/DashLookAndFeel.h"
 
+#include <DashAudioCore/DynamicsProcessor.h>
+#include <DashAudioCore/TransientProcessor.h>
+#include <DashAudioCore/AmbienceProcessor.h>
+#include <DashAudioCore/EQProcessor.h>
+#include <DashAudioCore/LimiterProcessor.h>
+#include <DashAudioSpatial/SpatialProcessor.h>
+
+#include <chrono>
+#include <cmath>
+#include <vector>
+
 namespace dash::ui
 {
 
@@ -95,9 +106,153 @@ void BenchmarkPanel::resized()
 
 void BenchmarkPanel::runBenchmarkTest()
 {
-    // Simula una variación mínima de carga en tiempo real
-    metrics_[1].executionTimeUs = 18.2f;
-    metrics_[5].executionTimeUs = 17.9f;
+    constexpr int kNumSamples = 256;
+    constexpr int kChannels = 2;
+    constexpr int kIterations = 200;
+    constexpr double kSampleRate = 48000.0;
+    constexpr float kBudgetUs = (static_cast<float>(kNumSamples) / static_cast<float>(kSampleRate)) * 1.0e6f; // 5333.33 us
+
+    std::vector<float> chL(kNumSamples);
+    std::vector<float> chR(kNumSamples);
+    for (int i = 0; i < kNumSamples; ++i)
+    {
+        const float t = static_cast<float>(i) / static_cast<float>(kNumSamples);
+        chL[static_cast<size_t>(i)] = 0.5f * std::sin(2.0f * 3.14159265f * 1000.0f * t);
+        chR[static_cast<size_t>(i)] = 0.5f * std::cos(2.0f * 3.14159265f * 1000.0f * t);
+    }
+    float* channelPointers[kChannels] = { chL.data(), chR.data() };
+
+    // 1. Input Scaling & Headroom (-6 dB)
+    {
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int it = 0; it < kIterations; ++it)
+        {
+            const float gain = 0.5f;
+            for (int s = 0; s < kNumSamples; ++s)
+            {
+                chL[static_cast<size_t>(s)] *= gain;
+                chR[static_cast<size_t>(s)] *= gain;
+            }
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
+        metrics_[0].executionTimeUs = std::max(0.5f, us);
+        metrics_[0].cpuPercent = (metrics_[0].executionTimeUs / kBudgetUs) * 100.0f;
+        metrics_[0].status = "ÓPTIMO";
+    }
+
+    // 2. Dynamics Processor
+    {
+        dash::core::DynamicsProcessor dyn;
+        dyn.prepare(kSampleRate, kNumSamples, kChannels);
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int it = 0; it < kIterations; ++it)
+        {
+            dyn.process(channelPointers, kChannels, kNumSamples);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
+        metrics_[1].executionTimeUs = std::max(1.0f, us);
+        metrics_[1].cpuPercent = (metrics_[1].executionTimeUs / kBudgetUs) * 100.0f;
+        metrics_[1].status = (metrics_[1].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+    }
+
+    // 3. Transient Suppressor
+    {
+        dash::core::TransientProcessor trans;
+        trans.prepare(kSampleRate, kNumSamples, kChannels);
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int it = 0; it < kIterations; ++it)
+        {
+            trans.process(channelPointers, kChannels, kNumSamples);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
+        metrics_[2].executionTimeUs = std::max(1.0f, us);
+        metrics_[2].cpuPercent = (metrics_[2].executionTimeUs / kBudgetUs) * 100.0f;
+        metrics_[2].status = (metrics_[2].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+    }
+
+    // 4. Ambience Guard
+    {
+        dash::core::AmbienceProcessor amb;
+        amb.prepare(kSampleRate, kNumSamples, kChannels);
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int it = 0; it < kIterations; ++it)
+        {
+            amb.process(channelPointers, kChannels, kNumSamples);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
+        metrics_[3].executionTimeUs = std::max(1.0f, us);
+        metrics_[3].cpuPercent = (metrics_[3].executionTimeUs / kBudgetUs) * 100.0f;
+        metrics_[3].status = (metrics_[3].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+    }
+
+    // 5. Equalizer Processor
+    {
+        dash::core::EQProcessor eq;
+        eq.prepare(kSampleRate, kNumSamples, kChannels);
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int it = 0; it < kIterations; ++it)
+        {
+            eq.process(channelPointers, kChannels, kNumSamples);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
+        metrics_[4].executionTimeUs = std::max(1.0f, us);
+        metrics_[4].cpuPercent = (metrics_[4].executionTimeUs / kBudgetUs) * 100.0f;
+        metrics_[4].status = (metrics_[4].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+    }
+
+    // 6. Spatial Audio 3D
+    {
+        dash::spatial::SpatialProcessor spatial;
+        spatial.prepare(kSampleRate, kNumSamples);
+        spatial.configureLayout(dash::spatial::ChannelLayout::createStereo());
+        std::vector<float> outL(kNumSamples);
+        std::vector<float> outR(kNumSamples);
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int it = 0; it < kIterations; ++it)
+        {
+            spatial.processBinaural(channelPointers, kChannels, outL.data(), outR.data(), kNumSamples);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
+        metrics_[5].executionTimeUs = std::max(1.0f, us);
+        metrics_[5].cpuPercent = (metrics_[5].executionTimeUs / kBudgetUs) * 100.0f;
+        metrics_[5].status = (metrics_[5].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+    }
+
+    // 7. Peak Limiter
+    {
+        dash::core::LimiterProcessor lim;
+        lim.prepare(kSampleRate, kNumSamples, kChannels);
+        auto start = std::chrono::high_resolution_clock::now();
+        for (int it = 0; it < kIterations; ++it)
+        {
+            lim.process(channelPointers, kChannels, kNumSamples);
+        }
+        auto end = std::chrono::high_resolution_clock::now();
+        float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
+        metrics_[6].executionTimeUs = std::max(0.5f, us);
+        metrics_[6].cpuPercent = (metrics_[6].executionTimeUs / kBudgetUs) * 100.0f;
+        metrics_[6].status = (metrics_[6].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+    }
+
+    float totalUs = 0.0f;
+    float totalCpu = 0.0f;
+    for (const auto& m : metrics_)
+    {
+        totalUs += m.executionTimeUs;
+        totalCpu += m.cpuPercent;
+    }
+
+    summaryBudgetLabel_.setText(
+        "Presupuesto de Búfer: 5333 µs (5.33 ms a 48 kHz / 256 samples) | Consumo Total: ~"
+        + juce::String(totalUs, 1) + " µs (" + juce::String(totalCpu, 2) + "% de CPU)",
+        juce::dontSendNotification);
+
     repaint();
 }
 

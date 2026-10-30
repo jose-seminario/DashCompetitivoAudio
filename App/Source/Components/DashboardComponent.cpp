@@ -49,11 +49,11 @@ DashboardComponent::DashboardComponent()
     formatLabel_.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(formatLabel_);
 
-    latencyLabel_.setText("Latencia: 5.3 ms (256 samples)", juce::dontSendNotification);
+    latencyLabel_.setText("Latencia: --", juce::dontSendNotification);
     latencyLabel_.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(latencyLabel_);
 
-    cpuLabel_.setText("Carga CPU DSP: < 1.8%", juce::dontSendNotification);
+    cpuLabel_.setText("Carga CPU DSP: --", juce::dontSendNotification);
     cpuLabel_.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(cpuLabel_);
 
@@ -101,9 +101,23 @@ DashboardComponent::DashboardComponent()
     initTacticalSlider(stepsSlider_, stepsLabel_, "Realce de Pasos", -3.0, 6.0, 2.0, " dB");
     initTacticalSlider(ambSlider_, ambLabel_, "Protección (AmbGuar)", 0.0, 1.0, 1.0, "");
 
+    auto notifyQuickControls = [this] {
+        if (onQuickControlsChanged)
+        {
+            float gun, steps, amb;
+            bool spatial;
+            getQuickControlsValues(gun, steps, amb, spatial);
+            onQuickControlsChanged(gun, steps, amb, spatial);
+        }
+    };
+    gunSlider_.onValueChange = notifyQuickControls;
+    stepsSlider_.onValueChange = notifyQuickControls;
+    ambSlider_.onValueChange = notifyQuickControls;
+
     spatialToggle_.setButtonText("Audio Espacial Inmersivo (HRTF 3D)");
     spatialToggle_.setToggleState(true, juce::dontSendNotification);
     spatialToggle_.setColour(juce::ToggleButton::textColourId, DashLookAndFeel::kTextMain);
+    spatialToggle_.onClick = notifyQuickControls;
     addAndMakeVisible(spatialToggle_);
 }
 
@@ -259,6 +273,11 @@ void DashboardComponent::setEngineRunning(bool running)
                            running ? DashLookAndFeel::kBgCardElevated : DashLookAndFeel::kSuccessEmerald);
     deactivateBtn_.setColour(juce::TextButton::buttonColourId,
                              running ? DashLookAndFeel::kDangerCrimson : DashLookAndFeel::kBgCardElevated);
+    if (!running)
+    {
+        latencyLabel_.setText("Latencia: --", juce::dontSendNotification);
+        cpuLabel_.setText("Carga CPU DSP: --", juce::dontSendNotification);
+    }
     repaint();
 }
 
@@ -274,12 +293,18 @@ void DashboardComponent::setFormatInfo(double sampleRate, const juce::String& la
 
 void DashboardComponent::setLatencyMs(float latencyMs)
 {
-    latencyLabel_.setText("Latencia: " + juce::String(latencyMs, 1) + " ms", juce::dontSendNotification);
+    if (latencyMs < 0.0f)
+        latencyLabel_.setText("Latencia: N/A", juce::dontSendNotification);
+    else
+        latencyLabel_.setText("Latencia: " + juce::String(latencyMs, 1) + " ms", juce::dontSendNotification);
 }
 
 void DashboardComponent::setCpuPercent(float cpuPercent)
 {
-    cpuLabel_.setText("Carga CPU DSP: " + juce::String(cpuPercent, 1) + " %", juce::dontSendNotification);
+    if (cpuPercent < 0.0f)
+        cpuLabel_.setText("Carga CPU DSP: N/A", juce::dontSendNotification);
+    else
+        cpuLabel_.setText("Carga CPU DSP: " + juce::String(cpuPercent, 1) + " %", juce::dontSendNotification);
 }
 
 void DashboardComponent::updateQuickControls(float gunReductionDb, float footstepsDb, float ambienceReductionDb, bool spatialEnabled)

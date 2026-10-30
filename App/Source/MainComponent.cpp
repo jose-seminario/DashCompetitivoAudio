@@ -69,6 +69,26 @@ MainComponent::MainComponent()
             loadProfile("warzone-competitive-default");
     };
 
+    dashboardPanel_->onQuickControlsChanged = [this](float gun, float stepsDb, float ambGuard, bool spatialEnabled) {
+        currentProfile_.dspParams.transient.gun = juce::jlimit(0.0f, 1.0f, gun);
+        currentProfile_.dspParams.equalizer.footstepsDb = stepsDb;
+        currentProfile_.dspParams.ambience.ambGuar = juce::jlimit(0.0f, 1.0f, ambGuard);
+        currentProfile_.enableSpatial = spatialEnabled;
+        scheduleDebouncedInjection();
+    };
+
+    audioEnginePanel_->onFormatConfigChanged = [this](double sampleRate, int /*bufferSize*/, int numChannels) {
+        currentProfile_.audio.sampleRate = sampleRate;
+        juce::String layoutStr = juce::String(numChannels) + " canales";
+        if (numChannels == 2) layoutStr = "2.0 Estéreo (2 canales)";
+        else if (numChannels == 6) layoutStr = "5.1 Surround (6 canales)";
+        else if (numChannels == 8) layoutStr = "7.1 Surround (8 canales)";
+        else if (numChannels == 12) layoutStr = "7.1.4 Inmersivo (12 canales)";
+        else if (numChannels == 16) layoutStr = "9.1.6 Espacial (16 canales)";
+        dashboardPanel_->setFormatInfo(sampleRate, layoutStr);
+        scheduleDebouncedInjection();
+    };
+
     profilePanel_->onProfileSelected = [this](const std::string& profileId) {
         loadProfile(profileId);
     };
