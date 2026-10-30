@@ -17,6 +17,11 @@ target_sources(DashCompetitivoAudio
         Source/Core/AudioPolicyManager.cpp
         Source/Core/ApoConfigInjector.h
         Source/Core/ApoConfigInjector.cpp
+        Source/Core/ApoConfigManager.h
+        Source/Core/ApoConfigManager.cpp
+        Source/Audio/AudioDeviceInfo.h
+        Source/Audio/AudioBackendState.h
+        Source/Audio/IAudioBackend.h
         Source/Core/SystemDependencyChecker.h
         Source/Core/SystemDependencyChecker.cpp
 )

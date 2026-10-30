@@ -2,7 +2,13 @@
 ; Dash Competitivo Audio - Script Oficial de Instalación (NSIS 3.x)
 ; Arquitectura de despliegue del motor táctico:
 ;   - Instalación de aplicación en %LOCALAPPDATA%\DashCompetitivoAudio
-;   - Despliegue automático de los 3 plugins .vst3 en EqualizerAPO\VSTPlugins
+;   - Despliegue de los 3 plugins .vst3 en %COMMONPROGRAMFILES64%\VST3 y VSTPlugins
+;   - NOTA TÉCNICA (ADR-0001):
+;     Equalizer APO requiere plugins VST2 (.dll). Los plugins VST3 son bundles
+;     con estructura de carpetas (.vst3\Contents\x86_64-win\...). No se deben
+;     renombrar binarios VST3 a .dll ya que las ABIs VST2 y VST3 son incompatibles
+;     y provocan fallos o bloqueos en el motor de audio. La arquitectura transiciona
+;     hacia DashAudioCore / Router WASAPI nativo según lo documentado en ADR-0001.
 ;   - Registro en HKCU\Software\DashCompetitivoAudio y HKLM\SOFTWARE\DashCompetitivoAudio
 ;   - Elevación UAC (RequestExecutionLevel admin) y accesos directos completos
 ; ==============================================================================
@@ -36,7 +42,7 @@ OutFile "${OUT_FILE}"
 InstallDir "$LOCALAPPDATA\${APP_SHORT_KEY}"
 InstallDirRegKey HKCU "Software\${APP_SHORT_KEY}" "InstallLocation"
 
-; Solicitar permisos de Administrador (UAC) para escribir en Program Files\EqualizerAPO\VSTPlugins y HKLM
+; Solicitar permisos de Administrador (UAC) para escribir en Program Files y HKLM
 RequestExecutionLevel admin
 
 BrandingText "${APP_NAME} v${APP_VERSION} - Tactical Audio Engine"
@@ -89,13 +95,19 @@ Section "Aplicación Principal y Motores DSP VST3" SecCore
     SetOutPath "$INSTDIR"
     File "${BUILD_DIR}\App\DashCompetitivoAudio_artefacts\Release\${APP_EXE}"
 
-    ; 2. Empaquetar y extraer los 3 plugins .vst3 en %LOCALAPPDATA%\DashCompetitivoAudio\resources\apo-vst
+    ; 2. Extraer los 3 plugins .vst3 en %LOCALAPPDATA%\DashCompetitivoAudio\resources\apo-vst
     SetOutPath "$INSTDIR\resources\apo-vst"
     File /r "${BUILD_DIR}\Plugins\LoudnessCompressor\LoudnessCompressor_artefacts\Release\VST3\LoudnessCompressor.vst3"
     File /r "${BUILD_DIR}\Plugins\TransientSuppressor\TransientSuppressor_artefacts\Release\VST3\TransientSuppressor.vst3"
     File /r "${BUILD_DIR}\Plugins\AmbienceGuard\AmbienceGuard_artefacts\Release\VST3\AmbienceGuard.vst3"
 
-    ; 3. Copiar los 3 plugins .vst3 a la carpeta de plugins de Equalizer APO (C:\Program Files\EqualizerAPO\VSTPlugins)
+    ; 3. Despliegue en la carpeta estándar del sistema para VST3 (%COMMONPROGRAMFILES%\VST3)
+    CreateDirectory "$COMMONFILES64\VST3"
+    CopyFiles /SILENT "$INSTDIR\resources\apo-vst\LoudnessCompressor.vst3" "$COMMONFILES64\VST3"
+    CopyFiles /SILENT "$INSTDIR\resources\apo-vst\TransientSuppressor.vst3" "$COMMONFILES64\VST3"
+    CopyFiles /SILENT "$INSTDIR\resources\apo-vst\AmbienceGuard.vst3" "$COMMONFILES64\VST3"
+
+    ; 4. Si Equalizer APO está presente, copiar los bundles VST3 en su directorio VSTPlugins
     ReadRegStr $R0 HKLM "SOFTWARE\EqualizerAPO" "InstallPath"
     ${If} $R0 == ""
         StrCpy $R0 "$PROGRAMFILES64\EqualizerAPO"
@@ -107,18 +119,7 @@ Section "Aplicación Principal y Motores DSP VST3" SecCore
     CopyFiles /SILENT "$INSTDIR\resources\apo-vst\TransientSuppressor.vst3" "$R1"
     CopyFiles /SILENT "$INSTDIR\resources\apo-vst\AmbienceGuard.vst3" "$R1"
 
-    ; Copia directa de las DLLs PE32+ internas para compatibilidad inmediata con directivas VSTPlugin de Equalizer APO
-    ${If} ${FileExists} "$INSTDIR\resources\apo-vst\LoudnessCompressor.vst3\Contents\x86_64-win\LoudnessCompressor.vst3"
-        CopyFiles /SILENT "$INSTDIR\resources\apo-vst\LoudnessCompressor.vst3\Contents\x86_64-win\LoudnessCompressor.vst3" "$R1\LoudnessCompressor.dll"
-    ${EndIf}
-    ${If} ${FileExists} "$INSTDIR\resources\apo-vst\TransientSuppressor.vst3\Contents\x86_64-win\TransientSuppressor.vst3"
-        CopyFiles /SILENT "$INSTDIR\resources\apo-vst\TransientSuppressor.vst3\Contents\x86_64-win\TransientSuppressor.vst3" "$R1\TransientSuppressor.dll"
-    ${EndIf}
-    ${If} ${FileExists} "$INSTDIR\resources\apo-vst\AmbienceGuard.vst3\Contents\x86_64-win\AmbienceGuard.vst3"
-        CopyFiles /SILENT "$INSTDIR\resources\apo-vst\AmbienceGuard.vst3\Contents\x86_64-win\AmbienceGuard.vst3" "$R1\AmbienceGuard.dll"
-    ${EndIf}
-
-    ; 4. Crear claves de registro en HKCU y HKLM
+    ; 5. Crear claves de registro en HKCU y HKLM
     WriteRegStr HKCU "Software\${APP_SHORT_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKCU "Software\${APP_SHORT_KEY}" "Version"         "${APP_VERSION}"
     WriteRegStr HKCU "Software\${APP_SHORT_KEY}" "Publisher"       "${APP_COMPANY}"
@@ -140,7 +141,7 @@ Section "Aplicación Principal y Motores DSP VST3" SecCore
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify"             1
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair"             1
 
-    ; 5. Crear accesos directos en Escritorio y Menú de Inicio (con directorio de inicio en $INSTDIR)
+    ; 6. Crear accesos directos en Escritorio y Menú de Inicio (con directorio de inicio en $INSTDIR)
     SetOutPath "$INSTDIR"
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortcut  "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"
@@ -154,15 +155,22 @@ SectionEnd
 Section "Uninstall"
     SetShellVarContext current
 
+    ; Eliminar solo los bundles de DashCompetitivoAudio en VSTPlugins (nunca borrar la carpeta entera)
     ReadRegStr $R1 HKLM "SOFTWARE\${APP_SHORT_KEY}" "ApoVstDir"
     ${If} $R1 != ""
         RMDir /r "$R1\LoudnessCompressor.vst3"
         RMDir /r "$R1\TransientSuppressor.vst3"
         RMDir /r "$R1\AmbienceGuard.vst3"
+        ; Limpieza de remanentes legados .dll si existieran de versiones previas
         Delete "$R1\LoudnessCompressor.dll"
         Delete "$R1\TransientSuppressor.dll"
         Delete "$R1\AmbienceGuard.dll"
     ${EndIf}
+
+    ; Eliminar los bundles en la carpeta estándar del sistema VST3
+    RMDir /r "$COMMONFILES64\VST3\LoudnessCompressor.vst3"
+    RMDir /r "$COMMONFILES64\VST3\TransientSuppressor.vst3"
+    RMDir /r "$COMMONFILES64\VST3\AmbienceGuard.vst3"
 
     Delete "$DESKTOP\${APP_NAME}.lnk"
     Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"

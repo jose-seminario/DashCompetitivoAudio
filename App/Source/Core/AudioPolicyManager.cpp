@@ -4,18 +4,93 @@
 #include <iomanip>
 
 #ifdef _WIN32
+#include <windows.h>
+#include <mmreg.h>
+#include <mmdeviceapi.h>
+#include <propsys.h>
 #include <wrl/client.h>
 #include <functiondiscoverykeys_devpkey.h>
 
 using Microsoft::WRL::ComPtr;
-#endif
-
-namespace dash::audio
-{
 
 namespace
 {
-#ifdef _WIN32
+    // ==============================================================================
+    // Aislamiento de la interfaz COM no documentada IPolicyConfig
+    // Implementada por AudioSes.dll en Windows Vista, 7, 8, 10 y 11.
+    //
+    // AVISO TÉCNICO:
+    // Esta interfaz no está formalmente documentada en el Windows SDK. Microsoft podría
+    // alterar los offsets de la vtable en compilaciones futuras de Windows. Por ello,
+    // se confina en este módulo y se proyecta la migración hacia el router WASAPI (ADR-0001).
+    // ==============================================================================
+
+    struct DeviceShareMode;
+
+    inline constexpr GUID CLSID_PolicyConfigClient = {
+        0x870af99c, 0x171d, 0x4f9e, { 0xaf, 0x0d, 0xe6, 0x3d, 0xf4, 0x0c, 0x2b, 0xc9 }
+    };
+
+    MIDL_INTERFACE("f8679f50-850a-41cf-9c72-430f290290c8")
+    IPolicyConfig : public IUnknown
+    {
+    public:
+        virtual HRESULT STDMETHODCALLTYPE GetMixFormat(
+            PCWSTR pszDeviceName,
+            WAVEFORMATEX** ppFormat) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE GetDeviceFormat(
+            PCWSTR pszDeviceName,
+            INT bDefault,
+            WAVEFORMATEX** ppFormat) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE ResetDeviceFormat(
+            PCWSTR pszDeviceName) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE SetDeviceFormat(
+            PCWSTR pszDeviceName,
+            WAVEFORMATEX* pEndpointFormat,
+            WAVEFORMATEX* pMixFormat) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE GetProcessingPeriod(
+            PCWSTR pszDeviceName,
+            INT bDefault,
+            PINT64 pmftDefaultPeriod,
+            PINT64 pmftMinimumPeriod) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE SetProcessingPeriod(
+            PCWSTR pszDeviceName,
+            PINT64 pmftPeriod) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE GetShareMode(
+            PCWSTR pszDeviceName,
+            DeviceShareMode* pMode) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE SetShareMode(
+            PCWSTR pszDeviceName,
+            DeviceShareMode* pMode) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE GetPropertyValue(
+            PCWSTR pszDeviceName,
+            BOOL bFxStore,
+            const PROPERTYKEY& key,
+            PROPVARIANT* pv) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE SetPropertyValue(
+            PCWSTR pszDeviceName,
+            BOOL bFxStore,
+            const PROPERTYKEY& key,
+            const PROPVARIANT& pv) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE SetDefaultEndpoint(
+            PCWSTR wszDeviceId,
+            ERole role) = 0;
+
+        virtual HRESULT STDMETHODCALLTYPE SetEndpointVisibility(
+            PCWSTR wszDeviceId,
+            INT bVisible) = 0;
+    };
+
     // Guard RAII para inicializar COM de forma segura tanto en hilos nuevos
     // como en el Message Thread de JUCE (que ya inicializa COM en modo STA).
     class ScopedComInitializer
@@ -76,8 +151,11 @@ namespace
         ::CoTaskMemFree(rawId);
         return result;
     }
-#endif
 } // namespace
+#endif
+
+namespace dash::audio
+{
 
 bool AudioPolicyManager::setDefaultEndpoint(const std::wstring& deviceId, std::string* outError) const
 {
@@ -105,7 +183,7 @@ bool AudioPolicyManager::setDefaultEndpoint(const std::wstring& deviceId, std::s
 
     if (FAILED(hr) || !policyConfig)
     {
-        if (outError) *outError = formatHResult("No se pudo instanciar CLSID_PolicyConfigClient", hr);
+        if (outError) *outError = formatHResult("No se pudo instanciar CLSID_PolicyConfigClient (IPolicyConfig)", hr);
         return false;
     }
 
@@ -117,7 +195,7 @@ bool AudioPolicyManager::setDefaultEndpoint(const std::wstring& deviceId, std::s
         return false;
     }
 
-    // 2. Rol Multimedia (Música, vídeo y motores de reproducción WASAPI multimedia)
+    // 2. Rol Multimedia (Música, vídeo y motores de reproducción multimedia)
     hr = policyConfig->SetDefaultEndpoint(deviceId.c_str(), eMultimedia);
     if (FAILED(hr))
     {

@@ -2,7 +2,6 @@
 
 #include <cwctype>
 #include <algorithm>
-#include <thread>
 
 namespace dash::ui
 {
@@ -76,7 +75,7 @@ MainComponent::MainComponent()
     profileSelector_.addItem("Eclipse", 2);
     profileSelector_.setSelectedId(1, juce::dontSendNotification);
     profileSelector_.onChange = [this]() {
-        applyPresetValuesToSliders(profileSelector_.getSelectedId(), true);
+        applyPresetValuesToSliders(profileSelector_.getSelectedId(), isProfileActive_);
     };
     addAndMakeVisible(profileSelector_);
 
@@ -238,7 +237,29 @@ void MainComponent::initRotarySlider(
         {
             const double lufs = -28.0 + targetSlider_.getValue() * 36.0;
             targetLufsBadge_.setText("(" + juce::String(lufs, 1) + " LUFS)", juce::dontSendNotification);
-            scheduleDebouncedInjection();
+
+            // Actualización segura de parámetros en memoria local
+            apoConfig_.profileName   = profileSelector_.getText().toStdString();
+            apoConfig_.compAmount    = amountSlider_.getValue();
+            apoConfig_.compTarget    = targetSlider_.getValue();
+            apoConfig_.compRelease   = releaseSlider_.getValue();
+            apoConfig_.gunVolume     = gunSlider_.getValue();
+            apoConfig_.footstepsEqDb = footstepsSlider_.getValue();
+            apoConfig_.bassEqDb      = bassSlider_.getValue();
+            apoConfig_.ambGuard      = ambienceSlider_.getValue();
+
+            if (isProfileActive_)
+            {
+                // Solo si el perfil está activo se programa la inyección con debounce
+                scheduleDebouncedInjection();
+            }
+            else
+            {
+                // Si el perfil está inactivo, los cambios permanecen en memoria sin tocar disco
+                setStatusMessage(
+                    u8("Parámetro actualizado en memoria local (inactivo • se aplicará al activar el perfil)"),
+                    false);
+            }
         }
     };
 
@@ -280,10 +301,22 @@ void MainComponent::applyPresetValuesToSliders(int profileId, bool triggerInject
         targetLufsBadge_.setText("(-16.0 LUFS)", juce::dontSendNotification);
     }
 
+    // Sincronizar estructura en memoria
+    apoConfig_.profileName   = profileSelector_.getText().toStdString();
+    apoConfig_.compAmount    = amountSlider_.getValue();
+    apoConfig_.compTarget    = targetSlider_.getValue();
+    apoConfig_.compRelease   = releaseSlider_.getValue();
+    apoConfig_.gunVolume     = gunSlider_.getValue();
+    apoConfig_.footstepsEqDb = footstepsSlider_.getValue();
+    apoConfig_.bassEqDb      = bassSlider_.getValue();
+    apoConfig_.ambGuard      = ambienceSlider_.getValue();
+
     isUpdatingPresetSliders_ = false;
 
-    if (triggerInjection)
+    if (triggerInjection && isProfileActive_)
         scheduleDebouncedInjection();
+    else if (!isProfileActive_)
+        setStatusMessage("Preset " + profileSelector_.getText() + u8(" cargado en memoria local (inactivo)."), false);
 }
 
 void MainComponent::scheduleDebouncedInjection()
@@ -299,39 +332,51 @@ void MainComponent::timerCallback()
 
 void MainComponent::rebuildAndInjectConfig(bool forcePermissionPopup)
 {
-    apoConfig_.profileName     = profileSelector_.getText().toStdString();
-    apoConfig_.compAmount      = amountSlider_.getValue();
-    apoConfig_.compTarget      = targetSlider_.getValue();
-    apoConfig_.compRelease     = releaseSlider_.getValue();
-    apoConfig_.gunVolume       = gunSlider_.getValue();
-    apoConfig_.footstepsEqDb   = footstepsSlider_.getValue();
-    apoConfig_.bassEqDb        = bassSlider_.getValue();
-    apoConfig_.ambGuard        = ambienceSlider_.getValue();
+    // Nunca escribir en disco si el perfil no está explícitamente activado por el usuario
+    if (!isProfileActive_)
+        return;
 
-    // Si hay un Cable Virtual detectado y el perfil está activo, asociamos su GUID o aplicamos globalmente
+    apoConfig_.profileName   = profileSelector_.getText().toStdString();
+    apoConfig_.compAmount    = amountSlider_.getValue();
+    apoConfig_.compTarget    = targetSlider_.getValue();
+    apoConfig_.compRelease   = releaseSlider_.getValue();
+    apoConfig_.gunVolume     = gunSlider_.getValue();
+    apoConfig_.footstepsEqDb = footstepsSlider_.getValue();
+    apoConfig_.bassEqDb      = bassSlider_.getValue();
+    apoConfig_.ambGuard      = ambienceSlider_.getValue();
+
+    // Asociar endpoint si hay Cable Virtual detectado
     apoConfig_.targetEndpointGuid.clear();
-    if (isProfileActive_ && !depStatus_.detectedCableGuid.empty())
+    if (!depStatus_.detectedCableGuid.empty())
         apoConfig_.targetEndpointGuid = juce::String(depStatus_.detectedCableGuid.c_str()).toStdString();
 
-    std::string err;
-    bool permissionDenied = false;
+    const std::string managedDirectives = dash::audio::ApoConfigInjector::buildConfigContent(
+        apoConfig_, apoConfigPath_);
 
-    if (dash::audio::ApoConfigInjector::writeConfigAtomically(
-            apoConfigPath_, apoConfig_, &err, &permissionDenied))
+    std::string err;
+    const auto res = dash::audio::ApoConfigManager::injectManagedSection(
+        apoConfigPath_, managedDirectives, &err);
+
+    if (res == dash::audio::ApoConfigResult::Success)
     {
         setStatusMessage(
-            u8("\xE2\x9C\x93 Config.txt inyectado atómicamente [") + profileSelector_.getText()
+            u8("\xE2\x9C\x93 Sección administrada inyectada en config.txt [") + profileSelector_.getText()
             + " | Gun " + juce::String(apoConfig_.gunVolume, 2)
             + " | Pasos " + juce::String(apoConfig_.footstepsEqDb, 1) + " dB"
             + " | Graves " + juce::String(apoConfig_.bassEqDb, 1) + " dB]",
             false);
     }
+    else if (res == dash::audio::ApoConfigResult::PermissionDenied)
+    {
+        handlePermissionDeniedAlert(forcePermissionPopup);
+    }
+    else if (res == dash::audio::ApoConfigResult::ExternalConflictDetected)
+    {
+        setStatusMessage(u8("\xE2\x9A\xA0 Modificación externa detectada en config.txt. Backup creado."), true);
+    }
     else
     {
-        if (permissionDenied)
-            handlePermissionDeniedAlert(forcePermissionPopup);
-        else
-            setStatusMessage("Error al inyectar config.txt: " + u8(err.c_str()), true);
+        setStatusMessage("Error al inyectar sección administrada: " + u8(err.c_str()), true);
     }
 }
 
@@ -411,20 +456,21 @@ void MainComponent::deactivateAndRestoreAudio()
         }
     }
 
-    // 2. Escribir un config.txt vacío de forma atómica (Bypass total en Equalizer APO)
+    // 2. Remover de forma no destructiva la sección administrada en config.txt
     std::string apoErr;
-    bool permissionDenied = false;
+    const auto res = dash::audio::ApoConfigManager::removeManagedSection(apoConfigPath_, &apoErr);
 
-    if (dash::audio::ApoConfigInjector::writeEmptyConfigAtomically(apoConfigPath_, &apoErr, &permissionDenied))
+    if (res == dash::audio::ApoConfigResult::Success)
     {
-        setStatusMessage("Sistema restaurado: dispositivo original activo y config.txt vaciado.", false);
+        setStatusMessage(u8("Sistema restaurado: endpoint físico activo y bloque Dash removido de config.txt."), false);
+    }
+    else if (res == dash::audio::ApoConfigResult::PermissionDenied)
+    {
+        handlePermissionDeniedAlert(true);
     }
     else
     {
-        if (permissionDenied)
-            handlePermissionDeniedAlert(true);
-        else
-            setStatusMessage("Error al vaciar config.txt: " + u8(apoErr.c_str()), true);
+        setStatusMessage("Aviso al remover bloque Dash: " + u8(apoErr.c_str()), true);
     }
 }
 
@@ -455,7 +501,7 @@ void MainComponent::refreshSystemDependencies()
     if (!depStatus_.allDependenciesReady())
         setStatusMessage(u8("Revisa el panel 'Configuración del Sistema' para instalar las dependencias faltantes."), true);
     else
-        setStatusMessage(u8("Dependencias verificadas • Perfil Campaign cargado y listo."), false);
+        setStatusMessage(u8("Dependencias verificadas • Perfil Campaign cargado en memoria local."), false);
 
     resized();
 }
@@ -464,47 +510,20 @@ void MainComponent::onInstallDependenciesClicked()
 {
     depStatus_ = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
 
-    // Abrir las páginas oficiales de Equalizer APO y VB-Cable si faltan (o ambas como referencia)
+    // Apertura segura de enlaces oficiales en el navegador predeterminado del sistema (sin descargas directas)
     const bool needApo     = !depStatus_.hasEqualizerApo;
     const bool needVbCable = !depStatus_.hasVbAudioCable;
+    const bool needHeSuVi  = !depStatus_.hasHeSuVi;
+
     dash::audio::SystemDependencyChecker::openOfficialDownloadLinks(
         needApo || depStatus_.allDependenciesReady(),
         needVbCable || depStatus_.allDependenciesReady(),
-        false);
+        needHeSuVi || depStatus_.allDependenciesReady());
 
     installGuideEditor_.grabKeyboardFocus();
-
-    // Si HeSuVi no está instalado, descargar automáticamente HeSuVi_2.0.0.1.exe en segundo plano vía URLDownloadToFileW
-    if (!depStatus_.hasHeSuVi && !isDownloadingHeSuVi_)
-    {
-        isDownloadingHeSuVi_ = true;
-        installDepsBtn_.setEnabled(false);
-        setStatusMessage(
-            u8("Descargando automáticamente HeSuVi_2.0.0.1.exe desde SourceForge (URLDownloadToFile)..."),
-            false);
-
-        juce::Component::SafePointer<MainComponent> safeThis(this);
-        std::thread([safeThis]() {
-            std::filesystem::path savedPath;
-            std::string msg;
-            const bool ok = dash::audio::SystemDependencyChecker::downloadAndLaunchHeSuViInstaller(&savedPath, &msg);
-
-            juce::MessageManager::callAsync([safeThis, ok, msg]() {
-                if (safeThis == nullptr)
-                    return;
-
-                safeThis->isDownloadingHeSuVi_ = false;
-                safeThis->installDepsBtn_.setEnabled(true);
-                safeThis->refreshSystemDependencies();
-                safeThis->setStatusMessage(u8(msg.c_str()), !ok);
-            });
-        }).detach();
-        return;
-    }
-
     refreshSystemDependencies();
     setStatusMessage(
-        u8("Enlaces oficiales abiertos en tu navegador. Sigue la guía paso a paso en pantalla."),
+        u8("Enlaces oficiales abiertos en el navegador. Sigue la guía de instalación manual en pantalla."),
         false);
 }
 
@@ -520,7 +539,7 @@ void MainComponent::handlePermissionDeniedAlert(bool forcePopup)
         juce::NativeMessageBox::showMessageBoxAsync(
             juce::MessageBoxIconType::WarningIcon,
             u8("Permisos de Administrador Requeridos"),
-            u8("Dash Competitivo Audio necesita permisos de Administrador para escribir atómicamente en:\n\n"
+            u8("Dash Competitivo Audio necesita permisos de Administrador para escribir de forma no destructiva en:\n\n"
                "C:\\Program Files\\EqualizerAPO\\config\\config.txt\n\n"
                "Haz clic en el botón 'Reiniciar como Admin' en el panel inferior o cierra la aplicación y ábrela con 'Ejecutar como administrador'."),
             this);

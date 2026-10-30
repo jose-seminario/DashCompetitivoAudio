@@ -30,12 +30,9 @@ struct DependencyStatus
 class SystemDependencyChecker
 {
 public:
-    static constexpr const wchar_t* kEqualizerApoUrl        = L"https://sourceforge.net/projects/equalizerapo/";
-    static constexpr const wchar_t* kVbCableUrl             = L"https://vb-audio.com/Cable/";
-    static constexpr const wchar_t* kHeSuViUrl              = L"https://sourceforge.net/projects/hesuvi/";
-    static constexpr const wchar_t* kHeSuViDirectDownloadUrl =
-        L"https://sourceforge.net/projects/hesuvi/files/HeSuVi_2.0.0.1.exe/download";
-    static constexpr const wchar_t* kHeSuViInstallerFilename = L"HeSuVi_2.0.0.1.exe";
+    static constexpr const wchar_t* kEqualizerApoUrl = L"https://sourceforge.net/projects/equalizerapo/";
+    static constexpr const wchar_t* kVbCableUrl      = L"https://vb-audio.com/Cable/";
+    static constexpr const wchar_t* kHeSuViUrl       = L"https://sourceforge.net/projects/hesuvi/";
 
     /**
      * Verifica en disco (std::filesystem), Registro de Windows y endpoints WASAPI
@@ -44,19 +41,10 @@ public:
     static DependencyStatus inspectSystem(const AudioPolicyManager& policyManager);
 
     /**
-     * Abre en el navegador los enlaces de las dependencias faltantes (Equalizer APO / VB-Cable)
-     * mediante ShellExecuteW.
+     * Abre en el navegador los enlaces oficiales para que el usuario descargue e instale manualmente.
+     * Nunca descarga ejecutables ni instala software automáticamente.
      */
-    static void openOfficialDownloadLinks(bool openApo = true, bool openVbCable = true, bool openHeSuViPage = false);
-
-    /**
-     * Descarga automáticamente HeSuVi_2.0.0.1.exe desde SourceForge usando URLDownloadToFileW
-     * en %TEMP%\HeSuVi_2.0.0.1.exe, verifica que sea un ejecutable PE válido y lo lanza;
-     * si un firewall bloquea la descarga directa, hace fallback transparente con ShellExecuteW.
-     */
-    static bool downloadAndLaunchHeSuViInstaller(
-        std::filesystem::path* outInstallerPath = nullptr,
-        std::string* outMessage = nullptr);
+    static void openOfficialDownloadLinks(bool openApo = true, bool openVbCable = true, bool openHeSuViPage = true);
 
     /**
      * Intenta relanzar el ejecutable actual solicitando elevación UAC ("runas").
@@ -64,7 +52,7 @@ public:
     static bool relaunchAsAdministrator();
 
     /**
-     * Devuelve el tutorial paso a paso de instalación y configuración 7.1.
+     * Devuelve el tutorial paso a paso de instalación y configuración manual.
      */
     static std::string buildInstallationGuideText(const DependencyStatus& status);
 };

@@ -35,6 +35,20 @@ DashCompetitivoAudio/
 ├── CMakeLists.txt                                      # Build raíz (C++20, LTCG/LTO, FetchContent JUCE 8.0.4)
 ├── LICENSE                                             # Texto legal íntegro de la licencia GNU AGPLv3
 ├── THIRD_PARTY_NOTICES.md                              # Avisos de licencias y dependencias externas
+├── ARCHITECTURE.md                                     # Arquitectura técnica detallada y flujo de datos
+├── CONTRIBUTING.md                                     # Guía de contribución y estándares en tiempo real
+├── docs/                                               # Documentación técnica extendida
+│   ├── DEVELOPMENT.md                                  # Guía de entorno de desarrollo y compilación
+│   ├── DEPENDENCIES.md                                 # Inventario exhaustivo de dependencias y exclusiones
+│   ├── LICENSING.md                                    # Análisis legal de licenciamiento y compatibilidad
+│   └── ROADMAP.md                                      # Hoja de ruta de evolución técnica en 6 fases
+├── DashAudioCore/                                      # Motor DSP Central Canónico (Librería Estática C++20)
+│   ├── CMakeLists.txt
+│   ├── DynamicsProcessor.h / .cpp                      # Compresor dinámico híbrido ITU-R BS.1770-4
+│   ├── TransientProcessor.h / .cpp                     # Supresor de transitorios de disparos (280 Hz)
+│   ├── AmbienceProcessor.h / .cpp                      # Protector ambiental multibanda (350 Hz - 2.5 kHz)
+│   ├── EQProcessor.h / .cpp                            # Ecualización gráfica de 31 bandas ISO y cálculo de ganancias
+│   └── LimiterProcessor.h / .cpp                       # Limitador de picos de muestra exacta (-0.5 dBFS)
 ├── App/                                                # Aplicación de control nativa (GUI + COM + Equalizer APO)
 │   ├── CMakeLists.txt
 │   └── Source/
@@ -45,26 +59,21 @@ DashCompetitivoAudio/
 │           ├── ApoConfigInjector.h / .cpp              # Escritor atómico NTFS para Equalizer APO config.txt
 │           └── SystemDependencyChecker.h / .cpp        # Verificador de APO, VB-Cable, HeSuVi y permisos UAC
 ├── Plugins/
-│   ├── TransientSuppressor/                            # 1. Supresor de Transitorios de Disparos (Gun Crack)
+│   ├── TransientSuppressor/                            # 1. Wrapper VST3/Standalone de Supresión de Disparos
 │   │   ├── CMakeLists.txt
 │   │   └── Source/
 │   │       ├── PluginProcessor.h / .cpp
-│   │       ├── PluginEditor.h / .cpp
-│   │       └── DSP/CenterTransientSuppressor.h
-│   ├── LoudnessCompressor/                             # 2. Compresor Dinámico Híbrido ITU-R BS.1770-4
+│   │       └── PluginEditor.h / .cpp
+│   ├── LoudnessCompressor/                             # 2. Wrapper VST3/Standalone de Compresión Híbrida
 │   │   ├── CMakeLists.txt
 │   │   └── Source/
 │   │       ├── PluginProcessor.h / .cpp
-│   │       ├── PluginEditor.h / .cpp
-│   │       └── DSP/
-│   │           ├── KWeightingFilter.h
-│   │           └── HybridLoudnessCompressor.h
-│   └── AmbienceGuard/                                  # 3. Protector Multibanda de Frecuencias Ambientales
+│   │       └── PluginEditor.h / .cpp
+│   └── AmbienceGuard/                                  # 3. Wrapper VST3/Standalone de Protección Ambiental
 │       ├── CMakeLists.txt
 │       └── Source/
 │           ├── PluginProcessor.h / .cpp
-│           ├── PluginEditor.h / .cpp
-│           └── DSP/MultibandAmbienceGuard.h
+│           └── PluginEditor.h / .cpp
 └── Installer/
     └── installer.nsi                                   # Script NSIS para generar DashCompetitivoAudio-setup.exe
 ```

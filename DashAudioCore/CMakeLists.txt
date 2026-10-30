@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.22)
 
 add_library(DashAudioCore STATIC
+    AudioGraphParameters.h
+    AudioGraph.h
+    AudioGraph.cpp
     LimiterProcessor.h
     LimiterProcessor.cpp
     DynamicsProcessor.h
@@ -20,6 +23,8 @@ target_include_directories(DashAudioCore
     PRIVATE
         $<TARGET_PROPERTY:juce::juce_dsp,INTERFACE_INCLUDE_DIRECTORIES>
         $<TARGET_PROPERTY:juce::juce_core,INTERFACE_INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:juce::juce_audio_basics,INTERFACE_INCLUDE_DIRECTORIES>
+        $<TARGET_PROPERTY:juce::juce_audio_formats,INTERFACE_INCLUDE_DIRECTORIES>
 )
 
 if(JUCE_SOURCE_DIR AND EXISTS "${JUCE_SOURCE_DIR}/modules")

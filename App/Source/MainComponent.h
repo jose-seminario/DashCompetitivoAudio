@@ -6,6 +6,7 @@
 
 #include "Core/AudioPolicyManager.h"
 #include "Core/ApoConfigInjector.h"
+#include "Core/ApoConfigManager.h"
 #include "Core/SystemDependencyChecker.h"
 
 namespace dash::ui
@@ -62,7 +63,6 @@ private:
     bool isProfileActive_          = false;
     bool isUpdatingPresetSliders_  = false;
     bool hasShownAdminPopup_       = false;
-    bool isDownloadingHeSuVi_      = false;
 
     // 1. Encabezado Principal
     juce::Label titleLabel_;
