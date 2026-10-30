@@ -1,0 +1,101 @@
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "serialNumber": "urn:uuid:6f70e900-9a42-48eb-a2ea-1aa4e47b0d49",
+  "version": 1,
+  "metadata": {
+    "timestamp": "2026-10-30T12:00:00Z",
+    "tools": [
+      {
+        "vendor": "DashAudio",
+        "name": "DashCompetitivoAudio Engineering Audit",
+        "version": "1.0.0"
+      }
+    ],
+    "component": {
+      "type": "application",
+      "name": "DashCompetitivoAudio",
+      "version": "1.0.0",
+      "description": "Tactical Audio DSP Engine & Spatial 3D Platform for Windows",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ]
+    }
+  },
+  "components": [
+    {
+      "type": "framework",
+      "name": "JUCE",
+      "version": "8.0.4",
+      "description": "Cross-platform C++ framework for audio applications",
+      "purl": "pkg:github/juce-framework/JUCE@8.0.4",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "DashAudioCore",
+      "version": "1.0.0",
+      "description": "Native C++20 real-time DSP engine (Dynamics, Transient, Ambience, EQ, Limiter)",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ]
+    },
+    {
+      "type": "library",
+      "name": "DashAudioSpatial",
+      "version": "1.0.0",
+      "description": "3D Spatial binaural HRTF/HRIR convolution engine up to 16 channels",
+      "scope": "required",
+      "licenses": [
+        {
+          "license": {
+            "id": "GPL-3.0-or-later"
+          }
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "name": "AutoEq Compensation Curves",
+      "version": "2023.05",
+      "description": "Parametric EQ compensation filters for HyperX and Logitech headphones",
+      "author": "Jaakko Pasanen",
+      "licenses": [
+        {
+          "license": {
+            "id": "MIT"
+          }
+        }
+      ]
+    },
+    {
+      "type": "data",
+      "name": "DashAudioDB",
+      "version": "1.0.0",
+      "description": "Community acoustic profiles and game calibrations",
+      "licenses": [
+        {
+          "license": {
+            "id": "CC-BY-4.0"
+          }
+        }
+      ]
+    }
+  ]
+}

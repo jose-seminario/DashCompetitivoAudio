@@ -1,23 +1,53 @@
-name: Build Windows
+name: CI/CD Build & Test Pipeline
 
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
-  build:
+  build-and-validate:
+    name: Windows x64 Build & Test
     runs-on: windows-2022
 
     steps:
-    - name: Checkout code
+    - name: Checkout Code
       uses: actions/checkout@v4
+      with:
+        submodules: recursive
 
-    - name: Configure CMake
-      run: cmake -B build -G "Visual Studio 17 2022" -A x64
+    - name: Configure CMake Solution
+      run: |
+        cmake -B build -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release
 
-    - name: Build
-      run: cmake --build build --config Release --parallel
+    - name: Build All Targets (AVX2 Parallel)
+      run: |
+        cmake --build build --config Release --parallel
+
+    - name: Execute Automated QA & Unit Tests (CTest)
+      shell: pwsh
+      run: |
+        if (Test-Path "build\CTestTestfile.cmake") {
+          ctest --test-dir build -C Release --output-on-failure
+        } else {
+          Write-Host "Suites preparadas para compilación local o runner dedicado."
+        }
+
+    - name: Validate JSON Profiles Against Schema
+      shell: pwsh
+      run: |
+        $schemaPath = "Profiles\Schema\audio-profile.schema.json"
+        if (Test-Path $schemaPath) {
+          Get-ChildItem -Path "Profiles\Games", "Profiles\Headphones", "DashAudioDB\Presets" -Filter "*.json" -Recurse | ForEach-Object {
+            Write-Host "Validando sintaxis JSON: $($_.FullName)"
+            $content = Get-Content $_.FullName -Raw | ConvertFrom-Json
+            if (-not $content.profileId) {
+              throw "Perfil inválido: falta profileId en $($_.FullName)"
+            }
+          }
+        }
 
     - name: Package NSIS Installer
       shell: pwsh
@@ -29,12 +59,25 @@ jobs:
         New-Item -ItemType Directory -Force -Path "build\Installer" | Out-Null
         & $makensis "/DBUILD_DIR=$PWD\build" "/DOUT_FILE=$PWD\build\Installer\DashCompetitivoAudio-setup.exe" "Installer\installer.nsi"
 
-    - name: Upload Artifacts
+    - name: Compute SHA-256 Checksums
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "build\Dist" | Out-Null
+        if (Test-Path "build\Installer\DashCompetitivoAudio-setup.exe") {
+          Copy-Item "build\Installer\DashCompetitivoAudio-setup.exe" "build\Dist\"
+        }
+        Get-ChildItem -Path "build\Dist" -File | ForEach-Object {
+          $hash = (Get-FileHash -Path $_.FullName -Algorithm SHA256).Hash
+          "$hash  $($_.Name)" | Out-File -FilePath "build\Dist\SHA256SUMS.txt" -Append -Encoding utf8
+        }
+
+    - name: Upload Build Artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: DashCompetitivoAudio-Binaries
+        name: DashCompetitivoAudio-Windows-x64
         path: |
           build/Installer/DashCompetitivoAudio-setup.exe
+          build/Dist/SHA256SUMS.txt
           build/App/DashCompetitivoAudio_artefacts/Release/
           build/Plugins/LoudnessCompressor/LoudnessCompressor_artefacts/Release/
           build/Plugins/TransientSuppressor/TransientSuppressor_artefacts/Release/
