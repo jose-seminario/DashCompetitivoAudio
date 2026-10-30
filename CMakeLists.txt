@@ -39,3 +39,35 @@ add_subdirectory(App)
 add_subdirectory(Plugins/LoudnessCompressor)
 add_subdirectory(Plugins/TransientSuppressor)
 add_subdirectory(Plugins/AmbienceGuard)
+
+# 3. Target opcional de empaquetado comercial NSIS (DashCompetitivoAudio-setup.exe)
+find_program(MAKENSIS_EXECUTABLE
+    NAMES makensis
+    HINTS
+        "C:/Program Files (x86)/NSIS"
+        "C:/Program Files/NSIS"
+)
+
+if(MAKENSIS_EXECUTABLE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Installer/installer.nsi")
+    message(STATUS "NSIS detectado en: ${MAKENSIS_EXECUTABLE} (target PackageInstaller habilitado)")
+    file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}" NATIVE_BUILD_DIR)
+    file(TO_NATIVE_PATH "${CMAKE_BINARY_DIR}/Installer/DashCompetitivoAudio-setup.exe" NATIVE_INSTALLER_OUT)
+    file(TO_NATIVE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/Installer/installer.nsi" NATIVE_NSI_SCRIPT)
+
+    add_custom_target(PackageInstaller
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_BINARY_DIR}/Installer"
+        COMMAND "${MAKENSIS_EXECUTABLE}"
+                "/DBUILD_DIR=${NATIVE_BUILD_DIR}"
+                "/DOUT_FILE=${NATIVE_INSTALLER_OUT}"
+                "${NATIVE_NSI_SCRIPT}"
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Installer"
+        COMMENT "Empaquetando instalador comercial DashCompetitivoAudio-setup.exe con NSIS..."
+        VERBATIM
+    )
+    add_dependencies(PackageInstaller
+        DashCompetitivoAudio
+        LoudnessCompressor_VST3
+        TransientSuppressor_VST3
+        AmbienceGuard_VST3
+    )
+endif()

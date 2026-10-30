@@ -59,9 +59,10 @@ private:
     std::filesystem::path apoConfigPath_;
     std::wstring originalEndpointId_;
     std::wstring originalEndpointName_;
-    bool isProfileActive_        = false;
-    bool isUpdatingPresetSliders_ = false;
-    bool hasShownAdminPopup_     = false;
+    bool isProfileActive_          = false;
+    bool isUpdatingPresetSliders_  = false;
+    bool hasShownAdminPopup_       = false;
+    bool isDownloadingHeSuVi_      = false;
 
     // 1. Encabezado Principal
     juce::Label titleLabel_;

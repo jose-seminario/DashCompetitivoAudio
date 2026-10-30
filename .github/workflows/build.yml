@@ -19,11 +19,22 @@ jobs:
     - name: Build
       run: cmake --build build --config Release --parallel
 
+    - name: Package NSIS Installer
+      shell: pwsh
+      run: |
+        if (-not (Get-Command makensis -ErrorAction SilentlyContinue) -and -not (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe")) {
+          choco install nsis -y --no-progress
+        }
+        $makensis = if (Test-Path "C:\Program Files (x86)\NSIS\makensis.exe") { "C:\Program Files (x86)\NSIS\makensis.exe" } else { "makensis" }
+        New-Item -ItemType Directory -Force -Path "build\Installer" | Out-Null
+        & $makensis "/DBUILD_DIR=$PWD\build" "/DOUT_FILE=$PWD\build\Installer\DashCompetitivoAudio-setup.exe" "Installer\installer.nsi"
+
     - name: Upload Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: DashCompetitivoAudio-Binaries
         path: |
+          build/Installer/DashCompetitivoAudio-setup.exe
           build/App/DashCompetitivoAudio_artefacts/Release/
           build/Plugins/LoudnessCompressor/LoudnessCompressor_artefacts/Release/
           build/Plugins/TransientSuppressor/TransientSuppressor_artefacts/Release/

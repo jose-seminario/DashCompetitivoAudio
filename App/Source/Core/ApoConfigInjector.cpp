@@ -46,6 +46,24 @@ namespace
     }
 
 #ifdef _WIN32
+    std::filesystem::path queryEqualizerApoRegistryDir()
+    {
+        HKEY hKey = nullptr;
+        if (::RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\EqualizerAPO", 0, KEY_READ | KEY_WOW64_64KEY, &hKey) != ERROR_SUCCESS)
+            return {};
+
+        wchar_t buf[MAX_PATH] {};
+        DWORD bufBytes = sizeof(buf);
+        DWORD type = 0;
+        const LONG rc = ::RegQueryValueExW(hKey, L"InstallPath", nullptr, &type, reinterpret_cast<LPBYTE>(buf), &bufBytes);
+        ::RegCloseKey(hKey);
+
+        if (rc == ERROR_SUCCESS && (type == REG_SZ || type == REG_EXPAND_SZ) && buf[0] != L'\0')
+            return std::filesystem::path(buf);
+
+        return {};
+    }
+
     bool writeBytesAndFlushWin32(HANDLE hFile, const std::string& content, std::string* outError)
     {
         const char* dataPtr = content.data();
@@ -95,6 +113,13 @@ namespace
 
 std::filesystem::path ApoConfigInjector::getDefaultApoConfigPath()
 {
+    std::error_code ec;
+#ifdef _WIN32
+    const auto regDir = queryEqualizerApoRegistryDir();
+    if (!regDir.empty() && std::filesystem::exists(regDir, ec))
+        return regDir / "config" / "config.txt";
+#endif
+
     char* progFiles = nullptr;
     size_t len = 0;
     std::filesystem::path baseDir = "C:\\Program Files";
@@ -110,10 +135,57 @@ std::filesystem::path ApoConfigInjector::getDefaultApoConfigPath()
     return baseDir / "EqualizerAPO" / "config" / "config.txt";
 }
 
+std::string ApoConfigInjector::resolveHeSuViIncludePath(
+    const std::filesystem::path& configFilePath,
+    const std::string& customOverride)
+{
+    if (!customOverride.empty())
+        return customOverride;
+
+    std::error_code ec;
+    const std::filesystem::path effectiveConfig = configFilePath.empty()
+        ? getDefaultApoConfigPath()
+        : configFilePath;
+
+    const auto configDir = effectiveConfig.parent_path();
+
+    // 1. Ruta estándar auditada relativa a <EqualizerAPO>\config\: "HeSuVi\hesuvi.txt"
+    if (!configDir.empty() && std::filesystem::exists(configDir / "HeSuVi" / "hesuvi.txt", ec))
+        return kDefaultHeSuViInclude;
+
+    // 2. Búsqueda dinámica en %LOCALAPPDATA%\DashCompetitivoAudio\HeSuVi\hesuvi.txt (fallback empaquetado)
+#ifdef _WIN32
+    char* localAppData = nullptr;
+    size_t len = 0;
+    if (_dupenv_s(&localAppData, &len, "LOCALAPPDATA") == 0 && localAppData != nullptr)
+    {
+        const std::filesystem::path localHeSuVi =
+            std::filesystem::path(localAppData) / "DashCompetitivoAudio" / "HeSuVi" / "hesuvi.txt";
+        std::free(localAppData);
+
+        if (std::filesystem::exists(localHeSuVi, ec))
+            return localHeSuVi.string();
+    }
+
+    const auto regDir = queryEqualizerApoRegistryDir();
+    if (!regDir.empty())
+    {
+        const auto regHeSuVi = regDir / "config" / "HeSuVi" / "hesuvi.txt";
+        if (std::filesystem::exists(regHeSuVi, ec))
+        {
+            if (regDir / "config" == configDir)
+                return kDefaultHeSuViInclude;
+            return regHeSuVi.string();
+        }
+    }
+#endif
+
+    // Por defecto emite siempre la directiva canónica de auditoría "Include: HeSuVi\hesuvi.txt"
+    return kDefaultHeSuViInclude;
+}
+
 std::string ApoConfigInjector::buildGraphicEqDirective(double footstepsDb, double bassDb)
 {
-    // Si está en los valores exactos de la auditoría Campaign (Pasos +1.6 dB, Graves +1.5 dB),
-    // devolvemos literalmente la constante original de 31 bandas sin alteración alguna.
     if (std::abs(footstepsDb - 1.6) < 1.0e-4 && std::abs(bassDb - 1.5) < 1.0e-4)
         return kTacticalGraphicEq;
 
@@ -129,23 +201,23 @@ std::string ApoConfigInjector::buildGraphicEqDirective(double footstepsDb, doubl
         { "12500", 0.2 }, { "16000", -0.5 },{ "20000", -1.2 }
     }};
 
-    const double deltaBass  = bassDb - 1.5;      // Control sobre 100-250 Hz (y hombro suave en 80 Hz)
-    const double deltaSteps = footstepsDb - 1.6; // Control sobre 3.15 kHz (+1.6) y 6.3 kHz (+2.2)
+    const double deltaBass  = bassDb - 1.5;
+    const double deltaSteps = footstepsDb - 1.6;
 
-    // Banda Graves: 80 Hz (idx 6) hombro 50%, 100..250 Hz (idx 7..11) 100%
+    // Banda Graves: 80 Hz hombro 50%, 100..250 Hz 100%
     bands[6].gain  += deltaBass * 0.5;
-    bands[7].gain  += deltaBass; // 100 Hz
-    bands[8].gain  += deltaBass; // 125 Hz
-    bands[9].gain  += deltaBass; // 160 Hz
-    bands[10].gain += deltaBass; // 200 Hz
-    bands[11].gain += deltaBass; // 250 Hz
+    bands[7].gain  += deltaBass;
+    bands[8].gain  += deltaBass;
+    bands[9].gain  += deltaBass;
+    bands[10].gain += deltaBass;
+    bands[11].gain += deltaBass;
 
-    // Banda Pasos (Warzone Footsteps): 3150 Hz (idx 22) y 6300 Hz (idx 25) + hombros acústicos suaves
-    bands[21].gain += deltaSteps * 0.50; // 2500 Hz
-    bands[22].gain  = footstepsDb;       // 3150 Hz (base +1.6 dB)
-    bands[23].gain += deltaSteps * 0.45; // 4000 Hz
-    bands[25].gain  = 2.2 + deltaSteps * (2.2 / 1.6); // 6300 Hz (base +2.2 dB escalada proporcionalmente)
-    bands[26].gain += deltaSteps * 0.55; // 8000 Hz
+    // Banda Pasos: 3150 Hz (+1.6) y 6300 Hz (+2.2) + hombros acústicos suaves
+    bands[21].gain += deltaSteps * 0.50;
+    bands[22].gain  = footstepsDb;
+    bands[23].gain += deltaSteps * 0.45;
+    bands[25].gain  = 2.2 + deltaSteps * (2.2 / 1.6);
+    bands[26].gain += deltaSteps * 0.55;
 
     std::ostringstream out;
     out.imbue(std::locale::classic());
@@ -161,7 +233,9 @@ std::string ApoConfigInjector::buildGraphicEqDirective(double footstepsDb, doubl
     return out.str();
 }
 
-std::string ApoConfigInjector::buildConfigContent(const ApoChainConfig& config)
+std::string ApoConfigInjector::buildConfigContent(
+    const ApoChainConfig& config,
+    const std::filesystem::path& targetConfigFilePath)
 {
     std::ostringstream out;
     out.imbue(std::locale::classic());
@@ -217,16 +291,17 @@ std::string ApoConfigInjector::buildConfigContent(const ApoChainConfig& config)
             << "\r\n";
     }
 
-    // 5. Ecualización Gráfica Acústica de 31 Bandas (con ajuste dinámico de Pasos y Graves)
+    // 5. Ecualización Gráfica Acústica de 31 Bandas
     if (config.enableGraphicEq)
     {
         out << buildGraphicEqDirective(config.footstepsEqDb, config.bassEqDb) << "\r\n";
     }
 
-    // 6. Virtualización Binaural Convolutiva HRIR (7.1 -> Estéreo)
+    // 6. Virtualización Binaural Convolutiva HRIR (7.1 -> Estéreo vía HeSuVi)
     if (config.enableHeSuVi)
     {
-        out << "Include: HeSuVi\\hesuvi.txt\r\n";
+        const std::string hesuviInclude = resolveHeSuViIncludePath(targetConfigFilePath, config.hesuviIncludePath);
+        out << "Include: " << hesuviInclude << "\r\n";
     }
 
     return out.str();
@@ -238,7 +313,8 @@ bool ApoConfigInjector::writeConfigAtomically(
     std::string* outError,
     bool* outPermissionDenied)
 {
-    return writeRawPayloadAtomically(configFilePath, buildConfigContent(config), outError, outPermissionDenied);
+    const std::string payload = buildConfigContent(config, configFilePath);
+    return writeRawPayloadAtomically(configFilePath, payload, outError, outPermissionDenied);
 }
 
 bool ApoConfigInjector::writeEmptyConfigAtomically(
@@ -279,7 +355,6 @@ bool ApoConfigInjector::writeRawPayloadAtomically(
         + std::to_wstring(::GetCurrentProcessId()) + L"."
         + std::to_wstring(::GetTickCount64());
 
-    // Paso 1: Escribir y vaciar a disco en archivo temporal adyacente
     HANDLE hTemp = ::CreateFileW(
         tempWide.c_str(),
         GENERIC_WRITE,
@@ -300,7 +375,6 @@ bool ApoConfigInjector::writeRawPayloadAtomically(
             return false;
         }
 
-        // Paso 2: Reemplazo atómico en el sistema de archivos NTFS
         constexpr int kMaxRenameAttempts = 4;
         for (int attempt = 1; attempt <= kMaxRenameAttempts; ++attempt)
         {
@@ -320,7 +394,6 @@ bool ApoConfigInjector::writeRawPayloadAtomically(
         *outPermissionDenied = true;
     }
 
-    // Paso 3: Fallback seguro en sitio cuando EqualizerAPO.dll mantiene abierto config.txt
     HANDLE hDirect = ::CreateFileW(
         targetWide.c_str(),
         GENERIC_WRITE,

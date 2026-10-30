@@ -48,11 +48,14 @@ struct ApoChainConfig
     double footstepsEqDb   = 1.6; // Por defecto +1.6 dB en 3.15 kHz y +2.2 dB en 6.3 kHz (rango -3 a +6 dB)
     double bassEqDb        = 1.5; // Por defecto +1.5 dB en 100 Hz / +2.0 dB en 80 Hz (banda 100-250 Hz)
     bool   enableHeSuVi    = true;
+    std::string hesuviIncludePath; // Vacío = resolución dinámica (estándar: "HeSuVi\\hesuvi.txt")
 };
 
 class ApoConfigInjector
 {
 public:
+    static constexpr const char* kDefaultHeSuViInclude = "HeSuVi\\hesuvi.txt";
+
     static constexpr const char* kTacticalGraphicEq =
         "GraphicEQ: 20 -3; 25 -2; 31.5 -0.8; 40 0.5; 50 1.5; 63 2.2; 80 2; 100 1.5; "
         "125 1.2; 160 0.8; 200 0.2; 250 -0.6; 315 -1.4; 400 -1.8; 500 -1.5; 630 -1; "
@@ -60,9 +63,19 @@ public:
         "5000 0.8; 6300 2.2; 8000 1.8; 10000 0.7; 12500 0.2; 16000 -0.5; 20000 -1.2";
 
     /**
-     * Ruta canónica por defecto de Equalizer APO en Windows.
+     * Ruta dinámica de config.txt en Equalizer APO (consulta HKLM\SOFTWARE\EqualizerAPO o %ProgramFiles%).
      */
     static std::filesystem::path getDefaultApoConfigPath();
+
+    /**
+     * Resuelve dinámicamente la ruta de inclusión de HeSuVi respecto a config.txt.
+     * Cuando HeSuVi reside en <EqualizerAPO>\config\HeSuVi\hesuvi.txt devuelve exactamente
+     * "HeSuVi\hesuvi.txt" tal como reveló la auditoría; si reside en una ruta externa alternativa,
+     * devuelve su ruta resuelta.
+     */
+    static std::string resolveHeSuViIncludePath(
+        const std::filesystem::path& configFilePath,
+        const std::string& customOverride = {});
 
     /**
      * Genera la directiva GraphicEQ de 31 bandas aplicando las perillas de Pasos (3.15/6.3 kHz)
@@ -73,7 +86,9 @@ public:
     /**
      * Construye en memoria el contenido exacto de config.txt con terminaciones CRLF.
      */
-    static std::string buildConfigContent(const ApoChainConfig& config = {});
+    static std::string buildConfigContent(
+        const ApoChainConfig& config = {},
+        const std::filesystem::path& targetConfigFilePath = {});
 
     /**
      * Escribe el archivo config.txt de forma atómica y segura frente a lecturas concurrentes

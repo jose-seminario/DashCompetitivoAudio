@@ -2,6 +2,7 @@
 
 #include <cwctype>
 #include <algorithm>
+#include <thread>
 
 namespace dash::ui
 {
@@ -461,12 +462,49 @@ void MainComponent::refreshSystemDependencies()
 
 void MainComponent::onInstallDependenciesClicked()
 {
-    dash::audio::SystemDependencyChecker::openOfficialDownloadLinks();
-    refreshSystemDependencies();
+    depStatus_ = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+
+    // Abrir las páginas oficiales de Equalizer APO y VB-Cable si faltan (o ambas como referencia)
+    const bool needApo     = !depStatus_.hasEqualizerApo;
+    const bool needVbCable = !depStatus_.hasVbAudioCable;
+    dash::audio::SystemDependencyChecker::openOfficialDownloadLinks(
+        needApo || depStatus_.allDependenciesReady(),
+        needVbCable || depStatus_.allDependenciesReady(),
+        false);
+
     installGuideEditor_.grabKeyboardFocus();
 
+    // Si HeSuVi no está instalado, descargar automáticamente HeSuVi_2.0.0.1.exe en segundo plano vía URLDownloadToFileW
+    if (!depStatus_.hasHeSuVi && !isDownloadingHeSuVi_)
+    {
+        isDownloadingHeSuVi_ = true;
+        installDepsBtn_.setEnabled(false);
+        setStatusMessage(
+            u8("Descargando automáticamente HeSuVi_2.0.0.1.exe desde SourceForge (URLDownloadToFile)..."),
+            false);
+
+        juce::Component::SafePointer<MainComponent> safeThis(this);
+        std::thread([safeThis]() {
+            std::filesystem::path savedPath;
+            std::string msg;
+            const bool ok = dash::audio::SystemDependencyChecker::downloadAndLaunchHeSuViInstaller(&savedPath, &msg);
+
+            juce::MessageManager::callAsync([safeThis, ok, msg]() {
+                if (safeThis == nullptr)
+                    return;
+
+                safeThis->isDownloadingHeSuVi_ = false;
+                safeThis->installDepsBtn_.setEnabled(true);
+                safeThis->refreshSystemDependencies();
+                safeThis->setStatusMessage(u8(msg.c_str()), !ok);
+            });
+        }).detach();
+        return;
+    }
+
+    refreshSystemDependencies();
     setStatusMessage(
-        u8("Enlaces oficiales abiertos en tu navegador (Equalizer APO, VB-Cable y HeSuVi). Sigue la guía paso a paso."),
+        u8("Enlaces oficiales abiertos en tu navegador. Sigue la guía paso a paso en pantalla."),
         false);
 }
 
