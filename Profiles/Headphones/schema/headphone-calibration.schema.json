@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dashcompetitivoaudio.org/schemas/headphone-calibration.schema.json",
+  "title": "DashCompetitivoAudio Headphone Calibration Schema",
+  "description": "Esquema formal para calibraciones y curvas de ecualización compensatoria por modelo de auricular.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "headphone",
+    "calibration",
+    "parametricEq",
+    "metadata"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "headphone": {
+      "type": "object",
+      "required": ["manufacturer", "model", "variant"],
+      "properties": {
+        "manufacturer": { "type": "string" },
+        "model": { "type": "string" },
+        "variant": { "type": "string" },
+        "driverType": { "type": "string" },
+        "impedanceOhms": { "type": "number" }
+      }
+    },
+    "calibration": {
+      "type": "object",
+      "required": ["status", "targetCurve"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "verified",
+            "uncalibrated_pending_verified_measurement",
+            "uncalibrated",
+            "community",
+            "experimental"
+          ]
+        },
+        "targetCurve": { "type": "string" },
+        "measurementSource": { "type": "string" },
+        "rigModel": { "type": "string" },
+        "measurementDate": { "type": "string" },
+        "preampGainDb": { "type": "number" },
+        "deviationRmse": { "type": "number" }
+      }
+    },
+    "parametricEq": {
+      "type": "object",
+      "required": ["bands"],
+      "properties": {
+        "preampDb": { "type": "number" },
+        "bands": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "frequencyHz", "gainDb", "q"],
+            "properties": {
+              "type": { "type": "string", "enum": ["peaking", "low_shelf", "high_shelf", "high_pass", "low_pass", "notch"] },
+              "frequencyHz": { "type": "number" },
+              "gainDb": { "type": "number" },
+              "q": { "type": "number" }
+            }
+          }
+        }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["author", "license"],
+      "properties": {
+        "author": { "type": "string" },
+        "license": { "type": "string" },
+        "notes": { "type": "string" }
+      }
+    }
+  }
+}

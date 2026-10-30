@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "profileId": "warzone-balanced-default",
+  "name": "Warzone Balanced Default",
+  "description": "Perfil equilibrado para Warzone. Conserva la fidelidad cinematográfica del audio reduciendo fatiga auditiva sin alterar drásticamente la mezcla original.",
+  "game": {
+    "id": "call-of-duty-warzone",
+    "name": "Call of Duty: Warzone",
+    "supportedVersion": "MW3 / Warzone 2.0+",
+    "tacticalMode": "Balanced Tactical"
+  },
+  "headphone": {
+    "manufacturer": "Generic",
+    "model": "Hi-Fi Headset",
+    "variant": "Universal Stereo",
+    "calibrationStatus": "community",
+    "targetCurve": "Harman Over-Ear 2018",
+    "measurementSource": "DashAudio Acoustic Lab",
+    "measurementDate": "2026-10-30"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channelLayout": "7.1",
+    "preampDb": -6.0
+  },
+  "processing": {
+    "headroomDb": -6.0,
+    "bypassAll": false,
+    "dynamics": {
+      "targetLufs": -18.0,
+      "ratio": 2.2,
+      "attackMs": 25.0,
+      "releaseMs": 150.0,
+      "upwardAmount": 0.45,
+      "downwardAmount": 0.35,
+      "bypass": false
+    },
+    "transient": {
+      "centerReductionDb": 3.0,
+      "crossoverFrequencyHz": 280.0,
+      "attackMs": 2.0,
+      "releaseMs": 60.0,
+      "bypass": false
+    },
+    "ambience": {
+      "reductionDb": 4.0,
+      "lowCutoffHz": 350.0,
+      "highCutoffHz": 2500.0,
+      "bypass": false
+    },
+    "equalizer": {
+      "footstepsDb": 1.4,
+      "bassDb": 1.2,
+      "preampDb": 0.0,
+      "bypass": false
+    },
+    "parametricEq": {
+      "enabled": false,
+      "bands": []
+    },
+    "limiter": {
+      "ceilingDb": -0.5,
+      "releaseMs": 60.0,
+      "bypass": false
+    }
+  },
+  "spatial": {
+    "enabled": true,
+    "soundstageWidth": 1.0,
+    "apparentDistanceM": 1.4,
+    "frontBackSeparation": 1.1,
+    "elevationEmphasis": 0.0,
+    "bypass": false
+  },
+  "metadata": {
+    "author": "DashAudio Engineering",
+    "license": "CC-BY-4.0",
+    "version": "1.0.0",
+    "createdAt": "2026-10-30",
+    "changelog": "Perfil balanceado para partidas estándar",
+    "verified": true,
+    "tags": ["warzone", "balanced", "cinematic-tactical"]
+  }
+}

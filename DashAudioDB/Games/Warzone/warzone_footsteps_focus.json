@@ -1,0 +1,101 @@
+{
+  "schemaVersion": 1,
+  "profileId": "warzone-footsteps-focus",
+  "name": "Warzone Footsteps Extreme Focus",
+  "description": "Perfil de la comunidad diseñado para máxima inteligibilidad de pasos lejanos en Warzone Resurgence.",
+  "game": {
+    "id": "call-of-duty-warzone",
+    "name": "Call of Duty: Warzone",
+    "supportedVersion": "MW3 / Warzone 2.0+",
+    "tacticalMode": "Extreme Footsteps Focus"
+  },
+  "headphone": {
+    "manufacturer": "Community",
+    "model": "Universal Headset",
+    "variant": "Stereo / 7.1",
+    "calibrationStatus": "community",
+    "targetCurve": "Tactical Boosted",
+    "measurementSource": "Community Tuned",
+    "measurementDate": "2026-10-30"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channelLayout": "7.1",
+    "preampDb": -6.0
+  },
+  "processing": {
+    "headroomDb": -6.0,
+    "bypassAll": false,
+    "dynamics": {
+      "targetLufs": -15.0,
+      "ratio": 3.0,
+      "attackMs": 12.0,
+      "releaseMs": 100.0,
+      "upwardAmount": 0.7,
+      "downwardAmount": 0.5,
+      "bypass": false
+    },
+    "transient": {
+      "centerReductionDb": 5.0,
+      "crossoverFrequencyHz": 280.0,
+      "attackMs": 1.2,
+      "releaseMs": 60.0,
+      "bypass": false
+    },
+    "ambience": {
+      "reductionDb": 7.0,
+      "lowCutoffHz": 350.0,
+      "highCutoffHz": 2500.0,
+      "bypass": false
+    },
+    "equalizer": {
+      "footstepsDb": 2.8,
+      "bassDb": 0.5,
+      "preampDb": 0.0,
+      "bypass": false
+    },
+    "parametricEq": {
+      "enabled": true,
+      "bands": [
+        {
+          "index": 0,
+          "type": "peaking",
+          "frequencyHz": 3150.0,
+          "gainDb": 3.0,
+          "q": 1.5,
+          "enabled": true
+        },
+        {
+          "index": 1,
+          "type": "peaking",
+          "frequencyHz": 6300.0,
+          "gainDb": 2.2,
+          "q": 1.3,
+          "enabled": true
+        }
+      ]
+    },
+    "limiter": {
+      "ceilingDb": -0.5,
+      "releaseMs": 40.0,
+      "bypass": false
+    }
+  },
+  "spatial": {
+    "enabled": true,
+    "soundstageWidth": 1.2,
+    "apparentDistanceM": 1.3,
+    "frontBackSeparation": 1.3,
+    "elevationEmphasis": 1.0,
+    "bypass": false
+  },
+  "metadata": {
+    "author": "Community / TacticalAudio",
+    "license": "CC-BY-4.0",
+    "version": "1.0.0",
+    "createdAt": "2026-10-30",
+    "changelog": "Ajuste agresivo para detección de pisadas a larga distancia",
+    "verified": false,
+    "tags": ["warzone", "footsteps", "community", "high-alert"]
+  }
+}

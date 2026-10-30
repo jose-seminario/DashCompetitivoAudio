@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dashcompetitivoaudio.org/schemas/community-profile.schema.json",
+  "title": "DashAudioDB Community Profile Schema",
+  "description": "Esquema formal para la publicación de perfiles de la comunidad en DashAudioDB.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "name",
+    "category",
+    "validationStatus",
+    "processing",
+    "metadata"
+  ],
+  "properties": {
+    "schemaVersion": { "type": "integer", "minimum": 1, "maximum": 1 },
+    "profileId": { "type": "string", "pattern": "^[a-z0-9_-]{3,64}$" },
+    "name": { "type": "string", "minLength": 3, "maxLength": 128 },
+    "category": { "type": "string", "enum": ["games", "headphones", "spatial", "presets"] },
+    "validationStatus": { "type": "string", "enum": ["official", "community", "experimental"] },
+    "processing": { "type": "object" },
+    "spatial": { "type": "object" },
+    "metadata": {
+      "type": "object",
+      "required": ["author", "license", "version", "createdAt"],
+      "properties": {
+        "author": { "type": "string" },
+        "license": { "type": "string" },
+        "version": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "changelog": { "type": "string" }
+      }
+    }
+  }
+}

@@ -24,6 +24,16 @@ target_sources(DashCompetitivoAudio
         Source/Audio/IAudioBackend.h
         Source/Core/SystemDependencyChecker.h
         Source/Core/SystemDependencyChecker.cpp
+        Source/Profiles/AudioProfile.h
+        Source/Profiles/AudioProfile.cpp
+        Source/Profiles/ProfileValidator.h
+        Source/Profiles/ProfileValidator.cpp
+        Source/Profiles/ProfileSerializer.h
+        Source/Profiles/ProfileSerializer.cpp
+        Source/Profiles/ProfileMigrator.h
+        Source/Profiles/ProfileMigrator.cpp
+        Source/Profiles/ProfileRepository.h
+        Source/Profiles/ProfileRepository.cpp
 )
 
 target_include_directories(DashCompetitivoAudio

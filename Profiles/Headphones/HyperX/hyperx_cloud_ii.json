@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "profileId": "hyperx-cloud-ii",
+  "name": "HyperX Cloud II (Calibración AutoEq Harman 2018)",
+  "description": "Compensación acústica para HyperX Cloud II (almohadillas de cuero sintético). Curva de referencia hacia target Harman Over-Ear 2018 generada por AutoEq.",
+  "game": {
+    "id": "universal-tactical",
+    "name": "Universal Tactical Audio",
+    "supportedVersion": "All",
+    "tacticalMode": "Calibrated Reference"
+  },
+  "headphone": {
+    "manufacturer": "HyperX",
+    "model": "Cloud II",
+    "variant": "Leatherette Pads 3.5mm / USB Dongle",
+    "calibrationStatus": "verified",
+    "targetCurve": "Harman Over-Ear 2018",
+    "measurementSource": "AutoEq by Jaakkopasanen (oratory1990 measurement archive)",
+    "measurementDate": "2023-05-18"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channelLayout": "7.1",
+    "preampDb": -6.0
+  },
+  "processing": {
+    "headroomDb": -6.0,
+    "bypassAll": false,
+    "dynamics": {
+      "targetLufs": -16.0,
+      "ratio": 2.5,
+      "attackMs": 20.0,
+      "releaseMs": 120.0,
+      "upwardAmount": 0.5,
+      "downwardAmount": 0.5,
+      "bypass": false
+    },
+    "transient": {
+      "centerReductionDb": 4.0,
+      "crossoverFrequencyHz": 280.0,
+      "attackMs": 1.5,
+      "releaseMs": 60.0,
+      "bypass": false
+    },
+    "ambience": {
+      "reductionDb": 6.0,
+      "lowCutoffHz": 350.0,
+      "highCutoffHz": 2500.0,
+      "bypass": false
+    },
+    "equalizer": {
+      "footstepsDb": 1.6,
+      "bassDb": 1.5,
+      "preampDb": 0.0,
+      "bypass": false
+    },
+    "parametricEq": {
+      "enabled": true,
+      "bands": [
+        {
+          "index": 0,
+          "type": "low_shelf",
+          "frequencyHz": 105.0,
+          "gainDb": -2.3,
+          "q": 0.71,
+          "enabled": true
+        },
+        {
+          "index": 1,
+          "type": "peaking",
+          "frequencyHz": 240.0,
+          "gainDb": -1.8,
+          "q": 1.4,
+          "enabled": true
+        },
+        {
+          "index": 2,
+          "type": "peaking",
+          "frequencyHz": 3850.0,
+          "gainDb": 3.4,
+          "q": 1.8,
+          "enabled": true
+        },
+        {
+          "index": 3,
+          "type": "peaking",
+          "frequencyHz": 5800.0,
+          "gainDb": -4.2,
+          "q": 2.5,
+          "enabled": true
+        },
+        {
+          "index": 4,
+          "type": "high_shelf",
+          "frequencyHz": 10000.0,
+          "gainDb": -1.5,
+          "q": 0.71,
+          "enabled": true
+        }
+      ]
+    },
+    "limiter": {
+      "ceilingDb": -0.5,
+      "releaseMs": 50.0,
+      "bypass": false
+    }
+  },
+  "spatial": {
+    "enabled": true,
+    "soundstageWidth": 1.05,
+    "apparentDistanceM": 1.4,
+    "frontBackSeparation": 1.15,
+    "elevationEmphasis": 0.0,
+    "bypass": false
+  },
+  "metadata": {
+    "author": "Jaakkopasanen (AutoEq) / DashAudio",
+    "license": "MIT (AutoEq filters) / CC-BY-4.0 (Profile wrapper)",
+    "version": "1.0.0",
+    "createdAt": "2026-10-30",
+    "changelog": "Calibración verificada hacia Harman Over-Ear 2018 con compensación de picos en 5.8 kHz.",
+    "verified": true,
+    "tags": ["hyperx", "cloud-ii", "autoeq", "harman-2018", "calibrated"]
+  }
+}

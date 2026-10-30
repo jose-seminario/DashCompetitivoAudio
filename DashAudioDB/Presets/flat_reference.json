@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "profileId": "flat-reference",
+  "name": "Flat Reference (Respuesta Plana)",
+  "description": "Perfil de calibración neutro y transparente. Margen dinámico de -6 dB y limitador de seguridad activo sin ecualización tonal.",
+  "game": {
+    "id": "universal",
+    "name": "Universal Audio",
+    "supportedVersion": "All",
+    "tacticalMode": "Transparent Flat"
+  },
+  "headphone": {
+    "manufacturer": "Generic",
+    "model": "Reference",
+    "variant": "Linear",
+    "calibrationStatus": "verified",
+    "targetCurve": "Flat",
+    "measurementSource": "DashAudio Reference",
+    "measurementDate": "2026-10-30"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channelLayout": "7.1",
+    "preampDb": -6.0
+  },
+  "processing": {
+    "headroomDb": -6.0,
+    "bypassAll": false,
+    "dynamics": {
+      "targetLufs": -20.0,
+      "ratio": 1.0,
+      "attackMs": 50.0,
+      "releaseMs": 200.0,
+      "upwardAmount": 0.0,
+      "downwardAmount": 0.0,
+      "bypass": true
+    },
+    "transient": {
+      "centerReductionDb": 0.0,
+      "crossoverFrequencyHz": 280.0,
+      "attackMs": 2.0,
+      "releaseMs": 60.0,
+      "bypass": true
+    },
+    "ambience": {
+      "reductionDb": 0.0,
+      "lowCutoffHz": 350.0,
+      "highCutoffHz": 2500.0,
+      "bypass": true
+    },
+    "equalizer": {
+      "footstepsDb": 0.0,
+      "bassDb": 0.0,
+      "preampDb": 0.0,
+      "bypass": true
+    },
+    "parametricEq": {
+      "enabled": false,
+      "bands": []
+    },
+    "limiter": {
+      "ceilingDb": -0.5,
+      "releaseMs": 50.0,
+      "bypass": false
+    }
+  },
+  "spatial": {
+    "enabled": false,
+    "soundstageWidth": 1.0,
+    "apparentDistanceM": 1.4,
+    "frontBackSeparation": 1.0,
+    "elevationEmphasis": 0.0,
+    "bypass": true
+  },
+  "metadata": {
+    "author": "DashAudio Engineering",
+    "license": "CC-BY-4.0",
+    "version": "1.0.0",
+    "createdAt": "2026-10-30",
+    "changelog": "Preset neutro de medición y referencia lineal",
+    "verified": true,
+    "tags": ["flat", "reference", "neutral", "linear"]
+  }
+}

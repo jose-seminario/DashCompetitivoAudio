@@ -1,0 +1,178 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dashcompetitivoaudio.org/schemas/audio-profile.schema.json",
+  "title": "DashCompetitivoAudio Profile Schema",
+  "description": "Esquema formal de validación para perfiles de configuración acústica y espacial de DashCompetitivoAudio.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "profileId",
+    "name",
+    "processing",
+    "metadata"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1,
+      "description": "Versión del esquema de perfil (entero positivo)."
+    },
+    "profileId": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]{3,64}$",
+      "description": "Identificador slug único y seguro (sin espacios ni caracteres especiales)."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 128,
+      "description": "Nombre legible del perfil."
+    },
+    "description": {
+      "type": "string",
+      "maxLength": 2048,
+      "description": "Descripción del propósito y calibración táctica del perfil."
+    },
+    "game": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 64 },
+        "name": { "type": "string", "maxLength": 128 },
+        "supportedVersion": { "type": "string", "maxLength": 64 },
+        "tacticalMode": { "type": "string", "maxLength": 64 }
+      }
+    },
+    "headphone": {
+      "type": "object",
+      "required": ["manufacturer", "model"],
+      "properties": {
+        "manufacturer": { "type": "string", "maxLength": 64 },
+        "model": { "type": "string", "maxLength": 64 },
+        "variant": { "type": "string", "maxLength": 64 },
+        "calibrationStatus": {
+          "type": "string",
+          "enum": ["verified", "uncalibrated_pending_verified_measurement", "uncalibrated", "community", "experimental"]
+        },
+        "targetCurve": { "type": "string", "maxLength": 64 },
+        "measurementSource": { "type": "string", "maxLength": 128 },
+        "measurementDate": { "type": "string", "maxLength": 32 }
+      }
+    },
+    "audio": {
+      "type": "object",
+      "properties": {
+        "sampleRate": { "type": "number", "minimum": 22050, "maximum": 192000 },
+        "channelLayout": { "type": "string", "enum": ["stereo", "5.1", "7.1", "7.1.4"] },
+        "preampDb": { "type": "number", "minimum": -24, "maximum": 12 }
+      }
+    },
+    "processing": {
+      "type": "object",
+      "required": ["dynamics", "transient", "ambience", "equalizer", "limiter"],
+      "properties": {
+        "headroomDb": { "type": "number", "minimum": -36.0, "maximum": 0.0 },
+        "bypassAll": { "type": "boolean" },
+        "dynamics": {
+          "type": "object",
+          "properties": {
+            "targetLufs": { "type": "number", "minimum": -70.0, "maximum": 0.0 },
+            "ratio": { "type": "number", "minimum": 1.0, "maximum": 30.0 },
+            "attackMs": { "type": "number", "minimum": 0.1, "maximum": 1000.0 },
+            "releaseMs": { "type": "number", "minimum": 5.0, "maximum": 5000.0 },
+            "upwardAmount": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "downwardAmount": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "bypass": { "type": "boolean" }
+          }
+        },
+        "transient": {
+          "type": "object",
+          "properties": {
+            "centerReductionDb": { "type": "number", "minimum": 0.0, "maximum": 24.0 },
+            "crossoverFrequencyHz": { "type": "number", "minimum": 80.0, "maximum": 1200.0 },
+            "attackMs": { "type": "number", "minimum": 0.1, "maximum": 50.0 },
+            "releaseMs": { "type": "number", "minimum": 5.0, "maximum": 500.0 },
+            "bypass": { "type": "boolean" }
+          }
+        },
+        "ambience": {
+          "type": "object",
+          "properties": {
+            "reductionDb": { "type": "number", "minimum": 0.0, "maximum": 24.0 },
+            "lowCutoffHz": { "type": "number", "minimum": 50.0, "maximum": 1000.0 },
+            "highCutoffHz": { "type": "number", "minimum": 1000.0, "maximum": 8000.0 },
+            "bypass": { "type": "boolean" }
+          }
+        },
+        "equalizer": {
+          "type": "object",
+          "properties": {
+            "footstepsDb": { "type": "number", "minimum": -12.0, "maximum": 12.0 },
+            "bassDb": { "type": "number", "minimum": -12.0, "maximum": 12.0 },
+            "preampDb": { "type": "number", "minimum": -24.0, "maximum": 12.0 },
+            "bypass": { "type": "boolean" }
+          }
+        },
+        "parametricEq": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "bands": {
+              "type": "array",
+              "maxItems": 10,
+              "items": {
+                "type": "object",
+                "required": ["index", "type", "frequencyHz", "gainDb", "q", "enabled"],
+                "properties": {
+                  "index": { "type": "integer", "minimum": 0, "maximum": 9 },
+                  "type": { "type": "string", "enum": ["peaking", "low_shelf", "high_shelf", "high_pass", "low_pass", "notch"] },
+                  "frequencyHz": { "type": "number", "minimum": 20.0, "maximum": 20000.0 },
+                  "gainDb": { "type": "number", "minimum": -24.0, "maximum": 24.0 },
+                  "q": { "type": "number", "minimum": 0.1, "maximum": 18.0 },
+                  "enabled": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "limiter": {
+          "type": "object",
+          "properties": {
+            "ceilingDb": { "type": "number", "minimum": -12.0, "maximum": 0.0 },
+            "releaseMs": { "type": "number", "minimum": 1.0, "maximum": 500.0 },
+            "bypass": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "spatial": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "soundstageWidth": { "type": "number", "minimum": 0.2, "maximum": 3.0 },
+        "apparentDistanceM": { "type": "number", "minimum": 0.2, "maximum": 10.0 },
+        "frontBackSeparation": { "type": "number", "minimum": 0.0, "maximum": 2.0 },
+        "elevationEmphasis": { "type": "number", "minimum": -6.0, "maximum": 6.0 },
+        "bypass": { "type": "boolean" }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["author", "license", "version"],
+      "properties": {
+        "author": { "type": "string", "maxLength": 64 },
+        "license": { "type": "string", "maxLength": 32 },
+        "version": { "type": "string", "maxLength": 32 },
+        "createdAt": { "type": "string", "maxLength": 32 },
+        "changelog": { "type": "string", "maxLength": 1024 },
+        "verified": { "type": "boolean" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 32 }
+        }
+      }
+    }
+  }
+}

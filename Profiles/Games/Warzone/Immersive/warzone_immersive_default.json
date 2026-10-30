@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "profileId": "warzone-immersive-default",
+  "name": "Warzone Immersive Spatial",
+  "description": "Perfil inmersivo para Warzone. Expande el escenario tridimensional con convolución HRTF Woodworth y preserva la atmósfera espacial en auriculares.",
+  "game": {
+    "id": "call-of-duty-warzone",
+    "name": "Call of Duty: Warzone",
+    "supportedVersion": "MW3 / Warzone 2.0+",
+    "tacticalMode": "Full 3D Spatial Immersion"
+  },
+  "headphone": {
+    "manufacturer": "Generic",
+    "model": "Open-Back / Closed-Back Headset",
+    "variant": "Multi-Channel Spatial",
+    "calibrationStatus": "community",
+    "targetCurve": "Diffuse Field",
+    "measurementSource": "DashAudio Spatial Lab",
+    "measurementDate": "2026-10-30"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channelLayout": "7.1",
+    "preampDb": -6.0
+  },
+  "processing": {
+    "headroomDb": -6.0,
+    "bypassAll": false,
+    "dynamics": {
+      "targetLufs": -19.0,
+      "ratio": 1.8,
+      "attackMs": 30.0,
+      "releaseMs": 180.0,
+      "upwardAmount": 0.3,
+      "downwardAmount": 0.25,
+      "bypass": false
+    },
+    "transient": {
+      "centerReductionDb": 2.0,
+      "crossoverFrequencyHz": 280.0,
+      "attackMs": 2.5,
+      "releaseMs": 70.0,
+      "bypass": false
+    },
+    "ambience": {
+      "reductionDb": 2.0,
+      "lowCutoffHz": 350.0,
+      "highCutoffHz": 2500.0,
+      "bypass": false
+    },
+    "equalizer": {
+      "footstepsDb": 1.0,
+      "bassDb": 1.5,
+      "preampDb": 0.0,
+      "bypass": false
+    },
+    "parametricEq": {
+      "enabled": false,
+      "bands": []
+    },
+    "limiter": {
+      "ceilingDb": -0.5,
+      "releaseMs": 80.0,
+      "bypass": false
+    }
+  },
+  "spatial": {
+    "enabled": true,
+    "soundstageWidth": 1.35,
+    "apparentDistanceM": 1.6,
+    "frontBackSeparation": 1.3,
+    "elevationEmphasis": 1.5,
+    "bypass": false
+  },
+  "metadata": {
+    "author": "DashAudio Engineering",
+    "license": "CC-BY-4.0",
+    "version": "1.0.0",
+    "createdAt": "2026-10-30",
+    "changelog": "Optimizado para renderizado 3D y localización binaural",
+    "verified": true,
+    "tags": ["warzone", "immersive", "spatial-audio", "hrtf"]
+  }
+}

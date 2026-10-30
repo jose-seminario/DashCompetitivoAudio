@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "profileId": "tactical-footsteps",
+  "name": "Tactical Footsteps Baseline",
+  "description": "Plantilla genérica de realce de pasos tácticos aplicable a cualquier shooter en primera persona.",
+  "game": {
+    "id": "universal-fps",
+    "name": "Universal FPS",
+    "supportedVersion": "All",
+    "tacticalMode": "Competitive Footsteps"
+  },
+  "headphone": {
+    "manufacturer": "Generic",
+    "model": "Stereo Headset",
+    "variant": "Universal",
+    "calibrationStatus": "community",
+    "targetCurve": "Tactical Enhanced",
+    "measurementSource": "DashAudio Baseline",
+    "measurementDate": "2026-10-30"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channelLayout": "7.1",
+    "preampDb": -6.0
+  },
+  "processing": {
+    "headroomDb": -6.0,
+    "bypassAll": false,
+    "dynamics": {
+      "targetLufs": -16.0,
+      "ratio": 2.5,
+      "attackMs": 20.0,
+      "releaseMs": 120.0,
+      "upwardAmount": 0.5,
+      "downwardAmount": 0.4,
+      "bypass": false
+    },
+    "transient": {
+      "centerReductionDb": 4.0,
+      "crossoverFrequencyHz": 280.0,
+      "attackMs": 1.5,
+      "releaseMs": 60.0,
+      "bypass": false
+    },
+    "ambience": {
+      "reductionDb": 6.0,
+      "lowCutoffHz": 350.0,
+      "highCutoffHz": 2500.0,
+      "bypass": false
+    },
+    "equalizer": {
+      "footstepsDb": 2.0,
+      "bassDb": 1.0,
+      "preampDb": 0.0,
+      "bypass": false
+    },
+    "parametricEq": {
+      "enabled": true,
+      "bands": [
+        {
+          "index": 0,
+          "type": "peaking",
+          "frequencyHz": 3150.0,
+          "gainDb": 2.0,
+          "q": 1.4,
+          "enabled": true
+        }
+      ]
+    },
+    "limiter": {
+      "ceilingDb": -0.5,
+      "releaseMs": 50.0,
+      "bypass": false
+    }
+  },
+  "spatial": {
+    "enabled": true,
+    "soundstageWidth": 1.1,
+    "apparentDistanceM": 1.4,
+    "frontBackSeparation": 1.2,
+    "elevationEmphasis": 0.0,
+    "bypass": false
+  },
+  "metadata": {
+    "author": "DashAudio Engineering",
+    "license": "CC-BY-4.0",
+    "version": "1.0.0",
+    "createdAt": "2026-10-30",
+    "changelog": "Preset base táctico multipropósito",
+    "verified": true,
+    "tags": ["tactical", "footsteps", "fps", "competitive"]
+  }
+}

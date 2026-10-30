@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "profileId": "logitech-g-pro-x",
+  "name": "Logitech G Pro X (Calibración AutoEq Harman 2018)",
+  "description": "Compensación acústica para Logitech G Pro X (almohadillas de cuero sintético). Curva de referencia hacia target Harman Over-Ear 2018.",
+  "game": {
+    "id": "universal-tactical",
+    "name": "Universal Tactical Audio",
+    "supportedVersion": "All",
+    "tacticalMode": "Calibrated Reference"
+  },
+  "headphone": {
+    "manufacturer": "Logitech",
+    "model": "G Pro X",
+    "variant": "Wired Leatherette",
+    "calibrationStatus": "verified",
+    "targetCurve": "Harman Over-Ear 2018",
+    "measurementSource": "AutoEq by Jaakkopasanen (oratory1990 measurement archive)",
+    "measurementDate": "2023-04-10"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channelLayout": "7.1",
+    "preampDb": -6.0
+  },
+  "processing": {
+    "headroomDb": -6.0,
+    "bypassAll": false,
+    "dynamics": {
+      "targetLufs": -16.0,
+      "ratio": 2.5,
+      "attackMs": 20.0,
+      "releaseMs": 120.0,
+      "upwardAmount": 0.5,
+      "downwardAmount": 0.5,
+      "bypass": false
+    },
+    "transient": {
+      "centerReductionDb": 4.0,
+      "crossoverFrequencyHz": 280.0,
+      "attackMs": 1.5,
+      "releaseMs": 60.0,
+      "bypass": false
+    },
+    "ambience": {
+      "reductionDb": 6.0,
+      "lowCutoffHz": 350.0,
+      "highCutoffHz": 2500.0,
+      "bypass": false
+    },
+    "equalizer": {
+      "footstepsDb": 1.6,
+      "bassDb": 1.5,
+      "preampDb": 0.0,
+      "bypass": false
+    },
+    "parametricEq": {
+      "enabled": true,
+      "bands": [
+        {
+          "index": 0,
+          "type": "low_shelf",
+          "frequencyHz": 85.0,
+          "gainDb": -3.1,
+          "q": 0.71,
+          "enabled": true
+        },
+        {
+          "index": 1,
+          "type": "peaking",
+          "frequencyHz": 1500.0,
+          "gainDb": -2.0,
+          "q": 1.5,
+          "enabled": true
+        },
+        {
+          "index": 2,
+          "type": "peaking",
+          "frequencyHz": 4200.0,
+          "gainDb": 4.1,
+          "q": 2.0,
+          "enabled": true
+        },
+        {
+          "index": 3,
+          "type": "peaking",
+          "frequencyHz": 7100.0,
+          "gainDb": -3.5,
+          "q": 3.0,
+          "enabled": true
+        }
+      ]
+    },
+    "limiter": {
+      "ceilingDb": -0.5,
+      "releaseMs": 50.0,
+      "bypass": false
+    }
+  },
+  "spatial": {
+    "enabled": true,
+    "soundstageWidth": 1.05,
+    "apparentDistanceM": 1.4,
+    "frontBackSeparation": 1.2,
+    "elevationEmphasis": 0.0,
+    "bypass": false
+  },
+  "metadata": {
+    "author": "Jaakkopasanen (AutoEq) / DashAudio",
+    "license": "MIT (AutoEq filters) / CC-BY-4.0 (Profile wrapper)",
+    "version": "1.0.0",
+    "createdAt": "2026-10-30",
+    "changelog": "Calibración verificada hacia Harman Over-Ear 2018.",
+    "verified": true,
+    "tags": ["logitech", "g-pro-x", "autoeq", "harman-2018", "calibrated"]
+  }
+}

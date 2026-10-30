@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "profileId": "hesuvi-reference-profile",
+  "name": "HeSuVi Reference Profile (Compatibilidad Pasiva)",
+  "description": "Perfil de mapeo compatible con perfiles de convolución WAV de HeSuVi existentes en el sistema local.",
+  "game": {
+    "id": "universal-spatial",
+    "name": "Universal Spatial Audio",
+    "supportedVersion": "All",
+    "tacticalMode": "HeSuVi Imported Impulses"
+  },
+  "headphone": {
+    "manufacturer": "Generic",
+    "model": "Stereo Headphones",
+    "variant": "Binaural Convolved",
+    "calibrationStatus": "community",
+    "targetCurve": "Original Profile Curve",
+    "measurementSource": "HeSuVi Ecosystem (Matt H)",
+    "measurementDate": "2026-10-30"
+  },
+  "audio": {
+    "sampleRate": 48000,
+    "channelLayout": "7.1",
+    "preampDb": -6.0
+  },
+  "processing": {
+    "headroomDb": -6.0,
+    "bypassAll": false,
+    "dynamics": {
+      "targetLufs": -17.0,
+      "ratio": 2.2,
+      "attackMs": 20.0,
+      "releaseMs": 130.0,
+      "upwardAmount": 0.45,
+      "downwardAmount": 0.35,
+      "bypass": false
+    },
+    "transient": {
+      "centerReductionDb": 3.0,
+      "crossoverFrequencyHz": 280.0,
+      "attackMs": 1.8,
+      "releaseMs": 60.0,
+      "bypass": false
+    },
+    "ambience": {
+      "reductionDb": 4.0,
+      "lowCutoffHz": 350.0,
+      "highCutoffHz": 2500.0,
+      "bypass": false
+    },
+    "equalizer": {
+      "footstepsDb": 1.4,
+      "bassDb": 1.2,
+      "preampDb": 0.0,
+      "bypass": false
+    },
+    "parametricEq": {
+      "enabled": false,
+      "bands": []
+    },
+    "limiter": {
+      "ceilingDb": -0.5,
+      "releaseMs": 50.0,
+      "bypass": false
+    }
+  },
+  "spatial": {
+    "enabled": true,
+    "soundstageWidth": 1.0,
+    "apparentDistanceM": 1.4,
+    "frontBackSeparation": 1.0,
+    "elevationEmphasis": 0.0,
+    "bypass": false
+  },
+  "metadata": {
+    "author": "Community / DashAudio Adapter",
+    "license": "CC-BY-4.0",
+    "version": "1.0.0",
+    "createdAt": "2026-10-30",
+    "changelog": "Compatibilidad pasiva con archivos WAV de 14 canales de HeSuVi",
+    "verified": false,
+    "tags": ["spatial", "hrir", "hesuvi", "convolution", "7.1"]
+  }
+}
