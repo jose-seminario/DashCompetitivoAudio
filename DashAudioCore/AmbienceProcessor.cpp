@@ -205,6 +205,12 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
     float blockStationaritySum = 0.0f;
 
     const float ambGuarNorm = juce::jlimit(0.0f, 1.0f, impl_->params.ambGuar);
+    if (ambGuarNorm <= 0.0001f)
+    {
+        impl_->lastGainDb.store(0.0f, std::memory_order_relaxed);
+        impl_->stationarityIndex.store(0.0f, std::memory_order_relaxed);
+        return;
+    }
 
     const float lowMaxDb  = impl_->params.useAdvancedMode ? impl_->params.lowReductionDepthDb  : (-4.0f * ambGuarNorm);
     const float midMaxDb  = impl_->params.useAdvancedMode ? impl_->params.midReductionDepthDb  : (-6.5f * ambGuarNorm);

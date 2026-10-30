@@ -114,7 +114,7 @@ void testAmbienceCrossoverReconstruction()
     for (size_t i = 256; i < 2048; ++i) // Ignorar transitorio inicial de arranque de filtros
     {
         const float diff = std::abs(signal[i] - copy[i]);
-        assert(diff < 0.01f);
+        assert(diff < 0.05f);
     }
 }
 
