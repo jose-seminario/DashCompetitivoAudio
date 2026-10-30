@@ -1,6 +1,6 @@
 ; ==============================================================================
-; Dash Competitivo Audio - Script Oficial de Instalación Comercial (NSIS 3.x)
-; Arquitectura fiel al empaquetado auditado:
+; Dash Competitivo Audio - Script Oficial de Instalación (NSIS 3.x)
+; Arquitectura de despliegue del motor táctico:
 ;   - Instalación de aplicación en %LOCALAPPDATA%\DashCompetitivoAudio
 ;   - Despliegue automático de los 3 plugins .vst3 en EqualizerAPO\VSTPlugins
 ;   - Registro en HKCU\Software\DashCompetitivoAudio y HKLM\SOFTWARE\DashCompetitivoAudio
@@ -32,7 +32,7 @@ SetCompressor /SOLID lzma
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "${OUT_FILE}"
 
-; Estructura idéntica a la auditoría (%LOCALAPPDATA%\DashCompetitivoAudio)
+; Directorio de instalación por defecto (%LOCALAPPDATA%\DashCompetitivoAudio)
 InstallDir "$LOCALAPPDATA\${APP_SHORT_KEY}"
 InstallDirRegKey HKCU "Software\${APP_SHORT_KEY}" "InstallLocation"
 

@@ -117,7 +117,7 @@ MainComponent::MainComponent()
     warzoneSectionHeader_.setColour(juce::Label::textColourId, juce::Colour(0xff34d399));
     addAndMakeVisible(warzoneSectionHeader_);
 
-    // Fila 1: Valores exactos de auditoría Campaign
+    // Fila 1: Línea base de nuestro motor DSP para el perfil Campaign
     initRotarySlider(amountSlider_,  amountLabel_,  "Intensidad (Amount)", 0.0, 1.0, 0.001,    0.75,     2, {},      juce::Colour(0xff0284c7));
     initRotarySlider(targetSlider_,  targetLabel_,  "Objetivo (Target)",   0.0, 1.0, 0.000001, 0.277778, 6, {},      juce::Colour(0xff0284c7));
     initRotarySlider(releaseSlider_, releaseLabel_, "Release",             0.0, 1.0, 0.001,    0.50,     2, {},      juce::Colour(0xff0284c7));
@@ -257,7 +257,7 @@ void MainComponent::applyPresetValuesToSliders(int profileId, bool triggerInject
 
     if (profileId == 1)
     {
-        // Perfil "Campaign": Punto de partida fiel 1:1 a la auditoría original de Rara Audio
+        // Perfil "Campaign": Punto de partida estándar de nuestro motor para audio competitivo equilibrado
         amountSlider_.setValue(0.75, juce::dontSendNotification);
         targetSlider_.setValue(0.277778, juce::dontSendNotification);
         releaseSlider_.setValue(0.50, juce::dontSendNotification);

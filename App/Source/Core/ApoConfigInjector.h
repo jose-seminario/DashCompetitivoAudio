@@ -69,8 +69,8 @@ public:
 
     /**
      * Resuelve dinámicamente la ruta de inclusión de HeSuVi respecto a config.txt.
-     * Cuando HeSuVi reside en <EqualizerAPO>\config\HeSuVi\hesuvi.txt devuelve exactamente
-     * "HeSuVi\hesuvi.txt" tal como reveló la auditoría; si reside en una ruta externa alternativa,
+     * Cuando HeSuVi reside en <EqualizerAPO>\config\HeSuVi\hesuvi.txt devuelve la ruta
+     * relativa estándar "HeSuVi\hesuvi.txt"; si reside en una ruta externa alternativa,
      * devuelve su ruta resuelta.
      */
     static std::string resolveHeSuViIncludePath(
@@ -79,7 +79,7 @@ public:
 
     /**
      * Genera la directiva GraphicEQ de 31 bandas aplicando las perillas de Pasos (3.15/6.3 kHz)
-     * y Graves (100-250 Hz) sobre la curva base de la auditoría.
+     * y Graves (100-250 Hz) sobre la curva base de nuestro motor de optimización táctica.
      */
     static std::string buildGraphicEqDirective(double footstepsDb = 1.6, double bassDb = 1.5);
 

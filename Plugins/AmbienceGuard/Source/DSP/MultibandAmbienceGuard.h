@@ -11,7 +11,7 @@ struct AmbienceGuardParams
 {
     float ambGuar = 1.0f;      // [0.0 .. 1.0] Atenuación selectiva de ruido ambiental estacionario
     bool  distant = true;      // [0 / 1] Protege pistas dinámicas lejanas (pasos/voces) frente al piso ambiental
-    float target  = 0.388889f; // [0.0 .. 1.0] Umbral auditado (-14 LUFS / -24 dBFS RMS en escala normalizada)
+    float target  = 0.388889f; // [0.0 .. 1.0] Umbral base de nuestro DSP (-14 LUFS / -24 dBFS RMS en escala normalizada)
     float release = 0.0f;      // [0.0 .. 1.0] Relajación de ganancia del compresor
     float detRel  = 0.458333f; // [0.0 .. 1.0] Relajación del detector RMS (~295 ms)
     float scLow   = 0.2269f;   // [0.0 .. 1.0] 0.2269 => 350.0 Hz exactos (High-Pass IIR Sidechain)
@@ -23,7 +23,7 @@ struct AmbienceGuardParams
 /**
  * Compresor Multibanda y Protector de Frecuencias Ambientales (AmbienceGuard).
  *
- * Fidelidad matemática respecto a la auditoría:
+ * Diseño técnico de nuestro motor DSP:
  *  1. Detector Sidechain restringido estrictamente mediante filtros biquad juce::dsp::IIR
  *     (High-Pass @ SCLow=0.2269 -> 350 Hz y Low-Pass @ SCHigh=0.5293 -> 2.5 kHz),
  *     actualizados sin asignaciones dinámicas usando juce::dsp::IIR::ArrayCoefficients.
@@ -40,7 +40,7 @@ public:
     static constexpr size_t kMaxChannels = 8;
 
     /**
-     * Curva logarítmica monótona calibrada sobre los puntos exactos de auditoría:
+     * Curva logarítmica monótona calibrada sobre los puntos de corte del motor táctico:
      *  - 0.0000 ->    20.0 Hz
      *  - 0.2269 ->   350.0 Hz (SCLow por defecto)
      *  - 0.5293 ->  2500.0 Hz (SCHigh por defecto = 2.5 kHz)

@@ -149,7 +149,7 @@ std::string ApoConfigInjector::resolveHeSuViIncludePath(
 
     const auto configDir = effectiveConfig.parent_path();
 
-    // 1. Ruta estándar auditada relativa a <EqualizerAPO>\config\: "HeSuVi\hesuvi.txt"
+    // 1. Ruta estándar relativa a <EqualizerAPO>\config\: "HeSuVi\hesuvi.txt"
     if (!configDir.empty() && std::filesystem::exists(configDir / "HeSuVi" / "hesuvi.txt", ec))
         return kDefaultHeSuViInclude;
 
@@ -180,7 +180,7 @@ std::string ApoConfigInjector::resolveHeSuViIncludePath(
     }
 #endif
 
-    // Por defecto emite siempre la directiva canónica de auditoría "Include: HeSuVi\hesuvi.txt"
+    // Por defecto emite siempre la directiva estándar "Include: HeSuVi\hesuvi.txt"
     return kDefaultHeSuViInclude;
 }
 

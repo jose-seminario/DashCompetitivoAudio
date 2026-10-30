@@ -20,7 +20,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout TransientSuppressorAudioProc
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    // Parámetros auditados exactos para Equalizer APO:
+    // Parámetros optimizados de nuestro motor táctico para Equalizer APO:
     // VSTPlugin: Library TransientSuppressor.dll Gun 0.450000 Steps 0 Front 1 Restore 0 Bypass 0
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { ParamIDs::gun, 1 },

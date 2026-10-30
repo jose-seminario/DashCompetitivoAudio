@@ -6,9 +6,9 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Optimizaciones estándar para MSVC (sin expresiones generadoras complejas)
+# Optimizaciones estándar para MSVC compatibles con cualquier CPU x64 estándar
 if(MSVC)
-    add_compile_options(/W4 /MP /permissive- /utf-8 /O2 /arch:AVX2)
+    add_compile_options(/W4 /MP /permissive- /utf-8 /O2)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
     add_compile_definitions(UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()
@@ -35,12 +35,12 @@ endif()
 # 1. Aplicación Principal de Escritorio (Orquestador COM + Inyector Equalizer APO + UI JUCE)
 add_subdirectory(App)
 
-# 2. Motores DSP Nativos (Plugins VST3 / Standalone fieles a la auditoría)
+# 2. Motores DSP Nativos (Plugins VST3 / Standalone de optimización táctica)
 add_subdirectory(Plugins/LoudnessCompressor)
 add_subdirectory(Plugins/TransientSuppressor)
 add_subdirectory(Plugins/AmbienceGuard)
 
-# 3. Target opcional de empaquetado comercial NSIS (DashCompetitivoAudio-setup.exe)
+# 3. Target opcional de empaquetado NSIS (DashCompetitivoAudio-setup.exe)
 find_program(MAKENSIS_EXECUTABLE
     NAMES makensis
     HINTS
@@ -61,7 +61,7 @@ if(MAKENSIS_EXECUTABLE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Installer/install
                 "/DOUT_FILE=${NATIVE_INSTALLER_OUT}"
                 "${NATIVE_NSI_SCRIPT}"
         WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/Installer"
-        COMMENT "Empaquetando instalador comercial DashCompetitivoAudio-setup.exe con NSIS..."
+        COMMENT "Empaquetando instalador DashCompetitivoAudio-setup.exe con NSIS..."
         VERBATIM
     )
     add_dependencies(PackageInstaller

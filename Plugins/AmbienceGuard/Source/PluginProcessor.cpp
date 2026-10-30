@@ -23,7 +23,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmbienceGuardAudioProcessor:
 {
     std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
 
-    // Parámetros auditados exactos compatibles con Equalizer APO:
+    // Parámetros base de nuestro motor táctico compatibles con Equalizer APO:
     // Distant 1 | Target 0.388889 | Release 0 | DetRel 0.458333 | SCLow 0.2269 (350 Hz) | SCHigh 0.5293 (2.5 kHz) | BandMod 1 | AmbGuar 1
     params.push_back(std::make_unique<juce::AudioParameterFloat>(
         juce::ParameterID { ParamIDs::ambGuar, 1 },

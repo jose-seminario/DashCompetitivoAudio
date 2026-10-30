@@ -20,7 +20,7 @@ struct TransientSuppressorParams
 /**
  * Supresor de Transitorios de Disparo ("Gun Crack") en Tiempo Real.
  *
- * Arquitectura fiel a la auditoría:
+ * Arquitectura de nuestro motor DSP táctico:
  *  1. En configuraciones 5.1 / 7.1 aísla prioritariamente el Canal Central (Center In),
  *     dejando intactos los canales surround traseros/laterales y el canal LFE.
  *     En configuración Estéreo (2.0) extrae la componente Mid central (L+R)/2 si Front=1.
@@ -81,7 +81,7 @@ public:
         gainAtkCoeff_ = calcOnePoleCoeff(0.00020f);
         gainRelCoeff_ = calcOnePoleCoeff(relSec);
 
-        // Mapeo fiel de auditoría: Gun = 0.45 -> 20*log10(0.45) = -6.9357 dB (~ -7.0 dB)
+        // Calibración de atenuación táctica de nuestro DSP: Gun = 0.45 -> 20*log10(0.45) = -6.9357 dB (~ -7.0 dB)
         const float clampedGun = juce::jlimit(0.10f, 1.0f, params_.gun);
         maxAttenuationDb_ = juce::Decibels::gainToDecibels(clampedGun, -24.0f); // Negativo (ej. -6.94 dB)
     }
