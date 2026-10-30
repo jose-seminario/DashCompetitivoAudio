@@ -105,6 +105,8 @@ void DashLookAndFeel::drawComboBox(
     int /*buttonX*/, int /*buttonY*/, int /*buttonW*/, int /*buttonH*/,
     juce::ComboBox& box)
 {
+    juce::ignoreUnused(isButtonDown);
+
     const auto bounds = juce::Rectangle<float>(0, 0, (float)width, (float)height).reduced(0.5f);
     const float cornerRadius = 5.0f;
 
@@ -148,6 +150,8 @@ void DashLookAndFeel::drawPopupMenuItem(
     const juce::Drawable* icon,
     const juce::Colour* textColour)
 {
+    juce::ignoreUnused(isTicked, hasSubMenu, shortcutKeyText, icon, textColour);
+
     if (isSeparator)
     {
         auto r = area.reduced(5, 0);

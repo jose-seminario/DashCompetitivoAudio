@@ -137,7 +137,7 @@ ApoConfigResult ApoConfigManager::injectManagedSection(
                    + managedDirectives;
         if (!managedDirectives.empty() && managedDirectives.back() != '\n')
             newContent += "\r\n";
-        newContent += kEndMarker + "\r\n"
+        newContent += std::string(kEndMarker) + "\r\n"
                    + existingContent.substr(nextValid);
     }
     else
