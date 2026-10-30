@@ -226,7 +226,7 @@ std::string ApoConfigInjector::buildConfigContent(
     // 2. Directiva del Supresor de Disparos (Canal Central / Gun Crack)
     if (config.enableTransientSuppressor)
     {
-        out << "VSTPlugin: Library TransientSuppressor.dll"
+        out << "VSTPlugin: Library TransientSuppressor.vst3"
             << " Gun " << formatFixed6(config.gunVolume)
             << " Steps " << config.gunSteps
             << " Front " << config.gunFrontOnly
@@ -238,7 +238,7 @@ std::string ApoConfigInjector::buildConfigContent(
     // 3. Directiva del Compresor Dinámico Híbrido (Sonoridad BS.1770)
     if (config.enableLoudnessCompressor)
     {
-        out << "VSTPlugin: Library LoudnessCompressor.dll"
+        out << "VSTPlugin: Library LoudnessCompressor.vst3"
             << " Amount " << formatFixed6(config.compAmount)
             << " Target " << formatFixed6(config.compTarget)
             << " Release " << formatCompact(config.compRelease)
@@ -252,7 +252,7 @@ std::string ApoConfigInjector::buildConfigContent(
     // 4. Directiva del Protector Ambiental Multibanda
     if (config.enableAmbienceGuard)
     {
-        out << "VSTPlugin: Library AmbienceGuard.dll"
+        out << "VSTPlugin: Library AmbienceGuard.vst3"
             << " AmbGuar " << formatCompact(config.ambGuard)
             << " Distant " << config.ambDistant
             << " Target " << formatFixed6(config.ambTarget)

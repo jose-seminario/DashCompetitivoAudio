@@ -34,9 +34,9 @@ SetCompressor /SOLID lzma
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "${OUT_FILE}"
 
-; Directorio de instalación por defecto (%LOCALAPPDATA%\DashCompetitivoAudio)
-InstallDir "$LOCALAPPDATA\${APP_SHORT_KEY}"
-InstallDirRegKey HKCU "Software\${APP_SHORT_KEY}" "InstallLocation"
+; Directorio de instalación por defecto ($PROGRAMFILES64\DashCompetitivoAudio)
+InstallDir "$PROGRAMFILES64\${APP_SHORT_KEY}"
+InstallDirRegKey HKLM "Software\${APP_SHORT_KEY}" "InstallLocation"
 
 ; Solicitar permisos de Administrador (UAC) para registrar VST3 y claves de desinstalación
 RequestExecutionLevel admin
@@ -84,7 +84,7 @@ FunctionEnd
 Section "Aplicación Principal y Motores DSP VST3" SecCore
     SectionIn RO
 
-    SetShellVarContext current
+    SetShellVarContext all
 
     ; 1. Instalar ejecutable propio en %LOCALAPPDATA%\DashCompetitivoAudio
     SetOutPath "$INSTDIR"
@@ -167,7 +167,17 @@ SectionEnd
 ; Sección de Desinstalación Segura
 ; ------------------------------------------------------------------------------
 Section "Uninstall"
-    SetShellVarContext current
+    SetShellVarContext all
+
+    ; 0. Limpiar bloque administrado de Dash en config.txt de Equalizer APO sin alterar los filtros del usuario
+    ReadRegStr $R0 HKLM "SOFTWARE\EqualizerAPO" "InstallPath"
+    ${If} $R0 == ""
+        StrCpy $R0 "$PROGRAMFILES64\EqualizerAPO"
+    ${EndIf}
+    StrCpy $R2 "$R0\config\config.txt"
+    ${If} ${FileExists} "$R2"
+        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$$p = ''$R2''; if (Test-Path $$p) { $$t = [System.IO.File]::ReadAllText($$p); $$r = [System.Text.RegularExpressions.Regex]::Replace($$t, ''(?s)# BEGIN DASHCOMPETITIVOAUDIO.*?# END DASHCOMPETITIVOAUDIO\r?\n?'', ''''); [System.IO.File]::WriteAllText($$p, $$r) }"'
+    ${EndIf}
 
     ; 1. Eliminar EXCLUSIVAMENTE los 3 bundles propios en EqualizerAPO\VSTPlugins (sin vaciar config.txt ni tocar otros plugins)
     ReadRegStr $R1 HKLM "SOFTWARE\${APP_SHORT_KEY}" "ApoVstDir"
@@ -196,12 +206,16 @@ Section "Uninstall"
     Delete "$INSTDIR\${APP_EXE}"
     Delete "$INSTDIR\Uninstall.exe"
 
-    ; IMPORTANTE: NO borrar la carpeta de perfiles personales si el usuario creó perfiles propios
-    ${If} ${FileExists} "$INSTDIR\Profiles\User"
-        ; Se preservan los perfiles personales del usuario
-    ${Else}
-        RMDir /r "$INSTDIR\Profiles"
-    ${EndIf}
+    ; 5. Eliminar exclusivamente los perfiles y esquemas de fábrica distribuidos con la app
+    RMDir /r "$INSTDIR\Profiles\Schema"
+    RMDir /r "$INSTDIR\Profiles\Games"
+    RMDir /r "$INSTDIR\Profiles\Headphones"
+    RMDir "$INSTDIR\Profiles" ; Solo se borra si no contiene perfiles creados por el usuario
+
+    ; 6. Preservar intactos los perfiles personales del usuario en %LOCALAPPDATA%\DashCompetitivoAudio\Profiles
+    ; Solo se intentan remover carpetas si quedaron completamente vacías (sin /r)
+    RMDir "$LOCALAPPDATA\${APP_SHORT_KEY}\Profiles"
+    RMDir "$LOCALAPPDATA\${APP_SHORT_KEY}"
 
     RMDir "$INSTDIR" ; Solo se borra si quedó vacía
 

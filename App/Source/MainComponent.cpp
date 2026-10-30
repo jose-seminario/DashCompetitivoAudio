@@ -119,6 +119,10 @@ MainComponent::MainComponent()
 MainComponent::~MainComponent()
 {
     stopTimer();
+    if (isProfileActive_)
+    {
+        deactivateAndRestoreAudio();
+    }
     setLookAndFeel(nullptr);
 }
 

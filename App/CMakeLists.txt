@@ -22,6 +22,8 @@ target_sources(DashCompetitivoAudio
         Source/Audio/AudioDeviceInfo.h
         Source/Audio/AudioBackendState.h
         Source/Audio/IAudioBackend.h
+        Source/Audio/JuceWasapiAudioBackend.h
+        Source/Audio/JuceWasapiAudioBackend.cpp
         Source/Core/SystemDependencyChecker.h
         Source/Core/SystemDependencyChecker.cpp
         Source/Profiles/AudioProfile.h
@@ -77,6 +79,8 @@ target_link_libraries(DashCompetitivoAudio
     PRIVATE
         DashAudioCore
         DashAudioSpatial
+        juce::juce_audio_basics
+        juce::juce_audio_devices
         juce::juce_gui_basics
         juce::juce_gui_extra
         juce::juce_core

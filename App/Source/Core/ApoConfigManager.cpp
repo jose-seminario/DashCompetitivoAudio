@@ -1,6 +1,16 @@
 #include "ApoConfigManager.h"
 #include "ApoConfigInjector.h"
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#endif
+
 #include <fstream>
 #include <sstream>
 
@@ -149,15 +159,9 @@ ApoConfigResult ApoConfigManager::injectManagedSection(
         newContent += managedBlock;
     }
 
-    bool permDenied = false;
-    std::string writeErr;
-    if (!ApoConfigInjector::writeConfigAtomically(configPath, ApoChainConfig{}, &writeErr, &permDenied))
-    {
-        // En caso de fallo con ApoConfigInjector, reintentamos escribir el payload procesado con su método directo
-    }
-
-    // Usamos el escritor atómico con el payload final preservado
-    std::ofstream ofs(configPath.string() + ".dash.tmp", std::ios::binary | std::ios::trunc);
+    // Escritura atómica preservando el 100% de los filtros originales
+    const std::filesystem::path tempPath = configPath.string() + ".dash.tmp";
+    std::ofstream ofs(tempPath, std::ios::binary | std::ios::trunc);
     if (!ofs)
     {
         if (outError) *outError = "Permiso denegado al escribir en carpeta de Equalizer APO.";
@@ -167,12 +171,28 @@ ApoConfigResult ApoConfigManager::injectManagedSection(
     ofs.flush();
     ofs.close();
 
-    std::filesystem::rename(configPath.string() + ".dash.tmp", configPath, ec);
+#ifdef _WIN32
+    if (!MoveFileExW(tempPath.c_str(), configPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    {
+        const DWORD err = GetLastError();
+        std::error_code ecRemove;
+        std::filesystem::remove(tempPath, ecRemove);
+        if (err == ERROR_ACCESS_DENIED)
+        {
+            if (outError) *outError = "Permiso denegado al reemplazar atómicamente config.txt.";
+            return ApoConfigResult::PermissionDenied;
+        }
+        if (outError) *outError = "Fallo al reemplazar atómicamente config.txt (Código Win32: " + std::to_string(err) + ")";
+        return ApoConfigResult::WriteFailed;
+    }
+#else
+    std::filesystem::rename(tempPath, configPath, ec);
     if (ec)
     {
         if (outError) *outError = "Fallo al renombrar atómicamente: " + ec.message();
         return ApoConfigResult::WriteFailed;
     }
+#endif
 
     return ApoConfigResult::Success;
 }
@@ -203,7 +223,6 @@ ApoConfigResult ApoConfigManager::removeManagedSection(
     std::string restoredContent = existingContent.substr(0, beginPos)
                                 + existingContent.substr(nextValid);
 
-    std::error_code ec;
     const std::filesystem::path tempPath = configPath.string() + ".dash.tmp";
     std::ofstream ofs(tempPath, std::ios::binary | std::ios::trunc);
     if (!ofs)
@@ -215,12 +234,29 @@ ApoConfigResult ApoConfigManager::removeManagedSection(
     ofs.flush();
     ofs.close();
 
+#ifdef _WIN32
+    if (!MoveFileExW(tempPath.c_str(), configPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+    {
+        const DWORD err = GetLastError();
+        std::error_code ecRemove;
+        std::filesystem::remove(tempPath, ecRemove);
+        if (err == ERROR_ACCESS_DENIED)
+        {
+            if (outError) *outError = "Permiso denegado al remover sección de config.txt.";
+            return ApoConfigResult::PermissionDenied;
+        }
+        if (outError) *outError = "Fallo al remover sección de config.txt (Código Win32: " + std::to_string(err) + ")";
+        return ApoConfigResult::WriteFailed;
+    }
+#else
+    std::error_code ec;
     std::filesystem::rename(tempPath, configPath, ec);
     if (ec)
     {
         if (outError) *outError = "Fallo al renombrar atómicamente: " + ec.message();
         return ApoConfigResult::WriteFailed;
     }
+#endif
 
     return ApoConfigResult::Success;
 }
