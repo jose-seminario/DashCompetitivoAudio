@@ -17,6 +17,8 @@ target_sources(DashCompetitivoAudio
         Source/Core/AudioPolicyManager.cpp
         Source/Core/ApoConfigInjector.h
         Source/Core/ApoConfigInjector.cpp
+        Source/Core/SystemDependencyChecker.h
+        Source/Core/SystemDependencyChecker.cpp
 )
 
 target_include_directories(DashCompetitivoAudio
@@ -38,7 +40,7 @@ target_link_libraries(DashCompetitivoAudio
         juce::juce_gui_extra
         juce::juce_core
         juce::juce_events
-        $<$<PLATFORM_ID:Windows>:ole32 propsys uuid>
+        $<$<PLATFORM_ID:Windows>:ole32 propsys uuid shell32 advapi32>
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

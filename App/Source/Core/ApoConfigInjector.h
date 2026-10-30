@@ -8,41 +8,46 @@ namespace dash::audio
 
 struct ApoChainConfig
 {
+    std::string profileName = "Campaign";
+
     // Filtro opcional de dispositivo Equalizer APO, ej. "{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}"
     std::string targetEndpointGuid;
 
-    // 1. Supresor de Transitorios (Disparos)
-    bool enableTransientSuppressor = true;
-    double gunVolume      = 0.450000;
-    int    gunSteps       = 0;
-    int    gunFrontOnly   = 1;
-    int    gunRestore     = 0;
-    int    gunBypass      = 0;
+    // 1. Supresor de Transitorios (Disparos - Gun Crack)
+    bool   enableTransientSuppressor = true;
+    double gunVolume                 = 0.450000;
+    int    gunSteps                  = 0;
+    int    gunFrontOnly              = 1;
+    int    gunRestore                = 0;
+    int    gunBypass                 = 0;
 
-    // 2. Compresor Dinámico Híbrido de Sonoridad
-    bool enableLoudnessCompressor = true;
-    double compAmount     = 0.750000;
-    double compTarget     = 0.277778; // Equivale a -18.0 LUFS en escala normalizada [-28..+8]
-    double compRelease    = 0.5;
-    double compDetRel     = 0.583333;
-    double compLimRel     = 0.612903;
-    double compScLow      = 0.0;
-    double compScHigh     = 1.0;
+    // 2. Compresor Dinámico Híbrido de Sonoridad (ITU-R BS.1770)
+    bool   enableLoudnessCompressor = true;
+    double compAmount               = 0.750000;
+    double compTarget               = 0.277778; // Equivale a -18.0 LUFS en escala normalizada [-28..+8]
+    double compRelease              = 0.5;
+    double compDetRel               = 0.583333;
+    double compLimRel               = 0.612903;
+    double compScLow                = 0.0;
+    double compScHigh               = 1.0;
 
-    // 3. Protector de Frecuencias Ambientales
-    bool enableAmbienceGuard = true;
-    int    ambDistant     = 1;
-    double ambTarget      = 0.388889;
-    double ambRelease     = 0.0;
-    double ambDetRel      = 0.458333;
-    double ambScLow       = 0.2269;
-    double ambScHigh      = 0.5293;
-    int    ambBandMod     = 1;
+    // 3. Protector de Frecuencias Ambientales (Multibanda IIR 350 Hz - 2.5 kHz)
+    bool   enableAmbienceGuard = true;
+    double ambGuard            = 1.0;      // Parámetro AmbGuar [0.0 .. 1.0]
+    int    ambDistant          = 1;
+    double ambTarget           = 0.388889;
+    double ambRelease          = 0.0;
+    double ambDetRel           = 0.458333;
+    double ambScLow            = 0.2269;
+    double ambScHigh           = 0.5293;
+    int    ambBandMod          = 1;
 
-    // 4. Ganancia previa (Headroom anti-clipping) y Espacialización HRIR
-    double preampDb       = -6.0;
+    // 4. Ganancia previa, Personalización Extrema de EQ (Pasos / Graves) y HeSuVi
+    double preampDb        = -6.0;
     bool   enableGraphicEq = true;
-    bool   enableHeSuVi   = true;
+    double footstepsEqDb   = 1.6; // Por defecto +1.6 dB en 3.15 kHz y +2.2 dB en 6.3 kHz (rango -3 a +6 dB)
+    double bassEqDb        = 1.5; // Por defecto +1.5 dB en 100 Hz / +2.0 dB en 80 Hz (banda 100-250 Hz)
+    bool   enableHeSuVi    = true;
 };
 
 class ApoConfigInjector
@@ -60,6 +65,12 @@ public:
     static std::filesystem::path getDefaultApoConfigPath();
 
     /**
+     * Genera la directiva GraphicEQ de 31 bandas aplicando las perillas de Pasos (3.15/6.3 kHz)
+     * y Graves (100-250 Hz) sobre la curva base de la auditoría.
+     */
+    static std::string buildGraphicEqDirective(double footstepsDb = 1.6, double bassDb = 1.5);
+
+    /**
      * Construye en memoria el contenido exacto de config.txt con terminaciones CRLF.
      */
     static std::string buildConfigContent(const ApoChainConfig& config = {});
@@ -67,17 +78,28 @@ public:
     /**
      * Escribe el archivo config.txt de forma atómica y segura frente a lecturas concurrentes
      * del motor de audio WASAPI de Equalizer APO.
-     *
-     * Estrategia:
-     *  1. Crea archivo temporal adyacente con FlushFileBuffers.
-     *  2. Reemplaza atómicamente con MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH).
-     *  3. Si Equalizer APO mantiene bloqueado el permiso de borrado/renombrado pero comparte escritura,
-     *     ejecuta escritura directa con vaciado al disco y verificación byte a byte.
      */
     static bool writeConfigAtomically(
         const std::filesystem::path& configFilePath,
         const ApoChainConfig& config = {},
-        std::string* outError = nullptr);
+        std::string* outError = nullptr,
+        bool* outPermissionDenied = nullptr);
+
+    /**
+     * Escribe un config.txt vacío de forma atómica para desactivar por completo el DSP
+     * al restaurar el sistema de audio original.
+     */
+    static bool writeEmptyConfigAtomically(
+        const std::filesystem::path& configFilePath,
+        std::string* outError = nullptr,
+        bool* outPermissionDenied = nullptr);
+
+private:
+    static bool writeRawPayloadAtomically(
+        const std::filesystem::path& configFilePath,
+        const std::string& payload,
+        std::string* outError,
+        bool* outPermissionDenied);
 };
 
 } // namespace dash::audio

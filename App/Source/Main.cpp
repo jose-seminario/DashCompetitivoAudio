@@ -39,7 +39,7 @@ public:
             setUsingNativeTitleBar(true);
             setContentOwned(new dash::ui::MainComponent(), true);
             setResizable(true, true);
-            setResizeLimits(780, 580, 2560, 1440);
+            setResizeLimits(920, 720, 2560, 1440);
             centreWithSize(getWidth(), getHeight());
             setVisible(true);
         }
