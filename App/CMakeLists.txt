@@ -36,6 +36,7 @@ target_compile_definitions(DashCompetitivoAudio
 
 target_link_libraries(DashCompetitivoAudio
     PRIVATE
+        DashAudioCore
         juce::juce_gui_basics
         juce::juce_gui_extra
         juce::juce_core

@@ -3,7 +3,7 @@
 #include <JuceHeader.h>
 #include <atomic>
 
-#include "DSP/HybridLoudnessCompressor.h"
+#include <DashAudioCore/DynamicsProcessor.h>
 
 class LoudnessCompressorAudioProcessor final : public juce::AudioProcessor
 {
@@ -60,7 +60,7 @@ public:
 
 private:
     juce::AudioProcessorValueTreeState apvts_;
-    dash::dsp::HybridLoudnessCompressor compressor_;
+    dash::core::DynamicsProcessor compressor_;
 
     // Punteros atómicos cacheados para lectura O(1) sin bloqueos en processBlock()
     std::atomic<float>* amountParam_  = nullptr;

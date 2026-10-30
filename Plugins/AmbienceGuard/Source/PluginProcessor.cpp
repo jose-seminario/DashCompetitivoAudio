@@ -81,12 +81,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmbienceGuardAudioProcessor:
 
 void AmbienceGuardAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-    juce::dsp::ProcessSpec spec {};
-    spec.sampleRate       = sampleRate;
-    spec.maximumBlockSize = static_cast<juce::uint32>(juce::jmax(1, samplesPerBlock));
-    spec.numChannels      = static_cast<juce::uint32>(juce::jmax(1, getTotalNumOutputChannels()));
-
-    guard_.prepare(spec);
+    guard_.prepare(
+        sampleRate,
+        juce::jmax(1, samplesPerBlock),
+        juce::jmax(1, getTotalNumOutputChannels()));
 }
 
 void AmbienceGuardAudioProcessor::releaseResources()
@@ -118,7 +116,7 @@ void AmbienceGuardAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear(i, 0, buffer.getNumSamples());
 
-    dash::dsp::AmbienceGuardParams dspParams {};
+    dash::core::AmbienceParameters dspParams {};
     dspParams.ambGuar = ambGuarParam_->load(std::memory_order_relaxed);
     dspParams.distant = (distantParam_->load(std::memory_order_relaxed) >= 0.5f);
     dspParams.target  = targetParam_->load(std::memory_order_relaxed);
@@ -130,7 +128,7 @@ void AmbienceGuardAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     dspParams.bypass  = (bypassParam_->load(std::memory_order_relaxed) >= 0.5f);
 
     guard_.updateParameters(dspParams);
-    guard_.processBlock(buffer);
+    guard_.process(buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples());
 
     meterHpHz_.store(guard_.getCurrentHpHz(), std::memory_order_relaxed);
     meterLpHz_.store(guard_.getCurrentLpHz(), std::memory_order_relaxed);

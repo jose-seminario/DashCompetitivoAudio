@@ -93,12 +93,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout LoudnessCompressorAudioProce
 
 void LoudnessCompressorAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-    juce::dsp::ProcessSpec spec {};
-    spec.sampleRate       = sampleRate;
-    spec.maximumBlockSize = static_cast<juce::uint32>(juce::jmax(1, samplesPerBlock));
-    spec.numChannels      = static_cast<juce::uint32>(juce::jmax(1, getTotalNumOutputChannels()));
-
-    compressor_.prepare(spec);
+    compressor_.prepare(
+        sampleRate,
+        juce::jmax(1, samplesPerBlock),
+        juce::jmax(1, getTotalNumOutputChannels()));
 }
 
 void LoudnessCompressorAudioProcessor::releaseResources()
@@ -131,7 +129,7 @@ void LoudnessCompressorAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
     for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear(i, 0, buffer.getNumSamples());
 
-    dash::dsp::CompressorParameters dspParams {};
+    dash::core::DynamicsParameters dspParams {};
     dspParams.amount      = amountParam_->load(std::memory_order_relaxed);
     dspParams.targetLufs  = targetParam_->load(std::memory_order_relaxed);
     dspParams.releaseNorm = releaseParam_->load(std::memory_order_relaxed);
@@ -144,7 +142,7 @@ void LoudnessCompressorAudioProcessor::processBlock(juce::AudioBuffer<float>& bu
     dspParams.bypass      = (bypassParam_->load(std::memory_order_relaxed) >= 0.5f);
 
     compressor_.updateParameters(dspParams);
-    compressor_.processBlock(buffer);
+    compressor_.process(buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples());
 
     meterLufs_.store(compressor_.getCurrentLufs(), std::memory_order_relaxed);
     meterGainDb_.store(compressor_.getCurrentGainDb(), std::memory_order_relaxed);

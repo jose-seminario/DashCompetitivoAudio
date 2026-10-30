@@ -32,6 +32,9 @@ else()
     FetchContent_MakeAvailable(JUCE)
 endif()
 
+# 0. Motor DSP Central Independiente (Librería Estática C++20)
+add_subdirectory(DashAudioCore)
+
 # 1. Aplicación Principal de Escritorio (Orquestador COM + Inyector Equalizer APO + UI JUCE)
 add_subdirectory(App)
 

@@ -19,8 +19,6 @@ juce_generate_juce_header(LoudnessCompressor)
 
 target_sources(LoudnessCompressor
     PRIVATE
-        Source/DSP/KWeightingFilter.h
-        Source/DSP/HybridLoudnessCompressor.h
         Source/PluginProcessor.h
         Source/PluginProcessor.cpp
         Source/PluginEditor.h
@@ -42,6 +40,7 @@ target_compile_definitions(LoudnessCompressor
 
 target_link_libraries(LoudnessCompressor
     PRIVATE
+        DashAudioCore
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC

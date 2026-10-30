@@ -1,4 +1,5 @@
 #include "ApoConfigInjector.h"
+#include <DashAudioCore/EQProcessor.h>
 
 #include <array>
 #include <cmath>
@@ -189,45 +190,17 @@ std::string ApoConfigInjector::buildGraphicEqDirective(double footstepsDb, doubl
     if (std::abs(footstepsDb - 1.6) < 1.0e-4 && std::abs(bassDb - 1.5) < 1.0e-4)
         return kTacticalGraphicEq;
 
-    struct EqBand { const char* freq; double gain; };
-    std::array<EqBand, 31> bands {{
-        { "20", -3.0 },   { "25", -2.0 },   { "31.5", -0.8 }, { "40", 0.5 },
-        { "50", 1.5 },    { "63", 2.2 },    { "80", 2.0 },    { "100", 1.5 },
-        { "125", 1.2 },   { "160", 0.8 },   { "200", 0.2 },   { "250", -0.6 },
-        { "315", -1.4 },  { "400", -1.8 },  { "500", -1.5 },  { "630", -1.0 },
-        { "800", -0.5 },  { "1000", 0.0 },  { "1250", 0.3 },  { "1600", 0.6 },
-        { "2000", 1.0 },  { "2500", 1.4 },  { "3150", 1.6 },  { "4000", 1.2 },
-        { "5000", 0.8 },  { "6300", 2.2 },  { "8000", 1.8 },  { "10000", 0.7 },
-        { "12500", 0.2 }, { "16000", -0.5 },{ "20000", -1.2 }
-    }};
-
-    const double deltaBass  = bassDb - 1.5;
-    const double deltaSteps = footstepsDb - 1.6;
-
-    // Banda Graves: 80 Hz hombro 50%, 100..250 Hz 100%
-    bands[6].gain  += deltaBass * 0.5;
-    bands[7].gain  += deltaBass;
-    bands[8].gain  += deltaBass;
-    bands[9].gain  += deltaBass;
-    bands[10].gain += deltaBass;
-    bands[11].gain += deltaBass;
-
-    // Banda Pasos: 3150 Hz (+1.6) y 6300 Hz (+2.2) + hombros acústicos suaves
-    bands[21].gain += deltaSteps * 0.50;
-    bands[22].gain  = footstepsDb;
-    bands[23].gain += deltaSteps * 0.45;
-    bands[25].gain  = 2.2 + deltaSteps * (2.2 / 1.6);
-    bands[26].gain += deltaSteps * 0.55;
+    const auto gains = dash::core::EQProcessor::computeBandGainsDb(footstepsDb, bassDb);
 
     std::ostringstream out;
     out.imbue(std::locale::classic());
     out << "GraphicEQ: ";
 
-    for (size_t i = 0; i < bands.size(); ++i)
+    for (size_t i = 0; i < dash::core::EQProcessor::kNumBands; ++i)
     {
         if (i > 0)
             out << "; ";
-        out << bands[i].freq << " " << formatCompact(bands[i].gain, 2);
+        out << dash::core::EQProcessor::kIsoFrequencyLabels[i] << " " << formatCompact(gains[i], 2);
     }
 
     return out.str();

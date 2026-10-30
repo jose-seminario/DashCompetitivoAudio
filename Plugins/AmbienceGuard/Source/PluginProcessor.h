@@ -3,7 +3,7 @@
 #include <JuceHeader.h>
 #include <atomic>
 
-#include "DSP/MultibandAmbienceGuard.h"
+#include <DashAudioCore/AmbienceProcessor.h>
 
 class AmbienceGuardAudioProcessor final : public juce::AudioProcessor
 {
@@ -60,7 +60,7 @@ public:
 
 private:
     juce::AudioProcessorValueTreeState apvts_;
-    dash::dsp::MultibandAmbienceGuard guard_;
+    dash::core::AmbienceProcessor guard_;
 
     // Punteros atómicos cacheados para acceso libre de bloqueos en el hilo de audio
     std::atomic<float>* ambGuarParam_ = nullptr;

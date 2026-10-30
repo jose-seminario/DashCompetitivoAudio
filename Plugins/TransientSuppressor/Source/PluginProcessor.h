@@ -3,7 +3,7 @@
 #include <JuceHeader.h>
 #include <atomic>
 
-#include "DSP/CenterTransientSuppressor.h"
+#include <DashAudioCore/TransientProcessor.h>
 
 class TransientSuppressorAudioProcessor final : public juce::AudioProcessor
 {
@@ -56,7 +56,7 @@ public:
 
 private:
     juce::AudioProcessorValueTreeState apvts_;
-    dash::dsp::CenterTransientSuppressor suppressor_;
+    dash::core::TransientProcessor suppressor_;
 
     // Punteros atómicos cacheados para acceso O(1) libre de bloqueos en el hilo de audio
     std::atomic<float>* gunParam_     = nullptr;

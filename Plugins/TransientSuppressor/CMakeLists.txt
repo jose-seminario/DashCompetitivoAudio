@@ -19,7 +19,6 @@ juce_generate_juce_header(TransientSuppressor)
 
 target_sources(TransientSuppressor
     PRIVATE
-        Source/DSP/CenterTransientSuppressor.h
         Source/PluginProcessor.h
         Source/PluginProcessor.cpp
         Source/PluginEditor.h
@@ -41,6 +40,7 @@ target_compile_definitions(TransientSuppressor
 
 target_link_libraries(TransientSuppressor
     PRIVATE
+        DashAudioCore
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC

@@ -19,7 +19,6 @@ juce_generate_juce_header(AmbienceGuard)
 
 target_sources(AmbienceGuard
     PRIVATE
-        Source/DSP/MultibandAmbienceGuard.h
         Source/PluginProcessor.h
         Source/PluginProcessor.cpp
         Source/PluginEditor.h
@@ -41,6 +40,7 @@ target_compile_definitions(AmbienceGuard
 
 target_link_libraries(AmbienceGuard
     PRIVATE
+        DashAudioCore
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC

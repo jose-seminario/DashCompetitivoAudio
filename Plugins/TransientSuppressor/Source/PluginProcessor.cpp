@@ -61,17 +61,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout TransientSuppressorAudioProc
 
 void TransientSuppressorAudioProcessor::prepareToPlay(double sampleRate, int samplesPerBlock)
 {
-    juce::dsp::ProcessSpec spec {};
-    spec.sampleRate       = sampleRate;
-    spec.maximumBlockSize = static_cast<juce::uint32>(juce::jmax(1, samplesPerBlock));
-    spec.numChannels      = static_cast<juce::uint32>(juce::jmax(1, getTotalNumOutputChannels()));
-
     const auto channelSet = getBusesLayout().getMainOutputChannelSet();
     int centerIdx = channelSet.getChannelIndexForType(juce::AudioChannelSet::centre);
     if (centerIdx < 0)
         centerIdx = 2; // Fallback estándar Windows WAVEFORMATEXTENSIBLE 5.1/7.1 (L=0, R=1, C=2)
 
-    suppressor_.prepare(spec, centerIdx);
+    suppressor_.setCenterChannelIndex(centerIdx);
+    suppressor_.prepare(
+        sampleRate,
+        juce::jmax(1, samplesPerBlock),
+        juce::jmax(1, getTotalNumOutputChannels()));
     activeChannels_.store(getTotalNumOutputChannels(), std::memory_order_relaxed);
 }
 
@@ -104,7 +103,7 @@ void TransientSuppressorAudioProcessor::processBlock(juce::AudioBuffer<float>& b
     for (int i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear(i, 0, buffer.getNumSamples());
 
-    dash::dsp::TransientSuppressorParams dspParams {};
+    dash::core::TransientParameters dspParams {};
     dspParams.gun     = gunParam_->load(std::memory_order_relaxed);
     dspParams.steps   = stepsParam_->load(std::memory_order_relaxed);
     dspParams.front   = (frontParam_->load(std::memory_order_relaxed) >= 0.5f);
@@ -113,7 +112,7 @@ void TransientSuppressorAudioProcessor::processBlock(juce::AudioBuffer<float>& b
     dspParams.bypass  = (bypassParam_->load(std::memory_order_relaxed) >= 0.5f);
 
     suppressor_.updateParameters(dspParams);
-    suppressor_.processBlock(buffer);
+    suppressor_.process(buffer.getArrayOfWritePointers(), buffer.getNumChannels(), buffer.getNumSamples());
 
     meterReductionDb_.store(suppressor_.getLastReductionDb(), std::memory_order_relaxed);
     activeChannels_.store(buffer.getNumChannels(), std::memory_order_relaxed);
