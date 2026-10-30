@@ -33,7 +33,7 @@ public:
         explicit MainWindow(const juce::String& name)
             : DocumentWindow(
                   name,
-                  juce::Colour(0xff0d1117),
+                  juce::Colour(0xff1e1e1e),
                   DocumentWindow::allButtons)
         {
             setUsingNativeTitleBar(true);

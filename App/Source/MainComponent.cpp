@@ -5,268 +5,220 @@ namespace dash::ui
 
 MainComponent::MainComponent()
 {
-    setSize(900, 680);
+    setSize(820, 620);
 
-    // Paleta oscura táctica de bajo consumo visual
-    getLookAndFeel().setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(0xff11151c));
-    getLookAndFeel().setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff1b222d));
-    getLookAndFeel().setColour(juce::TextEditor::backgroundColourId, juce::Colour(0xff141922));
-    getLookAndFeel().setColour(juce::TextEditor::outlineColourId, juce::Colour(0xff2c3647));
-    getLookAndFeel().setColour(juce::TextButton::buttonColourId, juce::Colour(0xff1f6feb));
-    getLookAndFeel().setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    // =========================================================================
+    // 1. Configuración de Paleta y LookAndFeel (Estilo Oscuro Profesional)
+    // =========================================================================
+    auto& lf = getLookAndFeel();
+    lf.setColour(juce::ResizableWindow::backgroundColourId, juce::Colour(0xff1e1e1e));
+    lf.setColour(juce::ComboBox::backgroundColourId, juce::Colour(0xff2d2d30));
+    lf.setColour(juce::ComboBox::outlineColourId, juce::Colour(0xff3f3f46));
+    lf.setColour(juce::ComboBox::textColourId, juce::Colour(0xfff4f4f5));
+    lf.setColour(juce::ComboBox::arrowColourId, juce::Colour(0xffa1a1aa));
+    lf.setColour(juce::PopupMenu::backgroundColourId, juce::Colour(0xff252528));
+    lf.setColour(juce::PopupMenu::textColourId, juce::Colour(0xfff4f4f5));
+    lf.setColour(juce::PopupMenu::highlightedBackgroundColourId, juce::Colour(0xff3f3f46));
 
-    // Encabezado
-    titleLabel_.setText("DASH COMPETITIVO AUDIO", juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(22.0f, juce::Font::bold));
-    titleLabel_.setColour(juce::Label::textColourId, juce::Colour(0xffe6edf3));
+    // =========================================================================
+    // 2. Encabezado: Título Centrado y Subtítulo
+    // =========================================================================
+    titleLabel_.setText("Dash Competitivo Audio", juce::dontSendNotification);
+    titleLabel_.setFont(juce::FontOptions(26.0f, juce::Font::bold));
+    titleLabel_.setJustificationType(juce::Justification::centred);
+    titleLabel_.setColour(juce::Label::textColourId, juce::Colour(0xfff4f4f5));
     addAndMakeVisible(titleLabel_);
 
-    subtitleLabel_.setText("Orquestador Nativo C++20: IPolicyConfig COM + Inyector Atómico Equalizer APO",
-                           juce::dontSendNotification);
+    subtitleLabel_.setText("Motor Táctico de Audio Profesional • Auditoría Rara Audio", juce::dontSendNotification);
     subtitleLabel_.setFont(juce::FontOptions(13.5f));
-    subtitleLabel_.setColour(juce::Label::textColourId, juce::Colour(0xff8b949e));
+    subtitleLabel_.setJustificationType(juce::Justification::centred);
+    subtitleLabel_.setColour(juce::Label::textColourId, juce::Colour(0xffa1a1aa));
     addAndMakeVisible(subtitleLabel_);
 
-    // Sección 1: Orquestador COM
-    endpointGroup_.setColour(juce::GroupComponent::outlineColourId, juce::Colour(0xff30363d));
-    endpointGroup_.setColour(juce::GroupComponent::textColourId, juce::Colour(0xff58a6ff));
-    addAndMakeVisible(endpointGroup_);
+    // =========================================================================
+    // 3. Sección de Perfiles (Auditoría Rara Audio)
+    // =========================================================================
+    profileSectionHeader_.setText("PERFILES ACÚSTICOS COMPETITIVOS", juce::dontSendNotification);
+    profileSectionHeader_.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    profileSectionHeader_.setColour(juce::Label::textColourId, juce::Colour(0xff38bdf8)); // Sky 400
+    addAndMakeVisible(profileSectionHeader_);
 
-    endpointCombo_.onChange = [this]() {
-        syncConfigFromControls();
-        updateConfigPreview();
+    profileSelectLabel_.setText("Perfil:", juce::dontSendNotification);
+    profileSelectLabel_.setFont(juce::FontOptions(14.0f, juce::Font::bold));
+    profileSelectLabel_.setColour(juce::Label::textColourId, juce::Colour(0xffe4e4e7));
+    addAndMakeVisible(profileSelectLabel_);
+
+    // Selector con las opciones auditadas: "Campaign" y "Eclipse"
+    profileSelector_.addItem("Campaign", 1);
+    profileSelector_.addItem("Eclipse", 2);
+    profileSelector_.setSelectedId(1, juce::dontSendNotification);
+    profileSelector_.onChange = [this]() {
+        statusLabel_.setText("Perfil seleccionado: " + profileSelector_.getText() + " (Listo para activar)",
+                             juce::dontSendNotification);
     };
-    addAndMakeVisible(endpointCombo_);
+    addAndMakeVisible(profileSelector_);
 
-    refreshEndpointsBtn_.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff21262d));
-    refreshEndpointsBtn_.onClick = [this]() { refreshEndpoints(); };
-    addAndMakeVisible(refreshEndpointsBtn_);
-
-    setDefaultEndpointBtn_.onClick = [this]() { applySelectedEndpoint(); };
-    addAndMakeVisible(setDefaultEndpointBtn_);
-
-    // Sección 2: Cadena Equalizer APO
-    apoGroup_.setColour(juce::GroupComponent::outlineColourId, juce::Colour(0xff30363d));
-    apoGroup_.setColour(juce::GroupComponent::textColourId, juce::Colour(0xff58a6ff));
-    addAndMakeVisible(apoGroup_);
-
-    auto configureToggle = [this](juce::ToggleButton& btn, bool initialState) {
-        btn.setToggleState(initialState, juce::dontSendNotification);
-        btn.onClick = [this]() {
-            syncConfigFromControls();
-            updateConfigPreview();
-        };
-        addAndMakeVisible(btn);
+    // Botón Primario: Grande y llamativo ("Activar Perfil")
+    activateProfileBtn_.setButtonText("Activar Perfil");
+    activateProfileBtn_.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff10b981)); // Emerald 500
+    activateProfileBtn_.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff059669));
+    activateProfileBtn_.setColour(juce::TextButton::textColourOffId, juce::Colours::white);
+    activateProfileBtn_.onClick = [this]() {
+        statusLabel_.setText("Perfil [" + profileSelector_.getText() + "] marcado para activación (Fase 4: Orquestador).",
+                             juce::dontSendNotification);
     };
+    addAndMakeVisible(activateProfileBtn_);
 
-    configureToggle(bindSelectedDeviceToggle_, false);
-    configureToggle(transientToggle_, apoConfig_.enableTransientSuppressor);
-    configureToggle(compressorToggle_, apoConfig_.enableLoudnessCompressor);
-    configureToggle(ambienceToggle_, apoConfig_.enableAmbienceGuard);
-    configureToggle(graphicEqToggle_, apoConfig_.enableGraphicEq);
-    configureToggle(hesuviToggle_, apoConfig_.enableHeSuVi);
+    // Botón Secundario: "Desactivar / Restaurar"
+    deactivateProfileBtn_.setButtonText("Desactivar / Restaurar");
+    deactivateProfileBtn_.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff27272a)); // Zinc 800
+    deactivateProfileBtn_.setColour(juce::TextButton::buttonOnColourId, juce::Colour(0xff3f3f46));
+    deactivateProfileBtn_.setColour(juce::TextButton::textColourOffId, juce::Colour(0xffd4d4d8));
+    deactivateProfileBtn_.onClick = [this]() {
+        statusLabel_.setText("Petición de restauración recibida (Fase 4: Orquestador).",
+                             juce::dontSendNotification);
+    };
+    addAndMakeVisible(deactivateProfileBtn_);
 
-    addAndMakeVisible(configPathLabel_);
+    // =========================================================================
+    // 4. Perillas Rotatorias del Compresor (LoudnessCompressor)
+    // =========================================================================
+    compressorSectionHeader_.setText("PARÁMETROS DEL COMPRESOR DINÁMICO (LOUDNESS COMPRESSOR)", juce::dontSendNotification);
+    compressorSectionHeader_.setFont(juce::FontOptions(12.0f, juce::Font::bold));
+    compressorSectionHeader_.setColour(juce::Label::textColourId, juce::Colour(0xff38bdf8)); // Sky 400
+    addAndMakeVisible(compressorSectionHeader_);
 
-    configPathEditor_.setText(
-        juce::String(dash::audio::ApoConfigInjector::getDefaultApoConfigPath().wstring().c_str()),
-        juce::dontSendNotification);
-    addAndMakeVisible(configPathEditor_);
+    // Perilla 1: Intensidad (Amount) -> Default 0.75
+    initRotarySlider(amountSlider_, amountLabel_, "Intensidad (Amount)",
+                     0.0, 1.0, 0.001, 0.75, 2);
 
-    injectConfigBtn_.setColour(juce::TextButton::buttonColourId, juce::Colour(0xff238636));
-    injectConfigBtn_.onClick = [this]() { injectApoConfig(); };
-    addAndMakeVisible(injectConfigBtn_);
+    // Perilla 2: Objetivo (Target) -> Default 0.277778 (Equivalente a -18 LUFS)
+    initRotarySlider(targetSlider_, targetLabel_, "Objetivo (Target)",
+                     0.0, 1.0, 0.000001, 0.277778, 6);
 
-    previewLabel_.setColour(juce::Label::textColourId, juce::Colour(0xff8b949e));
-    addAndMakeVisible(previewLabel_);
+    targetLufsBadge_.setText("(-18 LUFS)", juce::dontSendNotification);
+    targetLufsBadge_.setFont(juce::FontOptions(11.5f, juce::Font::bold));
+    targetLufsBadge_.setJustificationType(juce::Justification::centred);
+    targetLufsBadge_.setColour(juce::Label::textColourId, juce::Colour(0xff34d399)); // Emerald 400
+    addAndMakeVisible(targetLufsBadge_);
 
-    configPreviewEditor_.setMultiLine(true);
-    configPreviewEditor_.setReadOnly(true);
-    configPreviewEditor_.setScrollbarsShown(true);
-    configPreviewEditor_.setFont(juce::FontOptions(juce::Font::getDefaultMonospacedFontName(), 13.0f, juce::Font::plain));
-    addAndMakeVisible(configPreviewEditor_);
+    // Perilla 3: Release -> Default 0.5
+    initRotarySlider(releaseSlider_, releaseLabel_, "Release",
+                     0.0, 1.0, 0.001, 0.5, 2);
 
-    statusLabel_.setFont(juce::FontOptions(13.0f));
-    statusLabel_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff0d1117));
-    statusLabel_.setColour(juce::Label::outlineColourId, juce::Colour(0xff30363d));
+    // =========================================================================
+    // 5. Barra de Estado Inferior
+    // =========================================================================
+    statusLabel_.setText("● Sistema listo • Modo Visual Fase 2 activo", juce::dontSendNotification);
+    statusLabel_.setFont(juce::FontOptions(12.5f));
+    statusLabel_.setColour(juce::Label::backgroundColourId, juce::Colour(0xff18181b));
+    statusLabel_.setColour(juce::Label::outlineColourId, juce::Colour(0xff27272a));
+    statusLabel_.setColour(juce::Label::textColourId, juce::Colour(0xffa1a1aa));
     addAndMakeVisible(statusLabel_);
+}
 
-    refreshEndpoints();
-    syncConfigFromControls();
-    updateConfigPreview();
+void MainComponent::initRotarySlider(juce::Slider& slider, juce::Label& label, const juce::String& text,
+                                     double minVal, double maxVal, double step, double defaultVal,
+                                     int decimalPlaces)
+{
+    slider.setSliderStyle(juce::Slider::RotaryVerticalDrag);
+    slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 86, 22);
+    slider.setRange(minVal, maxVal, step);
+    slider.setValue(defaultVal, juce::dontSendNotification);
+    slider.setNumDecimalPlacesToDisplay(decimalPlaces);
+
+    // Estilo visual del Dial
+    slider.setColour(juce::Slider::rotarySliderFillColourId, juce::Colour(0xff0284c7)); // Sky 600
+    slider.setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colour(0xff27272a)); // Zinc 800
+    slider.setColour(juce::Slider::thumbColourId, juce::Colour(0xff38bdf8)); // Sky 400
+    slider.setColour(juce::Slider::textBoxBackgroundColourId, juce::Colour(0xff18181b));
+    slider.setColour(juce::Slider::textBoxOutlineColourId, juce::Colour(0xff3f3f46));
+    slider.setColour(juce::Slider::textBoxTextColourId, juce::Colour(0xfff4f4f5));
+    addAndMakeVisible(slider);
+
+    label.setText(text, juce::dontSendNotification);
+    label.setFont(juce::FontOptions(13.5f, juce::Font::bold));
+    label.setJustificationType(juce::Justification::centred);
+    label.setColour(juce::Label::textColourId, juce::Colour(0xffe4e4e7));
+    addAndMakeVisible(label);
 }
 
 void MainComponent::paint(juce::Graphics& g)
 {
-    g.fillAll(juce::Colour(0xff0d1117));
+    // 1. Fondo Oscuro Principal (#1E1E1E)
+    g.fillAll(juce::Colour(0xff1e1e1e));
+
+    // 2. Paneles con fondo oscuro elevado (#252528) y bordes redondeados (#38383c)
+    g.setColour(juce::Colour(0xff252528));
+    g.fillRoundedRectangle(profilePanelBounds_.toFloat(), 8.0f);
+    g.fillRoundedRectangle(compressorPanelBounds_.toFloat(), 8.0f);
+
+    g.setColour(juce::Colour(0xff38383c));
+    g.drawRoundedRectangle(profilePanelBounds_.toFloat(), 8.0f, 1.2f);
+    g.drawRoundedRectangle(compressorPanelBounds_.toFloat(), 8.0f, 1.2f);
 }
 
 void MainComponent::resized()
 {
-    auto area = getLocalBounds().reduced(18);
+    auto area = getLocalBounds().reduced(24);
 
-    auto header = area.removeFromTop(54);
-    titleLabel_.setBounds(header.removeFromTop(28));
-    subtitleLabel_.setBounds(header);
-
-    area.removeFromTop(8);
-
-    // Bloque 1: Endpoints COM
-    auto endpointBounds = area.removeFromTop(108);
-    endpointGroup_.setBounds(endpointBounds);
-    auto epInner = endpointBounds.reduced(16, 26);
-
-    auto epTopRow = epInner.removeFromTop(28);
-    refreshEndpointsBtn_.setBounds(epTopRow.removeFromRight(120));
-    epTopRow.removeFromRight(8);
-    endpointCombo_.setBounds(epTopRow);
-
-    epInner.removeFromTop(8);
-    setDefaultEndpointBtn_.setBounds(epInner.removeFromTop(30));
+    // Encabezado Centrado
+    auto headerArea = area.removeFromTop(62);
+    titleLabel_.setBounds(headerArea.removeFromTop(34));
+    subtitleLabel_.setBounds(headerArea);
 
     area.removeFromTop(12);
 
-    // Barra inferior de estado
-    statusLabel_.setBounds(area.removeFromBottom(32));
-    area.removeFromBottom(10);
+    // Barra de Estado Inferior
+    statusLabel_.setBounds(area.removeFromBottom(30));
+    area.removeFromBottom(14);
 
-    // Bloque 2: Configuración Equalizer APO
-    apoGroup_.setBounds(area);
-    auto apoInner = area.reduced(16, 26);
+    // Panel 1: Controles de Perfil
+    profilePanelBounds_ = area.removeFromTop(135);
+    auto pInner = profilePanelBounds_.reduced(18, 14);
+    profileSectionHeader_.setBounds(pInner.removeFromTop(20));
+    pInner.removeFromTop(12);
 
-    auto toggleArea = apoInner.removeFromTop(90);
-    auto leftCol = toggleArea.removeFromLeft(toggleArea.getWidth() / 2);
-    auto rightCol = toggleArea;
+    auto pControlsRow = pInner.removeFromTop(44);
+    profileSelectLabel_.setBounds(pControlsRow.removeFromLeft(48));
+    profileSelector_.setBounds(pControlsRow.removeFromLeft(190).reduced(0, 4));
+    pControlsRow.removeFromLeft(20);
 
-    bindSelectedDeviceToggle_.setBounds(leftCol.removeFromTop(28));
-    transientToggle_.setBounds(leftCol.removeFromTop(28));
-    compressorToggle_.setBounds(leftCol.removeFromTop(28));
+    // Botones con dimensiones destacadas
+    activateProfileBtn_.setBounds(pControlsRow.removeFromLeft(220));
+    pControlsRow.removeFromLeft(12);
+    deactivateProfileBtn_.setBounds(pControlsRow.removeFromLeft(200));
 
-    ambienceToggle_.setBounds(rightCol.removeFromTop(28));
-    graphicEqToggle_.setBounds(rightCol.removeFromTop(28));
-    hesuviToggle_.setBounds(rightCol.removeFromTop(28));
+    area.removeFromTop(16);
 
-    apoInner.removeFromTop(10);
+    // Panel 2: Perillas del Compresor
+    compressorPanelBounds_ = area;
+    auto cInner = compressorPanelBounds_.reduced(18, 14);
+    compressorSectionHeader_.setBounds(cInner.removeFromTop(20));
+    cInner.removeFromTop(10);
 
-    auto pathRow = apoInner.removeFromTop(30);
-    configPathLabel_.setBounds(pathRow.removeFromLeft(110));
-    injectConfigBtn_.setBounds(pathRow.removeFromRight(230));
-    pathRow.removeFromRight(8);
-    configPathEditor_.setBounds(pathRow);
+    // 3 Columnas simétricas para las perillas
+    const int colWidth = cInner.getWidth() / 3;
 
-    apoInner.removeFromTop(10);
-    previewLabel_.setBounds(apoInner.removeFromTop(22));
-    apoInner.removeFromTop(4);
-    configPreviewEditor_.setBounds(apoInner);
-}
+    // Columna 1: Amount
+    auto col1 = cInner.removeFromLeft(colWidth).reduced(10, 0);
+    amountLabel_.setBounds(col1.removeFromTop(24));
+    col1.removeFromTop(4);
+    amountSlider_.setBounds(col1.removeFromTop(150));
 
-void MainComponent::refreshEndpoints()
-{
-    std::string err;
-    endpoints_ = policyManager_.enumerateActiveRenderEndpoints(&err);
+    // Columna 2: Target
+    auto col2 = cInner.removeFromLeft(colWidth).reduced(10, 0);
+    auto targetHeaderRow = col2.removeFromTop(24);
+    targetLabel_.setBounds(targetHeaderRow.removeFromTop(14));
+    targetLufsBadge_.setBounds(targetHeaderRow);
+    col2.removeFromTop(4);
+    targetSlider_.setBounds(col2.removeFromTop(150));
 
-    endpointCombo_.clear(juce::dontSendNotification);
-
-    if (!err.empty())
-    {
-        logStatus("Error enumerando dispositivos WASAPI: " + juce::String(err), true);
-        return;
-    }
-
-    int selectedIndex = 0;
-    for (size_t i = 0; i < endpoints_.size(); ++i)
-    {
-        const auto& ep = endpoints_[i];
-        juce::String label(ep.friendlyName.c_str());
-        if (ep.isDefaultConsole || ep.isDefaultMultimedia)
-            label << "  [Predeterminado]";
-
-        endpointCombo_.addItem(label, static_cast<int>(i + 1));
-        if (ep.isDefaultConsole)
-            selectedIndex = static_cast<int>(i + 1);
-    }
-
-    if (selectedIndex == 0 && !endpoints_.empty())
-        selectedIndex = 1;
-
-    if (selectedIndex > 0)
-        endpointCombo_.setSelectedId(selectedIndex, juce::dontSendNotification);
-
-    logStatus("Endpoints activos detectados: " + juce::String(endpoints_.size()));
-}
-
-void MainComponent::applySelectedEndpoint()
-{
-    const int idx = endpointCombo_.getSelectedId() - 1;
-    if (idx < 0 || static_cast<size_t>(idx) >= endpoints_.size())
-    {
-        logStatus("Selecciona un dispositivo de salida válido antes de conmutar.", true);
-        return;
-    }
-
-    const auto& selected = endpoints_[static_cast<size_t>(idx)];
-    std::string err;
-    if (policyManager_.setDefaultEndpoint(selected.id, &err))
-    {
-        logStatus("Endpoint predeterminado actualizado (eConsole + eMultimedia): "
-                  + juce::String(selected.friendlyName.c_str()));
-        refreshEndpoints();
-    }
-    else
-    {
-        logStatus("Fallo en IPolicyConfig::SetDefaultEndpoint: " + juce::String(err), true);
-    }
-}
-
-void MainComponent::syncConfigFromControls()
-{
-    apoConfig_.enableTransientSuppressor = transientToggle_.getToggleState();
-    apoConfig_.enableLoudnessCompressor  = compressorToggle_.getToggleState();
-    apoConfig_.enableAmbienceGuard       = ambienceToggle_.getToggleState();
-    apoConfig_.enableGraphicEq           = graphicEqToggle_.getToggleState();
-    apoConfig_.enableHeSuVi              = hesuviToggle_.getToggleState();
-
-    apoConfig_.targetEndpointGuid.clear();
-    if (bindSelectedDeviceToggle_.getToggleState())
-    {
-        const int idx = endpointCombo_.getSelectedId() - 1;
-        if (idx >= 0 && static_cast<size_t>(idx) < endpoints_.size())
-        {
-            apoConfig_.targetEndpointGuid =
-                juce::String(endpoints_[static_cast<size_t>(idx)].endpointGuid.c_str()).toStdString();
-        }
-    }
-}
-
-void MainComponent::updateConfigPreview()
-{
-    const std::string preview = dash::audio::ApoConfigInjector::buildConfigContent(apoConfig_);
-    configPreviewEditor_.setText(juce::String::fromUTF8(preview.c_str()), false);
-}
-
-void MainComponent::injectApoConfig()
-{
-    syncConfigFromControls();
-
-    const std::filesystem::path targetPath(configPathEditor_.getText().toWideCharPointer());
-    std::string err;
-
-    if (dash::audio::ApoConfigInjector::writeConfigAtomically(targetPath, apoConfig_, &err))
-    {
-        logStatus("Inyección atómica completada en: " + configPathEditor_.getText());
-    }
-    else
-    {
-        logStatus(juce::String::fromUTF8(err.c_str()), true);
-    }
-}
-
-void MainComponent::logStatus(const juce::String& message, bool isError)
-{
-    statusLabel_.setColour(
-        juce::Label::textColourId,
-        isError ? juce::Colour(0xffff7b72) : juce::Colour(0xff3fb950));
-    statusLabel_.setText("  " + message, juce::dontSendNotification);
+    // Columna 3: Release
+    auto col3 = cInner.reduced(10, 0);
+    releaseLabel_.setBounds(col3.removeFromTop(24));
+    col3.removeFromTop(4);
+    releaseSlider_.setBounds(col3.removeFromTop(150));
 }
 
 } // namespace dash::ui
