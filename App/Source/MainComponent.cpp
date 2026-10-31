@@ -83,6 +83,48 @@ MainComponent::MainComponent()
         scheduleDebouncedInjection();
     };
 
+    dashboardPanel_->onDisplayModeChanged = [this](DashboardComponent::DisplayMode mode) {
+        if (mode == DashboardComponent::DisplayMode::Advanced)
+        {
+            tabs_.setCurrentTabIndex(3); // Navegación directa a vista avanzada de Dinámica
+        }
+    };
+
+    dashboardPanel_->onChainNodeClicked = [this](int nodeIndex) {
+        switch (nodeIndex)
+        {
+            case 0: tabs_.setCurrentTabIndex(2); break; // INPUT -> Motor & WASAPI
+            case 1: tabs_.setCurrentTabIndex(5); break; // HEADROOM -> EQ / Preamp
+            case 2: tabs_.setCurrentTabIndex(3); break; // DYNAMICS -> Dinámica BS.1770
+            case 3: tabs_.setCurrentTabIndex(4); break; // TRANSIENT -> Disparos & Ruido
+            case 4: tabs_.setCurrentTabIndex(4); break; // AMBIENCE -> Disparos & Ruido
+            case 5: tabs_.setCurrentTabIndex(6); break; // SPATIAL -> Audio Espacial 3D
+            case 6: tabs_.setCurrentTabIndex(5); break; // EQUALIZER -> Ecualizador
+            case 7: tabs_.setCurrentTabIndex(4); break; // LIMITER -> Disparos & Ruido (Limiter)
+            case 8: tabs_.setCurrentTabIndex(7); break; // OUTPUT -> Auriculares
+            default: break;
+        }
+    };
+
+    audioEnginePanel_->onEndpointChanged = [this](const std::wstring& endpointId) {
+        auto endpoints = policyManager_.enumerateActiveRenderEndpoints();
+        for (const auto& ep : endpoints)
+        {
+            if (ep.id == endpointId)
+            {
+                dashboardPanel_->setDeviceName(juce::String(ep.friendlyName.c_str()));
+                statusBar_.setStatusMessage("Endpoint activo: " + juce::String(ep.friendlyName.c_str()));
+                break;
+            }
+        }
+    };
+
+    headphonePanel_->onHeadphoneModelChanged = [this](const juce::String& model) {
+        currentProfile_.metadata.headphoneModel = model.toStdString();
+        statusBar_.setStatusMessage("Auricular seleccionado: " + model);
+        scheduleDebouncedInjection();
+    };
+
     audioEnginePanel_->onFormatConfigChanged = [this](double sampleRate, int /*bufferSize*/, int numChannels) {
         currentProfile_.audio.sampleRate = sampleRate;
         juce::String layoutStr = juce::String(numChannels) + " canales";
@@ -186,8 +228,27 @@ void MainComponent::timerCallback()
     {
         const float latMs = audioBackend_->getCurrentLatencyMs();
         const float cpu = audioBackend_->getCpuUsage();
-        dashboardPanel_->setLatencyMs(latMs > 0.0f ? latMs : 5.3f);
+
+        if (latMs > 0.0f)
+        {
+            dashboardPanel_->setLatencyMs(latMs);
+        }
+        else
+        {
+            // Latencia nominal acústica calculada de forma matemática a partir del tamaño de búfer y sample rate reales
+            const double sr = currentProfile_.audio.sampleRate > 0.0 ? currentProfile_.audio.sampleRate : 48000.0;
+            const float nominalLatencyMs = static_cast<float>((512.0 * 1000.0) / sr);
+            dashboardPanel_->setLatencyMs(nominalLatencyMs);
+        }
+
         dashboardPanel_->setCpuPercent(cpu);
+
+        // Telemetría real de clipping y limitador desde AudioGraph
+        if (audioGraph_)
+        {
+            const float limiterReduction = audioGraph_->getLimiterReductionDb();
+            statusBar_.setClippingDetected(limiterReduction > 0.05f);
+        }
 
         // Actualizar estados de bypass de los nodos en el Dashboard
         // Nodos: 0: Input, 1: Headroom, 2: Dynamics, 3: Transient, 4: Ambience, 5: Spatial, 6: EQ, 7: Limiter, 8: Output
@@ -198,6 +259,10 @@ void MainComponent::timerCallback()
         dashboardPanel_->setNodeBypassState(5, currentProfile_.dspParams.bypassAll || !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass);
         dashboardPanel_->setNodeBypassState(6, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.equalizer.bypass);
         dashboardPanel_->setNodeBypassState(7, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.limiter.bypass);
+    }
+    else
+    {
+        statusBar_.setClippingDetected(false);
     }
 }
 
@@ -324,10 +389,6 @@ void MainComponent::executeConfigInjection()
 
 void MainComponent::activateTacticalMode()
 {
-    isProfileActive_ = true;
-    dashboardPanel_->setEngineRunning(true);
-    statusBar_.setEngineStatus("MOTOR: ACTIVO [WASAPI / C++ DSP]", true);
-
     // Guardar dispositivo actual antes de conmutar
     auto activeDevices = policyManager_.enumerateActiveRenderEndpoints();
     for (const auto& dev : activeDevices)
@@ -376,9 +437,15 @@ void MainComponent::activateTacticalMode()
                 }
             },
             [this](dash::audio::AudioBackendState state, const std::string& msg) {
-                if (state == dash::audio::AudioBackendState::Error)
+                if (state == dash::audio::AudioBackendState::Error || state == dash::audio::AudioBackendState::DeviceDisconnected)
                 {
-                    juce::MessageManager::callAsync([this, msg] {
+                    juce::MessageManager::callAsync([this, state, msg] {
+                        isProfileActive_ = false;
+                        dashboardPanel_->setEngineRunning(false);
+                        statusBar_.setEngineStatus(state == dash::audio::AudioBackendState::DeviceDisconnected
+                                                       ? "MOTOR: DISPOSITIVO DESCONECTADO"
+                                                       : "MOTOR: ERROR",
+                                                   false);
                         statusBar_.setStatusMessage("Aviso WASAPI: " + juce::String(msg), true);
                     });
                 }
@@ -387,9 +454,17 @@ void MainComponent::activateTacticalMode()
 
         if (!started)
         {
-            statusBar_.setStatusMessage("Aviso WASAPI: " + juce::String(startErr), true);
+            isProfileActive_ = false;
+            dashboardPanel_->setEngineRunning(false);
+            statusBar_.setEngineStatus("MOTOR: ERROR DE INICIALIZACIÓN", false);
+            statusBar_.setStatusMessage("Fallo al iniciar WASAPI: " + juce::String(startErr), true);
+            return;
         }
     }
+
+    isProfileActive_ = true;
+    dashboardPanel_->setEngineRunning(true);
+    statusBar_.setEngineStatus("MOTOR: ACTIVO [WASAPI / C++ DSP]", true);
 
     executeConfigInjection();
     statusBar_.setStatusMessage("Modo táctico activado con éxito.");

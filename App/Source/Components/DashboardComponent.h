@@ -25,6 +25,7 @@ public:
 
     void paint(juce::Graphics& g) override;
     void resized() override;
+    void mouseDown(const juce::MouseEvent& e) override;
 
     // Callbacks para interacción hacia MainComponent
     std::function<void(DisplayMode newMode)> onDisplayModeChanged;

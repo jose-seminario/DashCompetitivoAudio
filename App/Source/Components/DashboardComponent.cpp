@@ -266,6 +266,20 @@ void DashboardComponent::resized()
     }
 }
 
+void DashboardComponent::mouseDown(const juce::MouseEvent& e)
+{
+    const auto pos = e.getPosition();
+    for (size_t i = 0; i < chainNodes_.size(); ++i)
+    {
+        if (chainNodes_[i].bounds.contains(pos))
+        {
+            if (onChainNodeClicked)
+                onChainNodeClicked(static_cast<int>(i));
+            break;
+        }
+    }
+}
+
 void DashboardComponent::setEngineRunning(bool running)
 {
     isRunning_ = running;
