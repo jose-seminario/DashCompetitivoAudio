@@ -209,7 +209,7 @@ void BenchmarkPanel::runBenchmarkTest()
     {
         dash::spatial::SpatialProcessor spatial;
         spatial.prepare(kSampleRate, kNumSamples);
-        spatial.configureLayout(dash::spatial::ChannelLayout::createStereo());
+        spatial.configureLayout(dash::spatial::ChannelLayout::stereo());
         std::vector<float> outL(kNumSamples);
         std::vector<float> outR(kNumSamples);
         auto start = std::chrono::high_resolution_clock::now();
