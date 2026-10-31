@@ -25,8 +25,10 @@ struct SpatialProcessorParameters
 /**
  * Procesador Espacial y Orquestador de Audio Tridimensional (SpatialProcessor).
  *
- * Coordina la negociación de layout, el mapeo de canales, el dataset HRIR y el
- * renderizador binaural para auriculares.
+ * Utiliza el Modelo Esférico Woodworth con Escalado Paramétrico de Cabeza (Woodworth Spherical
+ * Model with Parametric Head Scaling) y filtrado de muesca de elevación aproximado (Approximated
+ * Pinna Notch Filtering) para renderizado binaural continuo de latencia cero en auriculares.
+ * Coordina la negociación de layout, el mapeo de canales, el dataset HRIR y el renderizador binaural.
  */
 class SpatialProcessor
 {

@@ -101,7 +101,8 @@ bool HRIRDataset::loadSyntheticReference(
                     dest[t] += dest[t - 1] * 0.15f; // Suavizado pasa-bajos
             }
 
-            // Efecto de elevación acústica (muesca de pabellón auricular de 6 a 8 kHz)
+            // Aproximación de elevación acústica mediante muesca espectral sintética (Approximated Pinna Notch Filtering)
+            // Simula heurísticamente la atenuación destructiva del pabellón auricular en la banda de 6 a 8 kHz
             if (std::abs(elRad) > 0.1f && baseIdx + 8 < static_cast<int>(safeTaps))
             {
                 dest[baseIdx + 4] -= gain * 0.20f * std::sin(elRad);
@@ -118,6 +119,8 @@ bool HRIRDataset::loadSyntheticReference(
     return true;
 }
 
+// Nota: No se incluye resampler interno polifásico en la inyección manual.
+// Las respuestas al impulso suministradas deben coincidir exactamente con el sampleRate del motor.
 bool HRIRDataset::setImpulsePair(
     size_t channelIndex,
     const float* leftTaps,

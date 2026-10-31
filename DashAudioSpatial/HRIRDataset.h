@@ -62,6 +62,13 @@ public:
 
     /**
      * Asigna manualmente un par de respuestas al impulso para un canal específico.
+     *
+     * ADVERTENCIA DE FRECUENCIA DE MUESTREO (SAMPLE RATE):
+     * El motor de convolución directa opera a la frecuencia de muestreo activa sin
+     * resampleador polifásico interno. La inyección de respuestas al impulso externas
+     * exige que el emisor suministre los coeficientes exactamente a la misma frecuencia de
+     * muestreo que la sesión activa (o realizar resampling sinc previo) para evitar
+     * distorsiones de tono y desajustes temporales en los retardos ITD.
      */
     bool setImpulsePair(
         size_t channelIndex,
