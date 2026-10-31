@@ -86,7 +86,7 @@ Section "Aplicación Principal y Motores DSP VST3" SecCore
 
     SetShellVarContext all
 
-    ; 1. Instalar ejecutable propio en %LOCALAPPDATA%\DashCompetitivoAudio
+    ; 1. Instalar ejecutable propio en $PROGRAMFILES64\DashCompetitivoAudio
     SetOutPath "$INSTDIR"
     File "${BUILD_DIR}\App\DashCompetitivoAudio_artefacts\Release\${APP_EXE}"
 
@@ -213,9 +213,7 @@ Section "Uninstall"
     RMDir "$INSTDIR\Profiles" ; Solo se borra si no contiene perfiles creados por el usuario
 
     ; 6. Preservar intactos los perfiles personales del usuario en %LOCALAPPDATA%\DashCompetitivoAudio\Profiles
-    ; Solo se intentan remover carpetas si quedaron completamente vacías (sin /r)
-    RMDir "$LOCALAPPDATA\${APP_SHORT_KEY}\Profiles"
-    RMDir "$LOCALAPPDATA\${APP_SHORT_KEY}"
+    ; Se conserva intacta la carpeta de perfiles personales para no destruir las calibraciones del usuario
 
     RMDir "$INSTDIR" ; Solo se borra si quedó vacía
 

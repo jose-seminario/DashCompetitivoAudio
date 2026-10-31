@@ -58,6 +58,7 @@ SpectralBandsEnergy FrequencyAnalyzer::analyzeBands(const float* buffer, size_t 
     e.lowMidsDb   = calculateBandRms(buffer, numSamples, sampleRate, 500.0f, 1.2f);
     e.midsDb      = calculateBandRms(buffer, numSamples, sampleRate, 1500.0f, 1.2f);
     e.footstepsDb = calculateBandRms(buffer, numSamples, sampleRate, 3800.0f, 1.5f);
+    e.gunCrackDb  = calculateBandRms(buffer, numSamples, sampleRate, 3500.0f, 1.0f);
     e.highsDb     = calculateBandRms(buffer, numSamples, sampleRate, 10000.0f, 1.0f);
 
     return e;

@@ -27,13 +27,7 @@ jobs:
         cmake --build build --config Release --parallel
 
     - name: Execute Automated QA & Unit Tests (CTest)
-      shell: pwsh
-      run: |
-        if (Test-Path "build\CTestTestfile.cmake") {
-          ctest --test-dir build -C Release --output-on-failure
-        } else {
-          Write-Host "Suites preparadas para compilación local o runner dedicado."
-        }
+      run: ctest --test-dir build -C Release --output-on-failure
 
     - name: Validate JSON Profiles Against Schema
       shell: pwsh

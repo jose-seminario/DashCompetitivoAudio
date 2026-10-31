@@ -14,6 +14,7 @@ struct SpectralBandsEnergy
     float lowMidsDb   = -100.0f; // 250 - 800 Hz
     float midsDb      = -100.0f; // 800 - 2500 Hz
     float footstepsDb = -100.0f; // 2500 - 6500 Hz (Banda táctica clave)
+    float gunCrackDb  = -100.0f; // 2000 - 6000 Hz (Transitorio de disparos / Gun Crack)
     float highsDb     = -100.0f; // 6500 - 20000 Hz
 };
 

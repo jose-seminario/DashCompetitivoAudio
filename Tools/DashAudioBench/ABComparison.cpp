@@ -65,7 +65,7 @@ ABComparisonResult ABComparison::compare(
     const auto bandsB = FrequencyAnalyzer::analyzeBands(matchedB.data(), numSamples, sampleRate);
 
     res.footstepsBoostDb = bandsB.footstepsDb - bandsA.footstepsDb;
-    res.gunCrackAttenuationDb = bandsA.bassDb - bandsB.bassDb;
+    res.gunCrackAttenuationDb = bandsA.gunCrackDb - bandsB.gunCrackDb;
 
     // 4. Coeficiente de correlación de Pearson
     double sumAB = 0.0, sumA2 = 0.0, sumB2 = 0.0;

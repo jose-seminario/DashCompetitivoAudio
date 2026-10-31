@@ -3,6 +3,7 @@
 #include <SpatialProcessor.h>
 
 #include <algorithm>
+#include <cmath>
 #include <iomanip>
 #include <iostream>
 #include <sstream>
@@ -66,9 +67,27 @@ BenchmarkSuiteReport AudioBenchmark::runFullSuite(double sampleRate, int blockSi
     rep.cpu = runCpuBenchmark(numChannels, blockSize, 500);
     rep.latency = LatencyAnalyzer::evaluateChainLatency(blockSize, sampleRate, 0);
 
-    // Test de calidad: señal senoidal procesada
-    std::vector<float> testTone(static_cast<size_t>(blockSize), 0.25f);
-    rep.quality = AudioMetrics::analyzeBuffer(testTone.data(), static_cast<size_t>(blockSize), sampleRate);
+    // Test de calidad: señal senoidal real a 1000 Hz procesada a través del AudioGraph
+    dash::core::AudioGraph graph;
+    graph.prepare(sampleRate, blockSize, numChannels);
+
+    std::vector<std::vector<float>> channels(static_cast<size_t>(numChannels), std::vector<float>(static_cast<size_t>(blockSize)));
+    for (size_t ch = 0; ch < static_cast<size_t>(numChannels); ++ch)
+    {
+        for (int i = 0; i < blockSize; ++i)
+        {
+            const double t = static_cast<double>(i) / sampleRate;
+            channels[ch][static_cast<size_t>(i)] = static_cast<float>(0.5 * std::sin(2.0 * 3.14159265358979323846 * 1000.0 * t));
+        }
+    }
+
+    std::vector<float*> channelPtrs(static_cast<size_t>(numChannels));
+    for (size_t ch = 0; ch < static_cast<size_t>(numChannels); ++ch)
+        channelPtrs[ch] = channels[ch].data();
+
+    graph.process(channelPtrs.data(), numChannels, blockSize);
+
+    rep.quality = AudioMetrics::analyzeBuffer(channelPtrs[0], static_cast<size_t>(blockSize), sampleRate);
 
     rep.passedAllIntegrityChecks = (!rep.quality.isClipped && rep.cpu.cpuLoadPercent < 50.0);
     return rep;
