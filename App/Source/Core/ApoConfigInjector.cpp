@@ -230,7 +230,7 @@ std::string ApoConfigInjector::buildConfigContent(
     // 2. Ecualización Gráfica Acústica de 31 Bandas
     if (config.enableGraphicEq)
     {
-        out << buildGraphicEqDirective(config.footstepsEqDb, config.bassDb) << "\r\n";
+        out << buildGraphicEqDirective(config.footstepsEqDb, config.bassEqDb) << "\r\n";
     }
 
     // 3. Virtualización Binaural Convolutiva HRIR (7.1 -> Estéreo vía HeSuVi)

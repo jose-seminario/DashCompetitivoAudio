@@ -86,11 +86,11 @@ MainComponent::MainComponent()
     audioEnginePanel_->onFormatConfigChanged = [this](double sampleRate, int /*bufferSize*/, int numChannels) {
         currentProfile_.audio.sampleRate = sampleRate;
         juce::String layoutStr = juce::String(numChannels) + " canales";
-        if (numChannels == 2) layoutStr = "2.0 Estéreo (2 canales)";
-        else if (numChannels == 6) layoutStr = "5.1 Surround (6 canales)";
-        else if (numChannels == 8) layoutStr = "7.1 Surround (8 canales)";
-        else if (numChannels == 12) layoutStr = "7.1.4 Inmersivo (12 canales)";
-        else if (numChannels == 16) layoutStr = "9.1.6 Espacial (16 canales)";
+        if (numChannels == 2) { layoutStr = "2.0 Estéreo (2 canales)"; currentProfile_.audio.channelLayout = "stereo"; }
+        else if (numChannels == 6) { layoutStr = "5.1 Surround (6 canales)"; currentProfile_.audio.channelLayout = "5.1"; }
+        else if (numChannels == 8) { layoutStr = "7.1 Surround (8 canales)"; currentProfile_.audio.channelLayout = "7.1"; }
+        else if (numChannels == 12) { layoutStr = "7.1.4 Inmersivo (12 canales)"; currentProfile_.audio.channelLayout = "7.1.4"; }
+        else if (numChannels == 16) { layoutStr = "9.1.6 Espacial (16 canales)"; currentProfile_.audio.channelLayout = "9.1.6"; }
         dashboardPanel_->setFormatInfo(sampleRate, layoutStr);
         scheduleDebouncedInjection();
     };
@@ -345,7 +345,11 @@ void MainComponent::activateTacticalMode()
     currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass;
 
     const double sr = currentProfile_.audio.sampleRate > 0.0 ? currentProfile_.audio.sampleRate : 48000.0;
-    const int ch = currentProfile_.audio.numChannels > 0 ? currentProfile_.audio.numChannels : 2;
+    int ch = 2;
+    if (currentProfile_.audio.channelLayout == "7.1") ch = 8;
+    else if (currentProfile_.audio.channelLayout == "5.1") ch = 6;
+    else if (currentProfile_.audio.channelLayout == "7.1.4") ch = 12;
+    else if (currentProfile_.audio.channelLayout == "9.1.6") ch = 16;
 
     if (audioGraph_)
     {
