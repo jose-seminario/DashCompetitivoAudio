@@ -120,7 +120,7 @@ MainComponent::MainComponent()
     };
 
     headphonePanel_->onHeadphoneModelChanged = [this](const juce::String& model) {
-        currentProfile_.metadata.headphoneModel = model.toStdString();
+        currentProfile_.headphone.model = model.toStdString();
         statusBar_.setStatusMessage("Auricular seleccionado: " + model);
         scheduleDebouncedInjection();
     };
