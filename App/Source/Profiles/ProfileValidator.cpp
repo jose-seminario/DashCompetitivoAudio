@@ -56,7 +56,7 @@ std::string ProfileValidationResult::formatSummary() const
     return ss.str();
 }
 
-bool ProfileValidator::isSafeProfileId(const std::string& profileId) noexcept
+bool ProfileValidator::isSafeProfileId(std::string_view profileId) noexcept
 {
     if (profileId.empty() || profileId.length() > kMaxIdLength)
         return false;

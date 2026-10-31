@@ -310,14 +310,21 @@ void MainComponent::deactivateAndRestoreAudio()
 
     std::string err;
     const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
-    dash::audio::ApoConfigManager::removeManagedSection(apoConfigPath, &err);
+    const auto remRes = dash::audio::ApoConfigManager::removeManagedSection(apoConfigPath, &err);
 
     if (!originalEndpointId_.empty())
     {
         policyManager_.setDefaultEndpoint(originalEndpointId_);
     }
 
-    statusBar_.setStatusMessage("Audio original de Windows restaurado.");
+    if (remRes == dash::audio::ApoConfigResult::Success || remRes == dash::audio::ApoConfigResult::FileNotFound)
+    {
+        statusBar_.setStatusMessage("Audio original de Windows restaurado.");
+    }
+    else
+    {
+        statusBar_.setStatusMessage("Aviso al restaurar APO: " + juce::String(err), true);
+    }
 }
 
 } // namespace dash::ui

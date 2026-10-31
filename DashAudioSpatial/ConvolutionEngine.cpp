@@ -82,7 +82,7 @@ bool ConvolutionEngine::loadFilterPair(
         return false;
 
     // Escribir en el banco inactivo para evitar condiciones de carrera con el audio thread
-    const int inactiveIdx = 1 - impl_->activeBank.load(std::memory_order_relaxed);
+    const int inactiveIdx = 1 - impl_->activeBank.load(std::memory_order_acquire);
     auto& bank = impl_->banks[static_cast<size_t>(inactiveIdx)];
 
     const size_t taps = std::min(filterLength, kMaxFilterLength);
@@ -90,8 +90,8 @@ bool ConvolutionEngine::loadFilterPair(
     bank.rightFilters[channelIndex].assign(rightEarIR, rightEarIR + taps);
     bank.channelHasFilter[channelIndex] = true;
 
-    size_t curLen = impl_->filterLength.load(std::memory_order_relaxed);
-    while (taps > curLen && !impl_->filterLength.compare_exchange_weak(curLen, taps, std::memory_order_relaxed))
+    size_t curLen = impl_->filterLength.load(std::memory_order_acquire);
+    while (taps > curLen && !impl_->filterLength.compare_exchange_weak(curLen, taps, std::memory_order_acq_rel))
     {
     }
 
@@ -101,7 +101,8 @@ bool ConvolutionEngine::loadFilterPair(
 void ConvolutionEngine::commitFilters() noexcept
 {
     // Conmutación atómica lock-free del banco activo
-    const int nextBank = 1 - impl_->activeBank.load(std::memory_order_relaxed);
+    const int currentBank = impl_->activeBank.load(std::memory_order_acquire);
+    const int nextBank = 1 - currentBank;
     impl_->activeBank.store(nextBank, std::memory_order_release);
 }
 
@@ -164,8 +165,10 @@ void ConvolutionEngine::convolveAndAccumulate(
             outRChunk[n] += sumR;
         }
 
-        for (size_t k = 0; k < histTail; ++k)
-            hist[k] = hist[static_cast<size_t>(chunkSize) + k];
+        if (histTail > 0)
+        {
+            std::memmove(hist.data(), hist.data() + chunkSize, histTail * sizeof(float));
+        }
 
         samplesProcessed += chunkSize;
     }

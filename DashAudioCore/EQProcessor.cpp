@@ -43,17 +43,23 @@ struct EQProcessor::Impl
     bool   isPrepared = false;
     EQParameters params {};
 
+    std::atomic<bool> atomicBypass { false };
+    std::atomic<float> atomicPreampLin { 1.0f };
+    std::atomic<bool> pendingCoeffUpdate { false };
+
     float cachedFootstepsDb = -999.0f;
     float cachedBassDb      = -999.0f;
-    float preampLin         = 1.0f;
 
     std::array<juce::dsp::IIR::Coefficients<float>::Ptr, kNumBands> sharedBandCoeffs;
+    std::array<juce::dsp::IIR::Coefficients<float>::Ptr, kNumBands> stagingBandCoeffs;
     std::array<std::array<juce::dsp::IIR::Filter<float>, kNumBands>, kMaxChannels> filters;
     std::array<bool, kNumBands> activeBandMask {};
+    std::array<bool, kNumBands> stagingActiveMask {};
 
     void refreshFilterCoefficients() noexcept
     {
-        preampLin = juce::Decibels::decibelsToGain(params.preampDb);
+        atomicPreampLin.store(juce::Decibels::decibelsToGain(params.preampDb), std::memory_order_relaxed);
+        atomicBypass.store(params.bypass, std::memory_order_relaxed);
 
         if (!isPrepared)
             return;
@@ -77,17 +83,19 @@ struct EQProcessor::Impl
             const float freqHz = kIsoFrequencies[b];
             const float gainDb = static_cast<float>(gainsDb[b]);
 
-            if (freqHz >= nyquistLimit || std::abs(gainDb) < 1.0e-3f || sharedBandCoeffs[b] == nullptr)
+            if (freqHz >= nyquistLimit || std::abs(gainDb) < 1.0e-3f)
             {
-                activeBandMask[b] = false;
+                stagingActiveMask[b] = false;
                 continue;
             }
 
-            activeBandMask[b] = true;
+            stagingActiveMask[b] = true;
             const float gainFactor = juce::Decibels::decibelsToGain(gainDb);
-            *sharedBandCoeffs[b] = juce::dsp::IIR::ArrayCoefficients<float>::makePeakFilter(
+            stagingBandCoeffs[b] = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
                 sampleRate, freqHz, kThirdOctaveQ, gainFactor);
         }
+
+        pendingCoeffUpdate.store(true, std::memory_order_release);
     }
 };
 
@@ -119,6 +127,7 @@ void EQProcessor::prepare(double sampleRate, int maximumBlockSize, int numChanne
         const float safeFreq = std::min(kIsoFrequencies[b], nyquistLimit);
         impl_->sharedBandCoeffs[b] = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
             impl_->sampleRate, safeFreq, Impl::kThirdOctaveQ, 1.0f);
+        impl_->stagingBandCoeffs[b] = impl_->sharedBandCoeffs[b];
     }
 
     for (size_t ch = 0; ch < kMaxChannels; ++ch)
@@ -134,6 +143,23 @@ void EQProcessor::prepare(double sampleRate, int maximumBlockSize, int numChanne
     impl_->cachedFootstepsDb = -999.0f;
     impl_->cachedBassDb      = -999.0f;
     impl_->refreshFilterCoefficients();
+
+    // Sincronizar inmediatamente al preparar
+    if (impl_->pendingCoeffUpdate.load(std::memory_order_acquire))
+    {
+        for (size_t b = 0; b < kNumBands; ++b)
+        {
+            impl_->activeBandMask[b] = impl_->stagingActiveMask[b];
+            if (impl_->stagingBandCoeffs[b] != nullptr)
+            {
+                impl_->sharedBandCoeffs[b] = impl_->stagingBandCoeffs[b];
+                for (size_t ch = 0; ch < kMaxChannels; ++ch)
+                    impl_->filters[ch][b].coefficients = impl_->sharedBandCoeffs[b];
+            }
+        }
+        impl_->pendingCoeffUpdate.store(false, std::memory_order_release);
+    }
+
     reset();
 }
 
@@ -171,13 +197,29 @@ void EQProcessor::process(std::vector<float>& buffer) noexcept
 
 void EQProcessor::process(float* const* channelPointers, int numChannels, int numSamples) noexcept
 {
-    if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0 || impl_->params.bypass)
+    if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0 || impl_->atomicBypass.load(std::memory_order_relaxed))
         return;
 
     juce::ScopedNoDenormals noDenormals;
 
+    // Conmutación lock-free de coeficientes exclusivamente en los límites entre bloques de audio
+    if (impl_->pendingCoeffUpdate.load(std::memory_order_acquire))
+    {
+        for (size_t b = 0; b < kNumBands; ++b)
+        {
+            impl_->activeBandMask[b] = impl_->stagingActiveMask[b];
+            if (impl_->stagingBandCoeffs[b] != nullptr)
+            {
+                impl_->sharedBandCoeffs[b] = impl_->stagingBandCoeffs[b];
+                for (size_t ch = 0; ch < kMaxChannels; ++ch)
+                    impl_->filters[ch][b].coefficients = impl_->sharedBandCoeffs[b];
+            }
+        }
+        impl_->pendingCoeffUpdate.store(false, std::memory_order_release);
+    }
+
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
-    const float preamp    = impl_->preampLin;
+    const float preamp    = impl_->atomicPreampLin.load(std::memory_order_relaxed);
 
     for (size_t ch = 0; ch < activeCh; ++ch)
     {

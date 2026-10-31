@@ -12,7 +12,7 @@ namespace dash::core
 
 namespace
 {
-    constexpr float kPi = 3.14159265358979323846f;
+    constexpr float kPi = std::numbers::pi_v<float>;
 
     struct BiquadCoeffs
     {
@@ -124,10 +124,13 @@ namespace
 struct ParametricEQProcessor::Impl
 {
     double sampleRate = 48000.0;
-    bool   bypass     = false;
-    bool   hasProcessedAudio = false;
+    std::atomic<bool> bypass { false };
+    std::atomic<bool> hasProcessedAudio { false };
+    std::atomic<bool> pendingUpdate { false };
 
     std::array<ParametricBandParameters, kMaxBands> bandParams {};
+    std::array<ParametricBandParameters, kMaxBands> stagingParams {};
+    std::array<BiquadCoeffs, kMaxBands> stagingCoeffs {};
     std::array<BiquadCoeffs, kMaxBands> targetCoeffs {};
     std::array<BiquadCoeffs, kMaxBands> currentCoeffs {};
 
@@ -154,6 +157,8 @@ struct ParametricEQProcessor::Impl
             targetCoeffs[bandIdx] = calculateBiquadCoeffs(
                 p.type, p.frequencyHz, p.gainDb, p.q, sampleRate);
         }
+        stagingCoeffs[bandIdx] = targetCoeffs[bandIdx];
+        stagingParams[bandIdx] = bandParams[bandIdx];
     }
 };
 
@@ -186,7 +191,7 @@ void ParametricEQProcessor::prepare(double sampleRate, int /*maximumBlockSize*/,
 
 void ParametricEQProcessor::reset() noexcept
 {
-    impl_->hasProcessedAudio = false;
+    impl_->hasProcessedAudio.store(false, std::memory_order_relaxed);
     for (size_t ch = 0; ch < kMaxChannels; ++ch)
     {
         for (size_t b = 0; b < kMaxBands; ++b)
@@ -202,13 +207,26 @@ void ParametricEQProcessor::setBand(size_t bandIndex, const ParametricBandParame
     if (bandIndex >= kMaxBands)
         return;
 
-    impl_->bandParams[bandIndex] = params;
-    impl_->recalculateBand(bandIndex);
-
-    // Si aún no ha iniciado el flujo de audio, aplicar de inmediato sin interpolación lenta
-    if (!impl_->hasProcessedAudio)
+    impl_->stagingParams[bandIndex] = params;
+    if (!params.enabled)
     {
-        impl_->currentCoeffs[bandIndex] = impl_->targetCoeffs[bandIndex];
+        impl_->stagingCoeffs[bandIndex] = BiquadCoeffs { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+    }
+    else
+    {
+        impl_->stagingCoeffs[bandIndex] = calculateBiquadCoeffs(
+            params.type, params.frequencyHz, params.gainDb, params.q, impl_->sampleRate);
+    }
+
+    if (!impl_->hasProcessedAudio.load(std::memory_order_relaxed))
+    {
+        impl_->bandParams[bandIndex] = impl_->stagingParams[bandIndex];
+        impl_->targetCoeffs[bandIndex] = impl_->stagingCoeffs[bandIndex];
+        impl_->currentCoeffs[bandIndex] = impl_->stagingCoeffs[bandIndex];
+    }
+    else
+    {
+        impl_->pendingUpdate.store(true, std::memory_order_release);
     }
 }
 
@@ -222,12 +240,12 @@ ParametricBandParameters ParametricEQProcessor::getBand(size_t bandIndex) const 
 
 void ParametricEQProcessor::setBypass(bool bypass) noexcept
 {
-    impl_->bypass = bypass;
+    impl_->bypass.store(bypass, std::memory_order_relaxed);
 }
 
 bool ParametricEQProcessor::isBypassed() const noexcept
 {
-    return impl_->bypass;
+    return impl_->bypass.load(std::memory_order_relaxed);
 }
 
 void ParametricEQProcessor::process(float* buffer, int numSamples) noexcept
@@ -252,19 +270,30 @@ void ParametricEQProcessor::process(float* const* channelPointers, int numChanne
     if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
 
-    if (impl_->bypass)
+    if (impl_->bypass.load(std::memory_order_relaxed))
         return;
 
     juce::ScopedNoDenormals noDenormals;
 
+    // Sincronización lock-free atómica exclusivamente al inicio del bloque de audio
+    if (impl_->pendingUpdate.load(std::memory_order_acquire))
+    {
+        for (size_t b = 0; b < kMaxBands; ++b)
+        {
+            impl_->bandParams[b]   = impl_->stagingParams[b];
+            impl_->targetCoeffs[b] = impl_->stagingCoeffs[b];
+        }
+        impl_->pendingUpdate.store(false, std::memory_order_release);
+    }
+
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
 
     // Si es el primer bloque tras reset/prepare, sincronizar inmediatamente
-    if (!impl_->hasProcessedAudio)
+    if (!impl_->hasProcessedAudio.load(std::memory_order_relaxed))
     {
         for (size_t b = 0; b < kMaxBands; ++b)
             impl_->currentCoeffs[b] = impl_->targetCoeffs[b];
-        impl_->hasProcessedAudio = true;
+        impl_->hasProcessedAudio.store(true, std::memory_order_relaxed);
     }
     else
     {

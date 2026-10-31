@@ -10,6 +10,7 @@
 
 #include <chrono>
 #include <cmath>
+#include <numbers>
 #include <vector>
 
 namespace dash::ui
@@ -117,8 +118,8 @@ void BenchmarkPanel::runBenchmarkTest()
     for (int i = 0; i < kNumSamples; ++i)
     {
         const float t = static_cast<float>(i) / static_cast<float>(kNumSamples);
-        chL[static_cast<size_t>(i)] = 0.5f * std::sin(2.0f * 3.14159265f * 1000.0f * t);
-        chR[static_cast<size_t>(i)] = 0.5f * std::cos(2.0f * 3.14159265f * 1000.0f * t);
+        chL[static_cast<size_t>(i)] = 0.5f * std::sin(2.0f * std::numbers::pi_v<float> * 1000.0f * t);
+        chR[static_cast<size_t>(i)] = 0.5f * std::cos(2.0f * std::numbers::pi_v<float> * 1000.0f * t);
     }
     float* channelPointers[kChannels] = { chL.data(), chR.data() };
 

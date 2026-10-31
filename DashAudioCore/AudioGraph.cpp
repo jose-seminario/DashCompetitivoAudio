@@ -16,7 +16,8 @@ struct AudioGraph::Impl
     int    activeChannels = 2;
 
     AudioGraphParameters params {};
-    float headroomLin = 0.50118723f; // -6 dBFS
+    std::atomic<bool>  bypassAll   { false };
+    std::atomic<float> headroomLin { 0.50118723f }; // -6 dBFS
 
     DynamicsProcessor     dynamics;
     TransientProcessor    transient;
@@ -27,7 +28,9 @@ struct AudioGraph::Impl
 
     void updateHeadroom() noexcept
     {
-        headroomLin = juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 6.0f, params.headroomDb));
+        headroomLin.store(
+            juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 6.0f, params.headroomDb)),
+            std::memory_order_relaxed);
     }
 };
 
@@ -75,6 +78,7 @@ void AudioGraph::reset() noexcept
 void AudioGraph::updateParameters(const AudioGraphParameters& parameters) noexcept
 {
     impl_->params = parameters;
+    impl_->bypassAll.store(parameters.bypassAll, std::memory_order_relaxed);
     impl_->updateHeadroom();
 
     impl_->dynamics.updateParameters(impl_->params.dynamics);
@@ -97,11 +101,12 @@ const AudioGraphParameters& AudioGraph::getParameters() const noexcept
 void AudioGraph::setBypass(bool enabled) noexcept
 {
     impl_->params.bypassAll = enabled;
+    impl_->bypassAll.store(enabled, std::memory_order_relaxed);
 }
 
 bool AudioGraph::isBypassed() const noexcept
 {
-    return impl_->params.bypassAll;
+    return impl_->bypassAll.load(std::memory_order_relaxed);
 }
 
 void AudioGraph::process(float* const* channelPointers, int numChannels, int numSamples) noexcept
@@ -110,17 +115,18 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
         return;
 
     // Si la cadena completa está en bypass, el audio pasa intacto sin procesamiento
-    if (impl_->params.bypassAll)
+    if (impl_->bypassAll.load(std::memory_order_relaxed))
         return;
 
     juce::ScopedNoDenormals noDenormals;
 
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
+    const int safeCh      = static_cast<int>(activeCh);
 
     // 1. Etapa de Margen Dinámico / Entrada (Headroom)
-    if (std::abs(impl_->params.headroomDb) > 1.0e-3f)
+    const float hGain = impl_->headroomLin.load(std::memory_order_relaxed);
+    if (std::abs(hGain - 1.0f) > 1.0e-3f)
     {
-        const float hGain = impl_->headroomLin;
         for (size_t ch = 0; ch < activeCh; ++ch)
         {
             float* chData = channelPointers[ch];
@@ -133,21 +139,21 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     }
 
     // 2. Compresor Dinámico Híbrido (ITU-R BS.1770-4 Upward + Downward)
-    impl_->dynamics.process(channelPointers, numChannels, numSamples);
+    impl_->dynamics.process(channelPointers, safeCh, numSamples);
 
     // 3. Supresor de Transitorios de Disparo (Canal Central / Gun Crack)
-    impl_->transient.process(channelPointers, numChannels, numSamples);
+    impl_->transient.process(channelPointers, safeCh, numSamples);
 
     // 4. Protector de Frecuencias Ambientales (Multibanda 350 Hz - 2.5 kHz)
-    impl_->ambience.process(channelPointers, numChannels, numSamples);
+    impl_->ambience.process(channelPointers, safeCh, numSamples);
 
     // 5. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
-    impl_->equalizer.process(channelPointers, numChannels, numSamples);
+    impl_->equalizer.process(channelPointers, safeCh, numSamples);
     if (impl_->params.useParametricEq)
-        impl_->parametricEq.process(channelPointers, numChannels, numSamples);
+        impl_->parametricEq.process(channelPointers, safeCh, numSamples);
 
     // 6. Limitador de Picos de Muestra Exacta (-0.5 dBFS)
-    impl_->limiter.process(channelPointers, numChannels, numSamples);
+    impl_->limiter.process(channelPointers, safeCh, numSamples);
 }
 
 void AudioGraph::process(float* buffer, int numSamples) noexcept

@@ -223,18 +223,22 @@ void ProfilePanel::importProfileFile()
         "*.json");
 
     auto chooserFlags = juce::FileBrowserComponent::openMode | juce::FileBrowserComponent::canSelectFiles;
-    fileChooser_->launchAsync(chooserFlags, [this](const juce::FileChooser& fc) {
+    juce::Component::SafePointer<ProfilePanel> safeThis(this);
+    fileChooser_->launchAsync(chooserFlags, [safeThis](const juce::FileChooser& fc) {
+        if (safeThis == nullptr)
+            return;
+
         auto result = fc.getResult();
         if (result.existsAsFile())
         {
             dash::profile::AudioProfile imported;
             std::string err;
-            if (repo_.importProfile(result.getFullPathName().toStdString(), imported, &err))
+            if (safeThis->repo_.importProfile(result.getFullPathName().toStdString(), imported, &err))
             {
-                refreshProfileList();
-                setLoadedProfile(imported);
-                if (onProfileSelected)
-                    onProfileSelected(imported.profileId);
+                safeThis->refreshProfileList();
+                safeThis->setLoadedProfile(imported);
+                if (safeThis->onProfileSelected)
+                    safeThis->onProfileSelected(imported.profileId);
             }
         }
     });
@@ -253,12 +257,20 @@ void ProfilePanel::exportProfileFile()
         "*.json");
 
     auto chooserFlags = juce::FileBrowserComponent::saveMode | juce::FileBrowserComponent::warnAboutOverwriting;
-    fileChooser_->launchAsync(chooserFlags, [this, profileId = item.profileId](const juce::FileChooser& fc) {
+    juce::Component::SafePointer<ProfilePanel> safeThis(this);
+    fileChooser_->launchAsync(chooserFlags, [safeThis, profileId = item.profileId](const juce::FileChooser& fc) {
+        if (safeThis == nullptr)
+            return;
+
         auto result = fc.getResult();
         if (result != juce::File{})
         {
             std::string err;
-            repo_.exportProfile(profileId, result.getFullPathName().toStdString(), &err);
+            const bool success = safeThis->repo_.exportProfile(profileId, result.getFullPathName().toStdString(), &err);
+            if (!success && !err.empty())
+            {
+                juce::Logger::writeToLog("Fallo al exportar perfil '" + juce::String(profileId) + "': " + juce::String(err));
+            }
         }
     });
 }

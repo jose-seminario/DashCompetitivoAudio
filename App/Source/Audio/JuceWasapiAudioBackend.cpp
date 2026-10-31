@@ -165,6 +165,10 @@ bool JuceWasapiAudioBackend::stop(std::string* /*outError*/)
     deviceManager_.removeAudioCallback(this);
     deviceManager_.closeAudioDevice();
     state_.store(AudioBackendState::Stopped);
+
+    std::lock_guard<std::mutex> lock(callbackMutex_);
+    processCallback_ = nullptr;
+    stateCallback_ = nullptr;
     return true;
 }
 
@@ -212,10 +216,10 @@ void JuceWasapiAudioBackend::audioDeviceIOCallbackWithContext(
         }
     }
 
-    if (isBypassed_.load())
+    if (isBypassed_.load(std::memory_order_relaxed))
         return;
 
-    std::lock_guard<std::mutex> lock(callbackMutex_);
+    // Procesamiento estrictamente lock-free en tiempo real (cero llamadas a mutex en el hilo de audio)
     if (processCallback_)
     {
         processCallback_(outputChannelData, numOutputChannels, numSamples);

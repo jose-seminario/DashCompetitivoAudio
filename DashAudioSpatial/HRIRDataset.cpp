@@ -9,7 +9,7 @@ namespace dash::spatial
 
 namespace
 {
-    constexpr float kPi = 3.14159265358979323846f;
+    constexpr float kPi = std::numbers::pi_v<float>;
     constexpr float kSpeedOfSoundMPerS = 343.0f; // c = 343 m/s a 20°C
 
     /**

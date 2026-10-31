@@ -248,7 +248,12 @@ std::vector<AudioEndpointInfo> AudioPolicyManager::enumerateActiveRenderEndpoint
     }
 
     UINT count = 0;
-    collection->GetCount(&count);
+    hr = collection->GetCount(&count);
+    if (FAILED(hr))
+    {
+        if (outError) *outError = formatHResult("Fallo en GetCount", hr);
+        return endpoints;
+    }
     endpoints.reserve(count);
 
     for (UINT i = 0; i < count; ++i)

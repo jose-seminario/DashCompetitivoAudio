@@ -3,6 +3,7 @@
 #include "AudioProfile.h"
 
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace dash::profile
@@ -65,7 +66,7 @@ public:
     /**
      * Valida que un identificador de perfil sea un slug seguro (alfanumérico, guiones y guiones bajos).
      */
-    static bool isSafeProfileId(const std::string& profileId) noexcept;
+    static bool isSafeProfileId(std::string_view profileId) noexcept;
 };
 
 } // namespace dash::profile

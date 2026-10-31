@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 
 namespace dash::ui
 {
@@ -17,7 +18,7 @@ namespace
         float q,
         double sampleRate) noexcept
     {
-        constexpr float kPi = 3.14159265358979323846f;
+        constexpr float kPi = std::numbers::pi_v<float>;
         const float nyquist = static_cast<float>(sampleRate * 0.49);
         const float f0 = std::clamp(bandFreqHz, 20.0f, nyquist);
         const float safeQ = std::max(0.1f, q);
