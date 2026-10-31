@@ -3,6 +3,7 @@
 #include <juce_core/juce_core.h>
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 #include <functional>
 #include <sstream>
 
@@ -11,6 +12,12 @@ namespace dash::profile
 
 namespace
 {
+    template <typename T>
+    inline bool isSafeNumeric(T val, T min, T max) noexcept
+    {
+        return std::isfinite(val) && val >= min && val <= max;
+    }
+
     std::string toLowerString(std::string_view sv)
     {
         std::string result(sv);
@@ -246,69 +253,68 @@ ProfileValidationResult ProfileValidator::validateProfile(const AudioProfile& pr
     }
 
     // 4. Parámetros de Audio
-    if (profile.audio.sampleRate < 22050.0 || profile.audio.sampleRate > 192000.0)
+    if (!isSafeNumeric(profile.audio.sampleRate, 22050.0, 192000.0))
     {
         result.addError("audio.sampleRate", "Frecuencia de muestreo fuera del rango admisible [22050 .. 192000 Hz].");
     }
 
-    if (profile.dspParams.headroomDb < -36.0f || profile.dspParams.headroomDb > 0.0f)
+    if (!isSafeNumeric(profile.dspParams.headroomDb, -36.0f, 0.0f))
     {
         result.addError("dsp.headroomDb", "Margen dinámico (headroom) fuera de rango [-36.0 .. 0.0 dB].");
     }
 
     // 5. Dinámica (Dynamics)
     const auto& dyn = profile.dspParams.dynamics;
-    if (dyn.targetLufs < -70.0f || dyn.targetLufs > 0.0f)
+    if (!isSafeNumeric(dyn.targetLufs, -70.0f, 0.0f))
     {
         result.addError("dsp.dynamics.targetLufs", "Target LUFS fuera del rango acústico [-70.0 .. 0.0 LUFS].");
     }
-    if (dyn.ratio < 1.0f || dyn.ratio > 30.0f)
+    if (!isSafeNumeric(dyn.ratio, 1.0f, 30.0f))
     {
         result.addError("dsp.dynamics.ratio", "Ratio de compresión fuera del rango [1.0 .. 30.0].");
     }
-    if (dyn.attackMs < 0.1f || dyn.attackMs > 1000.0f)
+    if (!isSafeNumeric(dyn.attackMs, 0.1f, 1000.0f))
     {
         result.addError("dsp.dynamics.attackMs", "Tiempo de ataque fuera de rango [0.1 .. 1000.0 ms].");
     }
-    if (dyn.releaseMs < 5.0f || dyn.releaseMs > 5000.0f)
+    if (!isSafeNumeric(dyn.releaseMs, 5.0f, 5000.0f))
     {
         result.addError("dsp.dynamics.releaseMs", "Tiempo de relajación fuera de rango [5.0 .. 5000.0 ms].");
     }
 
     // 6. Transitorios (Transient)
     const auto& trans = profile.dspParams.transient;
-    if (trans.gun < 0.0f || trans.gun > 1.0f)
+    if (!isSafeNumeric(trans.gun, 0.0f, 1.0f))
     {
         result.addError("dsp.transient.gun", "Ganancia objetivo de disparos (gun) fuera de rango [0.0 .. 1.0].");
     }
-    if (trans.frequencySplitHz < dash::core::TransientProcessor::kMinSplitHz
-        || trans.frequencySplitHz > dash::core::TransientProcessor::kMaxSplitHz)
+    if (!isSafeNumeric(trans.frequencySplitHz, dash::core::TransientProcessor::kMinSplitHz, dash::core::TransientProcessor::kMaxSplitHz))
     {
         result.addError("dsp.transient.frequencySplitHz", "Crossover de transitorios fuera de rango [150.0 .. 1200.0 Hz].");
     }
 
     // 7. Ambiente (Ambience)
     const auto& amb = profile.dspParams.ambience;
-    if (amb.ambGuar < 0.0f || amb.ambGuar > 1.0f)
+    if (!isSafeNumeric(amb.ambGuar, 0.0f, 1.0f))
     {
         result.addError("dsp.ambience.ambGuar", "Factor de reducción ambiental (ambGuar) fuera de rango [0.0 .. 1.0].");
     }
-    if (amb.scLow < 0.0f || amb.scLow > 1.0f)
+    if (!isSafeNumeric(amb.scLow, 0.0f, 1.0f))
     {
         result.addError("dsp.ambience.scLow", "Corte inferior normalizado (scLow) fuera de rango [0.0 .. 1.0].");
     }
-    if (amb.scHigh < 0.0f || amb.scHigh > 1.0f)
+    if (!isSafeNumeric(amb.scHigh, 0.0f, 1.0f))
     {
         result.addError("dsp.ambience.scHigh", "Corte superior normalizado (scHigh) fuera de rango [0.0 .. 1.0].");
     }
 
     // 8. Ecualizador (EQ)
     const auto& eq = profile.dspParams.equalizer;
-    if (eq.footstepsDb < -12.0f || eq.footstepsDb > 12.0f)
+    if (!isSafeNumeric(eq.footstepsDb, -12.0f, 12.0f))
     {
         result.addError("dsp.equalizer.footstepsDb", "Control de pasos fuera de rango [-12.0 .. +12.0 dB].");
     }
-    if (eq.bassDb < -12.0f || eq.bassDb > 12.0f)
+    if (!isSafeNumeric(eq.bassDb, -12.0f, 12.0f))
     {
         result.addError("dsp.equalizer.bassDb", "Control de graves fuera de rango [-12.0 .. +12.0 dB].");
     }
@@ -321,17 +327,17 @@ ProfileValidationResult ProfileValidator::validateProfile(const AudioProfile& pr
             const auto& band = profile.dspParams.parametricBands[i];
             if (band.enabled)
             {
-                if (band.frequencyHz < 20.0f || band.frequencyHz > 20000.0f)
+                if (!isSafeNumeric(band.frequencyHz, 20.0f, 20000.0f))
                 {
                     result.addError("dsp.parametricBands[" + std::to_string(i) + "].frequencyHz",
                                     "Frecuencia fuera del espectro audible [20 .. 20000 Hz].");
                 }
-                if (band.gainDb < -24.0f || band.gainDb > 24.0f)
+                if (!isSafeNumeric(band.gainDb, -24.0f, 24.0f))
                 {
                     result.addError("dsp.parametricBands[" + std::to_string(i) + "].gainDb",
                                     "Ganancia de banda fuera de rango [-24.0 .. +24.0 dB].");
                 }
-                if (band.q < 0.1f || band.q > 18.0f)
+                if (!isSafeNumeric(band.q, 0.1f, 18.0f))
                 {
                     result.addError("dsp.parametricBands[" + std::to_string(i) + "].q",
                                     "Factor Q fuera de rango [0.1 .. 18.0].");
@@ -342,7 +348,7 @@ ProfileValidationResult ProfileValidator::validateProfile(const AudioProfile& pr
 
     // 10. Limitador (Limiter)
     const auto& lim = profile.dspParams.limiter;
-    if (lim.ceilingDb < -12.0f || lim.ceilingDb > 0.0f)
+    if (!isSafeNumeric(lim.ceilingDb, -12.0f, 0.0f))
     {
         result.addError("dsp.limiter.ceilingDb", "Techo de limitador fuera de rango [-12.0 .. 0.0 dB].");
     }
@@ -351,15 +357,15 @@ ProfileValidationResult ProfileValidator::validateProfile(const AudioProfile& pr
     if (profile.enableSpatial)
     {
         const auto& spat = profile.spatialParams;
-        if (spat.soundstageWidth < 0.2f || spat.soundstageWidth > 3.0f)
+        if (!isSafeNumeric(spat.soundstageWidth, 0.2f, 3.0f))
         {
             result.addError("spatial.soundstageWidth", "Anchura de escenario fuera de rango [0.2 .. 3.0].");
         }
-        if (spat.apparentDistanceM < 0.2f || spat.apparentDistanceM > 10.0f)
+        if (!isSafeNumeric(spat.apparentDistanceM, 0.2f, 10.0f))
         {
             result.addError("spatial.apparentDistanceM", "Distancia acústica aparente fuera de rango [0.2 .. 10.0 m].");
         }
-        if (spat.frontBackSeparation < 0.0f || spat.frontBackSeparation > 2.0f)
+        if (!isSafeNumeric(spat.frontBackSeparation, 0.0f, 2.0f))
         {
             result.addError("spatial.frontBackSeparation", "Separación frente/detrás fuera de rango [0.0 .. 2.0].");
         }

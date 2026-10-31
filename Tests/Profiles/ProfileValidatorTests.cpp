@@ -13,6 +13,7 @@
 #include <Profiles/ProfileValidator.h>
 
 #include <cassert>
+#include <limits>
 #include <string>
 
 namespace dash::test
@@ -89,6 +90,26 @@ void testProfileValidatorNumericRanges()
     // Factor Q no físico (< 0.1)
     profile.dspParams.parametricBands[0].q = 0.01f;
     assert(ProfileValidator::validateProfile(profile).hasErrors());
+
+    // 5. Inyección de NaN e Infinity (Prevención de envenenamiento IEEE 754)
+    profile.resetToDefaults();
+    profile.dspParams.dynamics.targetLufs = std::numeric_limits<float>::quiet_NaN();
+    assert(ProfileValidator::validateProfile(profile).hasErrors());
+
+    profile.resetToDefaults();
+    profile.dspParams.dynamics.targetLufs = std::numeric_limits<float>::infinity();
+    assert(ProfileValidator::validateProfile(profile).hasErrors());
+
+    profile.resetToDefaults();
+    profile.dspParams.transient.gun = -std::numeric_limits<float>::infinity();
+    assert(ProfileValidator::validateProfile(profile).hasErrors());
+
+    profile.resetToDefaults();
+    profile.audio.sampleRate = std::numeric_limits<double>::quiet_NaN();
+    assert(ProfileValidator::validateProfile(profile).hasErrors());
+
+    profile.resetToDefaults();
+    assert(ProfileValidator::validateProfile(profile).valid);
 }
 
 } // namespace dash::test
