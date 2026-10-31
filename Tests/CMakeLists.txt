@@ -36,6 +36,7 @@ target_sources(DashAudioTests
         "${CMAKE_SOURCE_DIR}/App/Source/Profiles/ProfileMigrator.cpp"
         "${CMAKE_SOURCE_DIR}/App/Source/Core/ApoConfigInjector.cpp"
         "${CMAKE_SOURCE_DIR}/App/Source/Core/ApoConfigManager.cpp"
+        "${CMAKE_SOURCE_DIR}/App/Source/Core/AudioPolicyManager.cpp"
 )
 
 target_include_directories(DashAudioTests
@@ -65,7 +66,7 @@ target_link_libraries(DashAudioTests
         juce::juce_audio_basics
         juce::juce_audio_formats
         juce::juce_dsp
-        $<$<PLATFORM_ID:Windows>:advapi32 ole32 shell32>
+        $<$<PLATFORM_ID:Windows>:advapi32 ole32 shell32 propsys>
     PUBLIC
         juce::juce_recommended_config_flags
         juce::juce_recommended_warning_flags

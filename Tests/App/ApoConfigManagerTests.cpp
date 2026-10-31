@@ -11,6 +11,7 @@
 
 #include <Core/ApoConfigManager.h>
 #include <Core/ApoConfigInjector.h>
+#include <Core/AudioPolicyManager.h>
 
 #include <cassert>
 #include <filesystem>
@@ -119,6 +120,41 @@ void testApoConfigManagerIdempotence()
 
         assert(count == 1);
     }
+
+    std::error_code ec;
+    std::filesystem::remove_all(tempDir, ec);
+}
+
+void testEndpointGuidExtraction()
+{
+    using namespace dash::audio;
+
+    // 1. Formato estándar MMDevice de Windows:
+    // "{0.0.0.00000000}.{c48a7312-32b4-4b51-9efb-3375cb474c10}" -> "{c48a7312-32b4-4b51-9efb-3375cb474c10}"
+    const std::wstring mmDeviceId = L"{0.0.0.00000000}.{c48a7312-32b4-4b51-9efb-3375cb474c10}";
+    const std::wstring extracted = AudioPolicyManager::extractEndpointGuid(mmDeviceId);
+    assert(extracted == L"{c48a7312-32b4-4b51-9efb-3375cb474c10}");
+
+    // 2. Dispositivo que ya viene como GUID aislado:
+    const std::wstring bareGuid = L"{c48a7312-32b4-4b51-9efb-3375cb474c10}";
+    assert(AudioPolicyManager::extractEndpointGuid(bareGuid) == L"{c48a7312-32b4-4b51-9efb-3375cb474c10}");
+
+    // 3. Cadena sin llaves (ej. nombre amigable como fallback):
+    const std::wstring friendlyName = L"Speakers (Realtek High Definition Audio)";
+    assert(AudioPolicyManager::extractEndpointGuid(friendlyName) == friendlyName);
+
+    // 4. Cadena vacía:
+    assert(AudioPolicyManager::extractEndpointGuid(L"").empty());
+
+    // 5. Inyección con directiva Device: en config.txt
+    const auto tempDir = std::filesystem::temp_directory_path() / "DashApoGuidTest";
+    std::filesystem::create_directories(tempDir);
+    const auto configFile = tempDir / "config.txt";
+
+    ApoChainConfig chain;
+    chain.targetEndpointGuid = "{c48a7312-32b4-4b51-9efb-3375cb474c10}";
+    const std::string directives = ApoConfigInjector::buildConfigContent(chain, configFile);
+    assert(directives.find("Device: {c48a7312-32b4-4b51-9efb-3375cb474c10}") != std::string::npos);
 
     std::error_code ec;
     std::filesystem::remove_all(tempDir, ec);
