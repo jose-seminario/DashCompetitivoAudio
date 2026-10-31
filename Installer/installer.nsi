@@ -108,6 +108,11 @@ Section "Aplicación Principal y Motores DSP VST3" SecCore
     SetOutPath "$INSTDIR\Profiles\Headphones\Logitech"
     File /nonfatal "..\Profiles\Headphones\Logitech\*.json"
 
+    SetOutPath "$INSTDIR\DashAudioDB\Presets"
+    File /nonfatal "..\DashAudioDB\Presets\*.json"
+    SetOutPath "$INSTDIR\DashAudioDB\Schema"
+    File /nonfatal "..\DashAudioDB\Schema\*.json"
+
     ; 3. Despliegue de los 3 plugins .vst3 propios en recursos locales
     SetOutPath "$INSTDIR\resources\apo-vst"
     File /r "${BUILD_DIR}\Plugins\LoudnessCompressor\LoudnessCompressor_artefacts\Release\VST3\LoudnessCompressor.vst3"
@@ -176,7 +181,7 @@ Section "Uninstall"
     ${EndIf}
     StrCpy $R2 "$R0\config\config.txt"
     ${If} ${FileExists} "$R2"
-        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$$p = ''$R2''; if (Test-Path $$p) { $$t = [System.IO.File]::ReadAllText($$p); $$r = [System.Text.RegularExpressions.Regex]::Replace($$t, ''(?s)# BEGIN DASHCOMPETITIVOAUDIO.*?# END DASHCOMPETITIVOAUDIO\r?\n?'', ''''); [System.IO.File]::WriteAllText($$p, $$r) }"'
+        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$$p = ''$R2''; if (Test-Path $$p) { $$t = [System.IO.File]::ReadAllText($$p); $$r = [System.Text.RegularExpressions.Regex]::Replace($$t, ''(?s)\r?\n?# BEGIN DASHCOMPETITIVOAUDIO MANAGED BLOCK.*?# END DASHCOMPETITIVOAUDIO MANAGED BLOCK\r?\n?'', ''''); [System.IO.File]::WriteAllText($$p, $$r) }"'
     ${EndIf}
 
     ; 1. Eliminar EXCLUSIVAMENTE los 3 bundles propios en EqualizerAPO\VSTPlugins (sin vaciar config.txt ni tocar otros plugins)
@@ -211,6 +216,10 @@ Section "Uninstall"
     RMDir /r "$INSTDIR\Profiles\Games"
     RMDir /r "$INSTDIR\Profiles\Headphones"
     RMDir "$INSTDIR\Profiles" ; Solo se borra si no contiene perfiles creados por el usuario
+
+    RMDir /r "$INSTDIR\DashAudioDB\Presets"
+    RMDir /r "$INSTDIR\DashAudioDB\Schema"
+    RMDir "$INSTDIR\DashAudioDB" ; Solo se borra si no contiene perfiles creados por el usuario
 
     ; 6. Preservar intactos los perfiles personales del usuario en %LOCALAPPDATA%\DashCompetitivoAudio\Profiles
     ; Se conserva intacta la carpeta de perfiles personales para no destruir las calibraciones del usuario
