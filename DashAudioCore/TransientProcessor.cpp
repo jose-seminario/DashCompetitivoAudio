@@ -17,6 +17,7 @@ struct TransientProcessor::Impl
     TransientParameters params {};
 
     std::array<juce::dsp::LinkwitzRileyFilter<float>, static_cast<size_t>(kMaxChannels)> crossovers;
+    juce::dsp::LinkwitzRileyFilter<float> sideCrossover;
 
     std::array<float, static_cast<size_t>(kMaxChannels)> envFast {};
     std::array<float, static_cast<size_t>(kMaxChannels)> envSlow {};
@@ -101,6 +102,7 @@ struct TransientProcessor::Impl
             activeSplitHz.store(appliedSplitHz, std::memory_order_relaxed);
             for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
                 crossovers[ch].setCutoffFrequency(appliedSplitHz);
+            sideCrossover.setCutoffFrequency(appliedSplitHz);
         }
     }
 
@@ -179,6 +181,10 @@ void TransientProcessor::prepare(double sampleRate, int maximumBlockSize, int /*
         impl_->crossovers[ch].setCutoffFrequency(impl_->activeSplitHz.load(std::memory_order_relaxed));
     }
 
+    impl_->sideCrossover.prepare(monoSpec);
+    impl_->sideCrossover.setType(juce::dsp::LinkwitzRileyFilterType::allpass);
+    impl_->sideCrossover.setCutoffFrequency(impl_->activeSplitHz.load(std::memory_order_relaxed));
+
     impl_->stagingParams = impl_->params;
     impl_->recalculateStagingParameters();
     impl_->applyPendingParameters();
@@ -200,6 +206,7 @@ void TransientProcessor::reset() noexcept
         impl_->envSlow[ch]        = 0.0f;
         impl_->smoothedGainDb[ch] = 0.0f;
     }
+    impl_->sideCrossover.reset();
     impl_->lastReductionDb.store(0.0f, std::memory_order_relaxed);
 }
 
@@ -274,16 +281,26 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
             float crack = 0.0f;
             impl_->crossovers[0].processSample(0, mid, body, crack);
 
+            // Alineación de fase acústica: pasar 'side' por un filtro pasa-todo idéntico al crossover de 'mid'
+            // para garantizar una respuesta en magnitud 100% plana y cero comb filtering en la reconstrucción L/R.
+            float sideBody = 0.0f;
+            float sideCrack = 0.0f;
+            impl_->sideCrossover.processSample(0, side, sideBody, sideCrack);
+            const float processedSide = sideBody + sideCrack;
+
             const float reductionDb = impl_->evaluateTransientSample(0, crack);
             if (reductionDb < maxBlockReductionDb)
                 maxBlockReductionDb = reductionDb;
 
-            const float restoreBoost = impl_->params.restore * 2.0f;
-            const float crackGainLin = juce::Decibels::decibelsToGain(reductionDb + restoreBoost);
+            // El restoreBoost solo actúa dinámicamente durante la atenuación real de disparos (reductionDb < 0),
+            // evitando amplificaciones estáticas indeseadas de frecuencias agudas en estado de reposo.
+            const float activeReduction = -reductionDb; // >= 0.0f
+            const float dynamicRestore = (activeReduction > 0.0f) ? std::min(activeReduction, impl_->params.restore * 2.0f) : 0.0f;
+            const float crackGainLin = juce::Decibels::decibelsToGain(reductionDb + dynamicRestore);
             const float processedMid = body + (crack * crackGainLin);
 
-            chL[i] = processedMid + side;
-            chR[i] = processedMid - side;
+            chL[i] = processedMid + processedSide;
+            chR[i] = processedMid - processedSide;
         }
     }
     // Caso B: Multicanal Surround / Inmersivo (hasta 16 canales)
@@ -359,8 +376,9 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
                 if (redDb < maxBlockReductionDb)
                     maxBlockReductionDb = redDb;
 
-                const float restoreBoost = impl_->params.restore * 2.0f;
-                const float crackGainLin = juce::Decibels::decibelsToGain(redDb + restoreBoost);
+                const float activeReduction = -redDb; // >= 0.0f
+                const float dynamicRestore = (activeReduction > 0.0f) ? std::min(activeReduction, impl_->params.restore * 2.0f) : 0.0f;
+                const float crackGainLin = juce::Decibels::decibelsToGain(redDb + dynamicRestore);
                 channelPointers[ch][i]   = body + (crack * crackGainLin);
             }
         }

@@ -10,7 +10,8 @@ namespace dash::core
 {
 
 /**
- * Parámetros del Limitador de Techo de Muestra Exacta (Sample-Peak Limiter).
+ * Parámetros del Limitador Brickwall de Muestra Exacta (Sample-Peak Limiter).
+ * Diseñado para latencia cero estricta (0.0 ms) en audio competitivo.
  */
 struct LimiterParameters
 {
@@ -26,8 +27,13 @@ struct LimiterParameters
 };
 
 /**
- * Limitador de Techo de Muestra Exacta en Tiempo Real (LimiterProcessor).
+ * Limitador Brickwall de Muestra Exacta en Tiempo Real (LimiterProcessor).
  * Soporta de 1 a 16 canales simultáneos (kMaxSupportedChannels = 16).
+ *
+ * NOTA TÉCNICA DE ARQUITECTURA DSP:
+ * Este procesador es estrictamente un Sample-Peak Limiter de latencia cero (0 muestras / 0.0 ms).
+ * Por especificación acústica competitiva, no aplica filtros de sobremuestreo (True Peak / ISP)
+ * para evitar el retardo algorítmico y la dispersión temporal que enmascararía disparos y pasos.
  */
 class LimiterProcessor
 {

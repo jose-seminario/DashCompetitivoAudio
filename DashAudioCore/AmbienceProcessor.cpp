@@ -22,6 +22,7 @@ struct AmbienceProcessor::Impl
 
     std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxSupportedChannels> lowMidCrossovers;
     std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxSupportedChannels> midHighCrossovers;
+    std::array<juce::dsp::LinkwitzRileyFilter<float>, kMaxSupportedChannels> lowBandAllpass;
 
     std::array<float, kMaxSupportedChannels> envShort {};
     std::array<float, kMaxSupportedChannels> envLong  {};
@@ -104,7 +105,10 @@ struct AmbienceProcessor::Impl
             appliedHighHz = targetHighHz;
             currentLpHz.store(appliedHighHz, std::memory_order_relaxed);
             for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
+            {
                 midHighCrossovers[ch].setCutoffFrequency(appliedHighHz);
+                lowBandAllpass[ch].setCutoffFrequency(appliedHighHz);
+            }
         }
     }
 
@@ -163,6 +167,9 @@ void AmbienceProcessor::prepare(double sampleRate, int maximumBlockSize, int /*n
 
         impl_->midHighCrossovers[ch].prepare(monoSpec);
         impl_->midHighCrossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass);
+
+        impl_->lowBandAllpass[ch].prepare(monoSpec);
+        impl_->lowBandAllpass[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass);
     }
 
     impl_->stagingParams = impl_->params;
@@ -178,6 +185,7 @@ void AmbienceProcessor::reset() noexcept
     {
         impl_->lowMidCrossovers[ch].reset();
         impl_->midHighCrossovers[ch].reset();
+        impl_->lowBandAllpass[ch].reset();
         impl_->envShort[ch]             = 0.0f;
         impl_->envLong[ch]              = 0.0f;
         impl_->smoothedGainLowDb[ch]    = 0.0f;
@@ -270,6 +278,14 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
             float restHigh = 0.0f;
             impl_->lowMidCrossovers[ch].processSample(0, input, bandLow, restHigh);
 
+            // Compensación de fase All-Pass para la banda baja:
+            // Alinea la fase de bandLow con la de restHigh (que pasa por midHighCrossovers)
+            // garantizando una respuesta en magnitud 100% plana sin cancelaciones a 0 dB.
+            float dummyLow = 0.0f;
+            float dummyHigh = 0.0f;
+            impl_->lowBandAllpass[ch].processSample(0, bandLow, dummyLow, dummyHigh);
+            const float compensatedBandLow = dummyLow + dummyHigh;
+
             float bandMid = 0.0f;
             float bandHigh = 0.0f;
             impl_->midHighCrossovers[ch].processSample(0, restHigh, bandMid, bandHigh);
@@ -295,7 +311,7 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
             const float gMidLin  = juce::Decibels::decibelsToGain(gMidDb);
             const float gHighLin = juce::Decibels::decibelsToGain(gHighDb);
 
-            channelPointers[ch][i] = (bandLow * gLowLin) + (bandMid * gMidLin) + (bandHigh * gHighLin);
+            channelPointers[ch][i] = (compensatedBandLow * gLowLin) + (bandMid * gMidLin) + (bandHigh * gHighLin);
         }
     }
 
