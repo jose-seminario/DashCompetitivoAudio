@@ -63,8 +63,10 @@ void AudioGraph::prepare(double sampleRate, int maximumBlockSize, int numChannel
     impl_->transient.prepare(safeSr, safeBlock, safeCh);
     impl_->ambience.prepare(safeSr, safeBlock, safeCh);
     impl_->spatial.prepare(safeSr, safeBlock);
-    impl_->spatialScratchL.assign(static_cast<size_t>(safeBlock), 0.0f);
-    impl_->spatialScratchR.assign(static_cast<size_t>(safeBlock), 0.0f);
+    constexpr size_t kMaxSpatialScratch = 8192;
+    const size_t scratchCapacity = std::max(kMaxSpatialScratch, static_cast<size_t>(safeBlock));
+    impl_->spatialScratchL.assign(scratchCapacity, 0.0f);
+    impl_->spatialScratchR.assign(scratchCapacity, 0.0f);
     impl_->equalizer.prepare(safeSr, safeBlock, safeCh);
     impl_->parametricEq.prepare(safeSr, safeBlock, safeCh);
     impl_->limiter.prepare(safeSr, safeBlock, safeCh);
@@ -160,28 +162,39 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     // 5. Procesador Acústico Espacial 3D (Renderizado Binaural / Escenario Sonoro)
     if (!impl_->params.spatial.bypass && safeCh >= 2 && channelPointers[0] != nullptr && channelPointers[1] != nullptr)
     {
-        if (static_cast<int>(impl_->spatialScratchL.size()) < numSamples)
+        const int scratchCap = static_cast<int>(impl_->spatialScratchL.size());
+        int samplesProcessed = 0;
+
+        while (samplesProcessed < numSamples)
         {
-            impl_->spatialScratchL.resize(static_cast<size_t>(numSamples), 0.0f);
-            impl_->spatialScratchR.resize(static_cast<size_t>(numSamples), 0.0f);
-        }
+            const int chunkSize = std::min(numSamples - samplesProcessed, scratchCap);
 
-        impl_->spatial.processBinaural(
-            channelPointers,
-            safeCh,
-            impl_->spatialScratchL.data(),
-            impl_->spatialScratchR.data(),
-            numSamples);
+            // Preparar punteros de canales desplazados para el fragmento actual
+            std::array<const float*, kMaxChannels> chunkInputs {};
+            for (size_t ch = 0; ch < activeCh; ++ch)
+            {
+                chunkInputs[ch] = (channelPointers[ch] != nullptr) ? (channelPointers[ch] + samplesProcessed) : nullptr;
+            }
 
-        std::memcpy(channelPointers[0], impl_->spatialScratchL.data(), static_cast<size_t>(numSamples) * sizeof(float));
-        std::memcpy(channelPointers[1], impl_->spatialScratchR.data(), static_cast<size_t>(numSamples) * sizeof(float));
+            impl_->spatial.processBinaural(
+                chunkInputs.data(),
+                safeCh,
+                impl_->spatialScratchL.data(),
+                impl_->spatialScratchR.data(),
+                chunkSize);
 
-        // Si la entrada traía canales surround (>2), ya fueron plegados al espacio binaural estéreo;
-        // limpiamos los canales remanentes para evitar interferencias.
-        for (int ch = 2; ch < safeCh; ++ch)
-        {
-            if (channelPointers[ch] != nullptr)
-                std::memset(channelPointers[ch], 0, static_cast<size_t>(numSamples) * sizeof(float));
+            std::memcpy(channelPointers[0] + samplesProcessed, impl_->spatialScratchL.data(), static_cast<size_t>(chunkSize) * sizeof(float));
+            std::memcpy(channelPointers[1] + samplesProcessed, impl_->spatialScratchR.data(), static_cast<size_t>(chunkSize) * sizeof(float));
+
+            // Si la entrada traía canales surround (>2), ya fueron plegados al espacio binaural estéreo;
+            // limpiamos los canales remanentes para evitar interferencias.
+            for (size_t ch = 2; ch < activeCh; ++ch)
+            {
+                if (channelPointers[ch] != nullptr)
+                    std::memset(channelPointers[ch] + samplesProcessed, 0, static_cast<size_t>(chunkSize) * sizeof(float));
+            }
+
+            samplesProcessed += chunkSize;
         }
     }
 

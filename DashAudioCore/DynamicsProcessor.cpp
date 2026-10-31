@@ -58,6 +58,18 @@ struct DynamicsProcessor::Impl
     float gainAtkCoeff = 0.99f;
     float gainRelCoeff = 0.999f;
 
+    std::atomic<bool>  pendingUpdate          { false };
+    DynamicsParameters stagingParams          {};
+    float targetHpHz                          = 20.0f;
+    float targetLpHz                          = 20000.0f;
+    float stagingDetAtkCoeff                  = 0.99f;
+    float stagingDetRelCoeff                  = 0.999f;
+    float stagingGainAtkCoeff                 = 0.99f;
+    float stagingGainRelCoeff                 = 0.999f;
+    LimiterParameters stagingLimiterParams    {};
+    float appliedHpHz                         = -1.0f;
+    float appliedLpHz                         = -1.0f;
+
     float meanSquareEnv    = 0.0f;
     float smoothedGainDb   = 0.0f;
     std::atomic<float> lastLufs       { -70.0f };
@@ -137,55 +149,72 @@ struct DynamicsProcessor::Impl
         return outDownwardDb + outUpwardDb + params.makeupGainDb;
     }
 
-    void recalculateParameters() noexcept
+    void recalculateStagingParameters() noexcept
     {
         float hpHz = 20.0f;
         float lpHz = 20000.0f;
 
-        if (params.useAdvancedMode)
+        if (stagingParams.useAdvancedMode)
         {
-            hpHz = params.scLowHz;
-            lpHz = params.scHighHz;
+            hpHz = stagingParams.scLowHz;
+            lpHz = stagingParams.scHighHz;
         }
         else
         {
-            hpHz = mapNormToFreqHz(params.scLowNorm);
-            lpHz = juce::jmax(hpHz + 80.0f, mapNormToFreqHz(params.scHighNorm));
+            hpHz = mapNormToFreqHz(stagingParams.scLowNorm);
+            lpHz = juce::jmax(hpHz + 80.0f, mapNormToFreqHz(stagingParams.scHighNorm));
         }
 
         const float nyquistGuard = static_cast<float>(sampleRate * 0.48);
-        const float safeHp = juce::jlimit(20.0f, nyquistGuard, hpHz);
-        const float safeLp = juce::jlimit(80.0f, nyquistGuard, lpHz);
+        targetHpHz = juce::jlimit(20.0f, nyquistGuard, hpHz);
+        targetLpHz = juce::jlimit(80.0f, nyquistGuard, lpHz);
 
-        for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
+        if (stagingParams.useAdvancedMode)
         {
-            scHighPass[ch].setCutoffFrequency(safeHp);
-            scLowPass[ch].setCutoffFrequency(safeLp);
-        }
-
-        if (params.useAdvancedMode)
-        {
-            detAtkCoeff  = calcOnePoleCoeff(0.010f);
-            detRelCoeff  = calcOnePoleCoeff(0.400f);
-            gainAtkCoeff = calcOnePoleCoeff(juce::jmax(0.0001f, params.attackMs * 0.001f));
-            gainRelCoeff = calcOnePoleCoeff(juce::jmax(0.005f, params.releaseMs * 0.001f));
+            stagingDetAtkCoeff  = calcOnePoleCoeff(0.010f);
+            stagingDetRelCoeff  = calcOnePoleCoeff(0.400f);
+            stagingGainAtkCoeff = calcOnePoleCoeff(juce::jmax(0.0001f, stagingParams.attackMs * 0.001f));
+            stagingGainRelCoeff = calcOnePoleCoeff(juce::jmax(0.005f, stagingParams.releaseMs * 0.001f));
         }
         else
         {
-            detAtkCoeff = calcOnePoleCoeff(0.015f);
-            const float detRelSec = 0.040f + juce::jlimit(0.0f, 1.0f, params.detRelNorm) * 0.620f;
-            detRelCoeff = calcOnePoleCoeff(detRelSec);
+            stagingDetAtkCoeff = calcOnePoleCoeff(0.015f);
+            const float detRelSec = 0.040f + juce::jlimit(0.0f, 1.0f, stagingParams.detRelNorm) * 0.620f;
+            stagingDetRelCoeff = calcOnePoleCoeff(detRelSec);
 
-            gainAtkCoeff = calcOnePoleCoeff(0.006f);
-            const float compRelSec = 0.025f + juce::jlimit(0.0f, 1.0f, params.releaseNorm) * 0.450f;
-            gainRelCoeff = calcOnePoleCoeff(compRelSec);
+            stagingGainAtkCoeff = calcOnePoleCoeff(0.006f);
+            const float compRelSec = 0.025f + juce::jlimit(0.0f, 1.0f, stagingParams.releaseNorm) * 0.450f;
+            stagingGainRelCoeff = calcOnePoleCoeff(compRelSec);
         }
 
-        LimiterParameters limParams {};
-        limParams.ceilingDb   = -0.5f;
-        limParams.releaseNorm = params.limRelNorm;
-        limParams.bypass      = params.bypass;
-        peakLimiter.updateParameters(limParams);
+        stagingLimiterParams.ceilingDb   = -0.5f;
+        stagingLimiterParams.releaseNorm = stagingParams.limRelNorm;
+        stagingLimiterParams.bypass      = stagingParams.bypass;
+    }
+
+    void applyPendingParameters() noexcept
+    {
+        params       = stagingParams;
+        detAtkCoeff  = stagingDetAtkCoeff;
+        detRelCoeff  = stagingDetRelCoeff;
+        gainAtkCoeff = stagingGainAtkCoeff;
+        gainRelCoeff = stagingGainRelCoeff;
+
+        if (std::abs(targetHpHz - appliedHpHz) > 0.1f)
+        {
+            appliedHpHz = targetHpHz;
+            for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
+                scHighPass[ch].setCutoffFrequency(appliedHpHz);
+        }
+
+        if (std::abs(targetLpHz - appliedLpHz) > 0.1f)
+        {
+            appliedLpHz = targetLpHz;
+            for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
+                scLowPass[ch].setCutoffFrequency(appliedLpHz);
+        }
+
+        peakLimiter.updateParameters(stagingLimiterParams);
     }
 };
 
@@ -239,7 +268,10 @@ void DynamicsProcessor::prepare(double sampleRate, int maximumBlockSize, int num
     }
 
     impl_->peakLimiter.prepare(safeSr, safeBlock, clampedCh);
-    impl_->recalculateParameters();
+    impl_->stagingParams = impl_->params;
+    impl_->recalculateStagingParameters();
+    impl_->applyPendingParameters();
+    impl_->pendingUpdate.store(false, std::memory_order_release);
     reset();
 }
 
@@ -265,8 +297,9 @@ void DynamicsProcessor::reset() noexcept
 
 void DynamicsProcessor::updateParameters(const DynamicsParameters& params) noexcept
 {
-    impl_->params = params;
-    impl_->recalculateParameters();
+    impl_->stagingParams = params;
+    impl_->recalculateStagingParameters();
+    impl_->pendingUpdate.store(true, std::memory_order_release);
 }
 
 const DynamicsParameters& DynamicsProcessor::getParameters() const noexcept
@@ -297,6 +330,13 @@ void DynamicsProcessor::process(float* const* channelPointers, int numChannels, 
         return;
 
     juce::ScopedNoDenormals noDenormals;
+
+    // Sincronización atómica lock-free de parámetros y filtros exclusivamente al inicio del bloque
+    if (impl_->pendingUpdate.load(std::memory_order_acquire))
+    {
+        impl_->applyPendingParameters();
+        impl_->pendingUpdate.store(false, std::memory_order_release);
+    }
 
     if (impl_->params.bypass)
     {

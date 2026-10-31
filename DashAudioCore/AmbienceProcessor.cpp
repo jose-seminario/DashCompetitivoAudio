@@ -41,43 +41,70 @@ struct AmbienceProcessor::Impl
     std::atomic<float> lastGainDb        { 0.0f };
     std::atomic<float> stationarityIndex { 0.0f };
 
+    std::atomic<bool>  pendingUpdate     { false };
+    AmbienceParameters stagingParams     {};
+    float targetLowHz                    = 350.0f;
+    float targetHighHz                   = 2500.0f;
+    float stagingShortCoeff              = 0.99f;
+    float stagingLongCoeff               = 0.999f;
+    float stagingGainAtkCoeff            = 0.99f;
+    float stagingGainRelCoeff            = 0.999f;
+    float appliedLowHz                   = -1.0f;
+    float appliedHighHz                  = -1.0f;
+
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
         const float safeTime = juce::jmax(0.0005f, timeSeconds);
         return std::exp(-1.0f / (safeTime * static_cast<float>(sampleRate)));
     }
 
-    void recalculateParameters() noexcept
+    void recalculateStagingParameters() noexcept
     {
-        const float hpHz = mapScNormToHz(params.scLow);
-        const float lpHz = mapScNormToHz(params.scHigh);
-        currentHpHz.store(hpHz, std::memory_order_relaxed);
-        currentLpHz.store(lpHz, std::memory_order_relaxed);
+        const float hpHz = mapScNormToHz(stagingParams.scLow);
+        const float lpHz = mapScNormToHz(stagingParams.scHigh);
 
         const float nyquistGuard = static_cast<float>(sampleRate * 0.48);
-        const float safeLowHz    = juce::jlimit(40.0f, nyquistGuard - 200.0f, hpHz);
-        const float safeHighHz   = juce::jlimit(safeLowHz + 100.0f, nyquistGuard, lpHz);
+        targetLowHz  = juce::jlimit(40.0f, nyquistGuard - 200.0f, hpHz);
+        targetHighHz = juce::jlimit(targetLowHz + 100.0f, nyquistGuard, lpHz);
 
-        for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
+        stagingShortCoeff = calcOnePoleCoeff(0.015f);
+        stagingLongCoeff  = calcOnePoleCoeff(0.080f);
+
+        if (stagingParams.useAdvancedMode)
         {
-            lowMidCrossovers[ch].setCutoffFrequency(safeLowHz);
-            midHighCrossovers[ch].setCutoffFrequency(safeHighHz);
-        }
-
-        // Seguidores de envolvente simétricos de media absoluta
-        shortCoeff = calcOnePoleCoeff(0.015f);
-        longCoeff  = calcOnePoleCoeff(0.080f);
-
-        if (params.useAdvancedMode)
-        {
-            gainAtkCoeff = calcOnePoleCoeff(juce::jmax(0.001f, params.attackMs * 0.001f));
-            gainRelCoeff = calcOnePoleCoeff(juce::jmax(0.010f, params.releaseMs * 0.001f));
+            stagingGainAtkCoeff = calcOnePoleCoeff(juce::jmax(0.001f, stagingParams.attackMs * 0.001f));
+            stagingGainRelCoeff = calcOnePoleCoeff(juce::jmax(0.010f, stagingParams.releaseMs * 0.001f));
         }
         else
         {
-            gainAtkCoeff = calcOnePoleCoeff(0.020f);
-            const float relSec = 0.050f + juce::jlimit(0.0f, 1.0f, params.release) * 0.450f;
-            gainRelCoeff = calcOnePoleCoeff(relSec);
+            stagingGainAtkCoeff = calcOnePoleCoeff(0.020f);
+            const float relSec = 0.050f + juce::jlimit(0.0f, 1.0f, stagingParams.release) * 0.450f;
+            stagingGainRelCoeff = calcOnePoleCoeff(relSec);
+        }
+    }
+
+    void applyPendingParameters() noexcept
+    {
+        params       = stagingParams;
+        shortCoeff   = stagingShortCoeff;
+        longCoeff    = stagingLongCoeff;
+        gainAtkCoeff = stagingGainAtkCoeff;
+        gainRelCoeff = stagingGainRelCoeff;
+
+        if (std::abs(targetLowHz - appliedLowHz) > 0.1f)
+        {
+            appliedLowHz = targetLowHz;
+            currentHpHz.store(appliedLowHz, std::memory_order_relaxed);
+            for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
+                lowMidCrossovers[ch].setCutoffFrequency(appliedLowHz);
+        }
+
+        if (std::abs(targetHighHz - appliedHighHz) > 0.1f)
+        {
+            appliedHighHz = targetHighHz;
+            currentLpHz.store(appliedHighHz, std::memory_order_relaxed);
+            for (size_t ch = 0; ch < kMaxSupportedChannels; ++ch)
+                midHighCrossovers[ch].setCutoffFrequency(appliedHighHz);
         }
     }
 
@@ -138,7 +165,10 @@ void AmbienceProcessor::prepare(double sampleRate, int maximumBlockSize, int /*n
         impl_->midHighCrossovers[ch].setType(juce::dsp::LinkwitzRileyFilterType::allpass);
     }
 
-    impl_->recalculateParameters();
+    impl_->stagingParams = impl_->params;
+    impl_->recalculateStagingParameters();
+    impl_->applyPendingParameters();
+    impl_->pendingUpdate.store(false, std::memory_order_release);
     reset();
 }
 
@@ -160,8 +190,9 @@ void AmbienceProcessor::reset() noexcept
 
 void AmbienceProcessor::updateParameters(const AmbienceParameters& params) noexcept
 {
-    impl_->params = params;
-    impl_->recalculateParameters();
+    impl_->stagingParams = params;
+    impl_->recalculateStagingParameters();
+    impl_->pendingUpdate.store(true, std::memory_order_release);
 }
 
 const AmbienceParameters& AmbienceProcessor::getParameters() const noexcept
@@ -192,6 +223,13 @@ void AmbienceProcessor::process(float* const* channelPointers, int numChannels, 
         return;
 
     juce::ScopedNoDenormals noDenormals;
+
+    // Sincronización atómica lock-free de parámetros y frecuencias exclusivamente al inicio del bloque
+    if (impl_->pendingUpdate.load(std::memory_order_acquire))
+    {
+        impl_->applyPendingParameters();
+        impl_->pendingUpdate.store(false, std::memory_order_release);
+    }
 
     if (impl_->params.bypass)
     {

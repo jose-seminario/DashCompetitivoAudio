@@ -33,46 +33,74 @@ struct TransientProcessor::Impl
     float maxAttenuationDb              = -6.93575f;
     std::atomic<float> lastReductionDb  { 0.0f };
 
+    std::atomic<bool> pendingUpdate { false };
+    TransientParameters stagingParams {};
+    float targetSplitHz           = kDefaultSplitHz;
+    float stagingFastAtk          = 0.9f;
+    float stagingFastRel          = 0.999f;
+    float stagingSlowAtk          = 0.99f;
+    float stagingSlowRel          = 0.9995f;
+    float stagingGainAtk          = 0.9f;
+    float stagingGainRel          = 0.999f;
+    float stagingMaxAttenuationDb = -6.93575f;
+    float appliedSplitHz          = -1.0f;
+
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
     {
         const float safeTime = juce::jmax(0.00001f, timeSeconds);
         return std::exp(-1.0f / (safeTime * static_cast<float>(sampleRate)));
     }
 
-    void recalculateParameters() noexcept
+    void recalculateStagingParameters() noexcept
     {
-        const float split = juce::jlimit(kMinSplitHz, kMaxSplitHz,
-                                         params.useAdvancedMode ? params.frequencySplitHz : kDefaultSplitHz);
-        activeSplitHz.store(split, std::memory_order_relaxed);
+        targetSplitHz = juce::jlimit(kMinSplitHz, kMaxSplitHz,
+                                     stagingParams.useAdvancedMode ? stagingParams.frequencySplitHz : kDefaultSplitHz);
 
-        for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
-            crossovers[ch].setCutoffFrequency(split);
-
-        if (params.useAdvancedMode)
+        if (stagingParams.useAdvancedMode)
         {
-            fastAtkCoeff = calcOnePoleCoeff(juce::jmax(0.00005f, params.attackMs * 0.001f));
-            fastRelCoeff = calcOnePoleCoeff(juce::jmax(0.005f, params.releaseMs * 0.001f));
-            slowAtkCoeff = calcOnePoleCoeff(0.020f);
-            slowRelCoeff = calcOnePoleCoeff(0.240f);
-            gainAtkCoeff = calcOnePoleCoeff(juce::jmax(0.0001f, params.attackMs * 0.001f));
-            gainRelCoeff = calcOnePoleCoeff(juce::jmax(0.005f, params.releaseMs * 0.001f));
-            maxAttenuationDb = juce::jlimit(-30.0f, 0.0f, params.maxAttenuationDb);
+            stagingFastAtk = calcOnePoleCoeff(juce::jmax(0.00005f, stagingParams.attackMs * 0.001f));
+            stagingFastRel = calcOnePoleCoeff(juce::jmax(0.005f, stagingParams.releaseMs * 0.001f));
+            stagingSlowAtk = calcOnePoleCoeff(0.020f);
+            stagingSlowRel = calcOnePoleCoeff(0.240f);
+            stagingGainAtk = calcOnePoleCoeff(juce::jmax(0.0001f, stagingParams.attackMs * 0.001f));
+            stagingGainRel = calcOnePoleCoeff(juce::jmax(0.005f, stagingParams.releaseMs * 0.001f));
+            stagingMaxAttenuationDb = juce::jlimit(-30.0f, 0.0f, stagingParams.maxAttenuationDb);
         }
         else
         {
             // Ataque ultrarrápido para suprimir el primer impulso del disparo (muestra exacta)
-            fastAtkCoeff = calcOnePoleCoeff(0.00002f);
-            const float relSec = 0.020f + juce::jlimit(0.0f, 1.0f, params.release) * 0.160f;
-            fastRelCoeff = calcOnePoleCoeff(relSec);
+            stagingFastAtk = calcOnePoleCoeff(0.00002f);
+            const float relSec = 0.020f + juce::jlimit(0.0f, 1.0f, stagingParams.release) * 0.160f;
+            stagingFastRel = calcOnePoleCoeff(relSec);
 
-            slowAtkCoeff = calcOnePoleCoeff(0.018f);
-            slowRelCoeff = calcOnePoleCoeff(0.220f);
+            stagingSlowAtk = calcOnePoleCoeff(0.018f);
+            stagingSlowRel = calcOnePoleCoeff(0.220f);
 
-            gainAtkCoeff = calcOnePoleCoeff(0.00003f);
-            gainRelCoeff = calcOnePoleCoeff(relSec);
+            stagingGainAtk = calcOnePoleCoeff(0.00003f);
+            stagingGainRel = calcOnePoleCoeff(relSec);
 
-            const float clampedGun = juce::jlimit(0.10f, 1.0f, params.gun);
-            maxAttenuationDb = juce::Decibels::gainToDecibels(clampedGun, -24.0f);
+            const float clampedGun = juce::jlimit(0.10f, 1.0f, stagingParams.gun);
+            stagingMaxAttenuationDb = juce::Decibels::gainToDecibels(clampedGun, -24.0f);
+        }
+    }
+
+    void applyPendingParameters() noexcept
+    {
+        params           = stagingParams;
+        fastAtkCoeff     = stagingFastAtk;
+        fastRelCoeff     = stagingFastRel;
+        slowAtkCoeff     = stagingSlowAtk;
+        slowRelCoeff     = stagingSlowRel;
+        gainAtkCoeff     = stagingGainAtk;
+        gainRelCoeff     = stagingGainRel;
+        maxAttenuationDb = stagingMaxAttenuationDb;
+
+        if (std::abs(targetSplitHz - appliedSplitHz) > 0.1f)
+        {
+            appliedSplitHz = targetSplitHz;
+            activeSplitHz.store(appliedSplitHz, std::memory_order_relaxed);
+            for (size_t ch = 0; ch < static_cast<size_t>(kMaxChannels); ++ch)
+                crossovers[ch].setCutoffFrequency(appliedSplitHz);
         }
     }
 
@@ -151,7 +179,10 @@ void TransientProcessor::prepare(double sampleRate, int maximumBlockSize, int /*
         impl_->crossovers[ch].setCutoffFrequency(impl_->activeSplitHz.load(std::memory_order_relaxed));
     }
 
-    impl_->recalculateParameters();
+    impl_->stagingParams = impl_->params;
+    impl_->recalculateStagingParameters();
+    impl_->applyPendingParameters();
+    impl_->pendingUpdate.store(false, std::memory_order_release);
     reset();
 }
 
@@ -174,8 +205,9 @@ void TransientProcessor::reset() noexcept
 
 void TransientProcessor::updateParameters(const TransientParameters& params) noexcept
 {
-    impl_->params = params;
-    impl_->recalculateParameters();
+    impl_->stagingParams = params;
+    impl_->recalculateStagingParameters();
+    impl_->pendingUpdate.store(true, std::memory_order_release);
 }
 
 const TransientParameters& TransientProcessor::getParameters() const noexcept
@@ -206,6 +238,13 @@ void TransientProcessor::process(float* const* channelPointers, int numChannels,
         return;
 
     juce::ScopedNoDenormals noDenormals;
+
+    // Sincronización atómica lock-free de parámetros y frecuencias exclusivamente al inicio del bloque
+    if (impl_->pendingUpdate.load(std::memory_order_acquire))
+    {
+        impl_->applyPendingParameters();
+        impl_->pendingUpdate.store(false, std::memory_order_release);
+    }
 
     if (impl_->params.bypass)
     {
