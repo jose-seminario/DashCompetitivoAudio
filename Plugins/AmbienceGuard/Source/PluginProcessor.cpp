@@ -100,10 +100,17 @@ bool AmbienceGuardAudioProcessor::isBusesLayoutSupported(const BusesLayout& layo
     if (mainIn != mainOut || mainOut.isDisabled())
         return false;
 
+    const int numChannels = mainOut.size();
+    if (numChannels < 1 || numChannels > 16)
+        return false;
+
+    // Compatible con cadenas Mono, Estéreo, 5.1, 7.1, 7.1.4 Atmos y layouts discretos de hasta 16 canales
     return mainOut == juce::AudioChannelSet::mono()
         || mainOut == juce::AudioChannelSet::stereo()
         || mainOut == juce::AudioChannelSet::create5point1()
-        || mainOut == juce::AudioChannelSet::create7point1();
+        || mainOut == juce::AudioChannelSet::create7point1()
+        || mainOut == juce::AudioChannelSet::create7point1point4()
+        || mainOut == juce::AudioChannelSet::discreteChannels(numChannels);
 }
 
 void AmbienceGuardAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)

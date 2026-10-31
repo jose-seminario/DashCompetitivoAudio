@@ -185,6 +185,12 @@ bool JuceWasapiAudioBackend::start(
         return false;
     }
 
+    const int initialCapacity = std::max(2048, setup.bufferSize * 2);
+    intermediateScratchBuffer_.setSize(kMaxIntermediateChannels, initialCapacity);
+    intermediateScratchBuffer_.clear();
+    for (int ch = 0; ch < kMaxIntermediateChannels; ++ch)
+        scratchChannelPointers_[static_cast<size_t>(ch)] = intermediateScratchBuffer_.getWritePointer(ch);
+
     deviceManager_.addAudioCallback(this);
     state_.store(AudioBackendState::Running);
 
@@ -258,35 +264,87 @@ void JuceWasapiAudioBackend::audioDeviceIOCallbackWithContext(
     int numSamples,
     const juce::AudioIODeviceCallbackContext& /*context*/)
 {
-    // Limpiar buffers de salida o transferir señal de entrada disponible
-    for (int ch = 0; ch < numOutputChannels; ++ch)
+    if (outputChannelData == nullptr || numOutputChannels <= 0 || numSamples <= 0)
+        return;
+
+    const int availableScratchSamples = intermediateScratchBuffer_.getNumSamples();
+    if (numSamples > availableScratchSamples)
     {
+        for (int ch = 0; ch < numOutputChannels; ++ch)
+        {
+            if (outputChannelData[ch] != nullptr)
+                std::memset(outputChannelData[ch], 0, static_cast<size_t>(numSamples) * sizeof(float));
+        }
+        return;
+    }
+
+    const int activeChannels = std::clamp(std::max(numInputChannels, numOutputChannels), 1, kMaxIntermediateChannels);
+
+    // 1. Cargar canales de entrada al buffer intermedio de hasta 16 canales
+    for (int ch = 0; ch < activeChannels; ++ch)
+    {
+        float* dst = scratchChannelPointers_[static_cast<size_t>(ch)];
+        if (dst == nullptr)
+            continue;
+
         if (ch < numInputChannels && inputChannelData != nullptr && inputChannelData[ch] != nullptr)
         {
-            std::memcpy(outputChannelData[ch], inputChannelData[ch], static_cast<size_t>(numSamples) * sizeof(float));
+            std::memcpy(dst, inputChannelData[ch], static_cast<size_t>(numSamples) * sizeof(float));
         }
         else
         {
-            std::memset(outputChannelData[ch], 0, static_cast<size_t>(numSamples) * sizeof(float));
+            std::memset(dst, 0, static_cast<size_t>(numSamples) * sizeof(float));
         }
     }
 
+    // 2. Si está en bypass, pasar directo a la salida física sin procesar
     if (isBypassed_.load(std::memory_order_relaxed))
+    {
+        for (int ch = 0; ch < numOutputChannels; ++ch)
+        {
+            if (outputChannelData[ch] != nullptr)
+            {
+                if (ch < activeChannels)
+                    std::memcpy(outputChannelData[ch], scratchChannelPointers_[static_cast<size_t>(ch)], static_cast<size_t>(numSamples) * sizeof(float));
+                else
+                    std::memset(outputChannelData[ch], 0, static_cast<size_t>(numSamples) * sizeof(float));
+            }
+        }
         return;
+    }
 
-    // Procesamiento estrictamente lock-free en tiempo real (cero llamadas a mutex en el hilo de audio)
+    // 3. Procesamiento en tiempo real con todos los canales multicanal disponibles
     if (processCallback_)
     {
-        processCallback_(outputChannelData, numOutputChannels, numSamples);
+        processCallback_(scratchChannelPointers_.data(), activeChannels, numSamples);
+    }
+
+    // 4. Transferir la mezcla final procesada a los canales físicos de salida (ej. auriculares estéreo)
+    for (int ch = 0; ch < numOutputChannels; ++ch)
+    {
+        if (outputChannelData[ch] != nullptr)
+        {
+            if (ch < activeChannels)
+                std::memcpy(outputChannelData[ch], scratchChannelPointers_[static_cast<size_t>(ch)], static_cast<size_t>(numSamples) * sizeof(float));
+            else
+                std::memset(outputChannelData[ch], 0, static_cast<size_t>(numSamples) * sizeof(float));
+        }
     }
 }
 
-void JuceWasapiAudioBackend::audioDeviceAboutToStart(juce::AudioIODevice* /*device*/)
+void JuceWasapiAudioBackend::audioDeviceAboutToStart(juce::AudioIODevice* device)
 {
+    const int bufferSize = (device != nullptr) ? device->getCurrentBufferSizeSamples() : 512;
+    const int safeSamples = std::max(2048, bufferSize * 2);
+    intermediateScratchBuffer_.setSize(kMaxIntermediateChannels, safeSamples);
+    intermediateScratchBuffer_.clear();
+    for (int ch = 0; ch < kMaxIntermediateChannels; ++ch)
+        scratchChannelPointers_[static_cast<size_t>(ch)] = intermediateScratchBuffer_.getWritePointer(ch);
 }
 
 void JuceWasapiAudioBackend::audioDeviceStopped()
 {
+    intermediateScratchBuffer_.clear();
 }
 
 void JuceWasapiAudioBackend::audioDeviceError(const juce::String& errorMessage)

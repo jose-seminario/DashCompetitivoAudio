@@ -47,6 +47,7 @@ namespace dash::test
     void testAudioGraphBypassAll();
     void testAudioGraphSampleRateAndBlockSizeVariations();
     void testAudioGraphMultichannelSurround();
+    void testAudioGraph16ChannelsImmersive();
 
     // 7. ChannelLayoutTests
     void testStandardChannelLayouts();
@@ -125,6 +126,7 @@ int main(int argc, char* argv[])
             testAudioGraphBypassAll();
             testAudioGraphSampleRateAndBlockSizeVariations();
             testAudioGraphMultichannelSurround();
+            testAudioGraph16ChannelsImmersive();
         }},
         { "ChannelLayoutTests", [] {
             testStandardChannelLayouts();

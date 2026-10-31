@@ -125,4 +125,24 @@ void testAudioGraphMultichannelSurround()
         assert(isFiniteBuffer(channels[i].data(), 512));
 }
 
+void testAudioGraph16ChannelsImmersive()
+{
+    dash::core::AudioGraph graph;
+    graph.prepare(48000.0, 512, 16); // 9.1.6 Inmersivo (16 canales)
+
+    std::vector<std::vector<float>> channels(16, std::vector<float>(512, 0.15f));
+    std::vector<float*> pointers(16);
+    for (size_t i = 0; i < 16; ++i)
+        pointers[i] = channels[i].data();
+
+    graph.process(pointers.data(), 16, 512);
+
+    for (size_t i = 0; i < 16; ++i)
+        assert(isFiniteBuffer(channels[i].data(), 512));
+
+    // Tras el procesamiento espacial de la cadena, los canales L y R frontales contienen la mezcla activa
+    assert(std::abs(channels[0][100]) > 0.001f);
+    assert(std::abs(channels[1][100]) > 0.001f);
+}
+
 } // namespace dash::test

@@ -59,6 +59,10 @@ private:
     void audioDeviceStopped() override;
     void audioDeviceError(const juce::String& errorMessage) override;
 
+    static constexpr int kMaxIntermediateChannels = 16;
+    juce::AudioBuffer<float> intermediateScratchBuffer_;
+    std::array<float*, kMaxIntermediateChannels> scratchChannelPointers_ {};
+
     juce::AudioDeviceManager deviceManager_;
     std::atomic<AudioBackendState> state_{AudioBackendState::Uninitialized};
     std::atomic<bool> isBypassed_{false};
