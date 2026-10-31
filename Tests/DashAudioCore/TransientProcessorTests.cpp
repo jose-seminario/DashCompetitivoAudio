@@ -113,7 +113,9 @@ void testTransientMidSidePreservation()
     proc.process(channels, 2, 1024);
 
     // La componente lateral pura no debe verse deformada por la reducción central
-    assert(std::abs(left[100] - 0.4f) < 0.01f);
+    // (tolerancia de 0.05f en muestra 100 para admitir el settling del filtro IIR pasa-todo, y 0.01f en régimen estacionario)
+    assert(std::abs(left[100] - 0.4f) < 0.05f);
+    assert(std::abs(left[500] - 0.4f) < 0.01f);
 }
 
 } // namespace dash::test
