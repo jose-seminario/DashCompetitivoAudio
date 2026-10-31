@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <cstring>
 
 namespace dash::core
 {
@@ -19,12 +20,16 @@ struct AudioGraph::Impl
     std::atomic<bool>  bypassAll   { false };
     std::atomic<float> headroomLin { 0.50118723f }; // -6 dBFS
 
-    DynamicsProcessor     dynamics;
-    TransientProcessor    transient;
-    AmbienceProcessor     ambience;
-    EQProcessor           equalizer;
-    ParametricEQProcessor parametricEq;
-    LimiterProcessor      limiter;
+    DynamicsProcessor               dynamics;
+    TransientProcessor              transient;
+    AmbienceProcessor               ambience;
+    dash::spatial::SpatialProcessor spatial;
+    EQProcessor                     equalizer;
+    ParametricEQProcessor           parametricEq;
+    LimiterProcessor                limiter;
+
+    std::vector<float> spatialScratchL;
+    std::vector<float> spatialScratchR;
 
     void updateHeadroom() noexcept
     {
@@ -57,6 +62,9 @@ void AudioGraph::prepare(double sampleRate, int maximumBlockSize, int numChannel
     impl_->dynamics.prepare(safeSr, safeBlock, safeCh);
     impl_->transient.prepare(safeSr, safeBlock, safeCh);
     impl_->ambience.prepare(safeSr, safeBlock, safeCh);
+    impl_->spatial.prepare(safeSr, safeBlock);
+    impl_->spatialScratchL.assign(static_cast<size_t>(safeBlock), 0.0f);
+    impl_->spatialScratchR.assign(static_cast<size_t>(safeBlock), 0.0f);
     impl_->equalizer.prepare(safeSr, safeBlock, safeCh);
     impl_->parametricEq.prepare(safeSr, safeBlock, safeCh);
     impl_->limiter.prepare(safeSr, safeBlock, safeCh);
@@ -70,6 +78,7 @@ void AudioGraph::reset() noexcept
     impl_->dynamics.reset();
     impl_->transient.reset();
     impl_->ambience.reset();
+    impl_->spatial.reset();
     impl_->equalizer.reset();
     impl_->parametricEq.reset();
     impl_->limiter.reset();
@@ -84,6 +93,7 @@ void AudioGraph::updateParameters(const AudioGraphParameters& parameters) noexce
     impl_->dynamics.updateParameters(impl_->params.dynamics);
     impl_->transient.updateParameters(impl_->params.transient);
     impl_->ambience.updateParameters(impl_->params.ambience);
+    impl_->spatial.updateParameters(impl_->params.spatial);
     impl_->equalizer.updateParameters(impl_->params.equalizer);
 
     for (size_t b = 0; b < ParametricEQProcessor::kMaxBands; ++b)
@@ -147,12 +157,40 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     // 4. Protector de Frecuencias Ambientales (Multibanda 350 Hz - 2.5 kHz)
     impl_->ambience.process(channelPointers, safeCh, numSamples);
 
-    // 5. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
+    // 5. Procesador Acústico Espacial 3D (Renderizado Binaural / Escenario Sonoro)
+    if (!impl_->params.spatial.bypass && safeCh >= 2 && channelPointers[0] != nullptr && channelPointers[1] != nullptr)
+    {
+        if (static_cast<int>(impl_->spatialScratchL.size()) < numSamples)
+        {
+            impl_->spatialScratchL.resize(static_cast<size_t>(numSamples), 0.0f);
+            impl_->spatialScratchR.resize(static_cast<size_t>(numSamples), 0.0f);
+        }
+
+        impl_->spatial.processBinaural(
+            channelPointers,
+            safeCh,
+            impl_->spatialScratchL.data(),
+            impl_->spatialScratchR.data(),
+            numSamples);
+
+        std::memcpy(channelPointers[0], impl_->spatialScratchL.data(), static_cast<size_t>(numSamples) * sizeof(float));
+        std::memcpy(channelPointers[1], impl_->spatialScratchR.data(), static_cast<size_t>(numSamples) * sizeof(float));
+
+        // Si la entrada traía canales surround (>2), ya fueron plegados al espacio binaural estéreo;
+        // limpiamos los canales remanentes para evitar interferencias.
+        for (int ch = 2; ch < safeCh; ++ch)
+        {
+            if (channelPointers[ch] != nullptr)
+                std::memset(channelPointers[ch], 0, static_cast<size_t>(numSamples) * sizeof(float));
+        }
+    }
+
+    // 6. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
     impl_->equalizer.process(channelPointers, safeCh, numSamples);
     if (impl_->params.useParametricEq)
         impl_->parametricEq.process(channelPointers, safeCh, numSamples);
 
-    // 6. Limitador de Picos de Muestra Exacta (-0.5 dBFS)
+    // 7. Limitador de Picos de Muestra Exacta (-0.5 dBFS)
     impl_->limiter.process(channelPointers, safeCh, numSamples);
 }
 
@@ -196,6 +234,11 @@ float AudioGraph::getAmbienceGainDb() const noexcept
 float AudioGraph::getStationarityIndex() const noexcept
 {
     return impl_->ambience.getStationarityIndex();
+}
+
+bool AudioGraph::isSpatialActive() const noexcept
+{
+    return !impl_->params.spatial.bypass;
 }
 
 float AudioGraph::getLimiterReductionDb() const noexcept

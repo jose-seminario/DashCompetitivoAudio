@@ -67,6 +67,7 @@ public:
     [[nodiscard]] float getTransientReductionDb() const noexcept;
     [[nodiscard]] float getAmbienceGainDb() const noexcept;
     [[nodiscard]] float getStationarityIndex() const noexcept;
+    [[nodiscard]] bool  isSpatialActive() const noexcept;
     [[nodiscard]] float getLimiterReductionDb() const noexcept;
 
 private:

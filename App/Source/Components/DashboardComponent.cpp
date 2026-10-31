@@ -37,7 +37,7 @@ DashboardComponent::DashboardComponent()
     engineCardTitle_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(engineCardTitle_);
 
-    backendLabel_.setText("Backend: Equalizer APO / Direct Routing", juce::dontSendNotification);
+    backendLabel_.setText("Backend: WASAPI Full-Duplex (Direct C++ DSP Engine)", juce::dontSendNotification);
     backendLabel_.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(backendLabel_);
 

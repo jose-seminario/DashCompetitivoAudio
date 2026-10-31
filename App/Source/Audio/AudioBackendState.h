@@ -23,11 +23,13 @@ enum class AudioBackendState
  */
 struct AudioBackendConfig
 {
-    std::wstring deviceId;             // ID del dispositivo destino
-    double       sampleRate    = 48000.0;
-    int          bufferSize    = 512;
-    int          numChannels   = 2;
-    bool         exclusiveMode = false;
+    std::wstring deviceId;             // ID del dispositivo destino (reproducción / render)
+    std::wstring inputDeviceId;        // ID del dispositivo de entrada/captura (ej. Cable Virtual)
+    double       sampleRate       = 48000.0;
+    int          bufferSize       = 512;
+    int          numChannels      = 2;
+    int          numInputChannels = 2; // Canales de captura de audio del juego
+    bool         exclusiveMode    = false;
 };
 
 } // namespace dash::audio

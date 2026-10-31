@@ -21,6 +21,8 @@
 #include "Core/AudioPolicyManager.h"
 #include "Core/ApoConfigInjector.h"
 #include "Core/ApoConfigManager.h"
+#include "Audio/JuceWasapiAudioBackend.h"
+#include <DashAudioCore/AudioGraph.h>
 #include "Profiles/AudioProfile.h"
 #include "Profiles/ProfileRepository.h"
 
@@ -63,10 +65,12 @@ private:
     // Estilo visual del sistema
     DashLookAndFeel dashLookAndFeel_;
 
-    // Servicios desacoplados
-    dash::audio::AudioPolicyManager  policyManager_;
-    dash::profile::ProfileRepository profileRepo_;
-    dash::profile::AudioProfile      currentProfile_;
+    // Servicios desacoplados y motor DSP de audio
+    dash::audio::AudioPolicyManager                      policyManager_;
+    dash::profile::ProfileRepository                     profileRepo_;
+    dash::profile::AudioProfile                          currentProfile_;
+    std::unique_ptr<dash::core::AudioGraph>              audioGraph_;
+    std::unique_ptr<dash::audio::JuceWasapiAudioBackend> audioBackend_;
 
     std::wstring originalEndpointId_;
     bool isProfileActive_ = false;

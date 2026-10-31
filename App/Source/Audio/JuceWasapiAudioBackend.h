@@ -43,6 +43,9 @@ public:
     [[nodiscard]] bool isBypassed() const noexcept override;
     [[nodiscard]] std::string getLastError() const override;
 
+    [[nodiscard]] float getCurrentLatencyMs() const noexcept;
+    [[nodiscard]] float getCpuUsage() const noexcept;
+
 private:
     void audioDeviceIOCallbackWithContext(
         const float* const* inputChannelData,

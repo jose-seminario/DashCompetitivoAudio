@@ -52,6 +52,8 @@ target_compile_definitions(DashAudioCore
 # Propagamos juce::juce_dsp como INTERFACE hacia los binarios finales (App y Plugins)
 # para evitar compilar las unidades de traducción de JUCE por duplicado (error MSVC LNK2005).
 target_link_libraries(DashAudioCore
+    PUBLIC
+        DashAudioSpatial
     PRIVATE
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags

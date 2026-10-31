@@ -223,54 +223,17 @@ std::string ApoConfigInjector::buildConfigContent(
     // 1. Ganancia Previa (Headroom anti-clipping)
     out << "Preamp: " << formatCompact(config.preampDb) << " dB\r\n";
 
-    // 2. Directiva del Supresor de Disparos (Canal Central / Gun Crack)
-    if (config.enableTransientSuppressor)
-    {
-        out << "VSTPlugin: Library TransientSuppressor.vst3"
-            << " Gun " << formatFixed6(config.gunVolume)
-            << " Steps " << config.gunSteps
-            << " Front " << config.gunFrontOnly
-            << " Restore " << config.gunRestore
-            << " Bypass " << config.gunBypass
-            << "\r\n";
-    }
+    // Nota de Arquitectura: Los procesadores dinámicos, de transitorios y espaciales
+    // se ejecutan nativamente en la aplicación C++ mediante el backend WASAPI Full-Duplex.
+    // Equalizer APO se reserva exclusivamente para Preamp, Ecualización Gráfica y HeSuVi.
 
-    // 3. Directiva del Compresor Dinámico Híbrido (Sonoridad BS.1770)
-    if (config.enableLoudnessCompressor)
-    {
-        out << "VSTPlugin: Library LoudnessCompressor.vst3"
-            << " Amount " << formatFixed6(config.compAmount)
-            << " Target " << formatFixed6(config.compTarget)
-            << " Release " << formatCompact(config.compRelease)
-            << " DetRel " << formatFixed6(config.compDetRel)
-            << " LimRel " << formatFixed6(config.compLimRel)
-            << " SCLow " << formatCompact(config.compScLow)
-            << " SCHigh " << formatCompact(config.compScHigh)
-            << "\r\n";
-    }
-
-    // 4. Directiva del Protector Ambiental Multibanda
-    if (config.enableAmbienceGuard)
-    {
-        out << "VSTPlugin: Library AmbienceGuard.vst3"
-            << " AmbGuar " << formatCompact(config.ambGuard)
-            << " Distant " << config.ambDistant
-            << " Target " << formatFixed6(config.ambTarget)
-            << " Release " << formatCompact(config.ambRelease)
-            << " DetRel " << formatFixed6(config.ambDetRel)
-            << " SCLow " << formatCompact(config.ambScLow)
-            << " SCHigh " << formatCompact(config.ambScHigh)
-            << " BandMod " << config.ambBandMod
-            << "\r\n";
-    }
-
-    // 5. Ecualización Gráfica Acústica de 31 Bandas
+    // 2. Ecualización Gráfica Acústica de 31 Bandas
     if (config.enableGraphicEq)
     {
-        out << buildGraphicEqDirective(config.footstepsEqDb, config.bassEqDb) << "\r\n";
+        out << buildGraphicEqDirective(config.footstepsEqDb, config.bassDb) << "\r\n";
     }
 
-    // 6. Virtualización Binaural Convolutiva HRIR (7.1 -> Estéreo vía HeSuVi)
+    // 3. Virtualización Binaural Convolutiva HRIR (7.1 -> Estéreo vía HeSuVi)
     if (config.enableHeSuVi)
     {
         const std::string hesuviInclude = resolveHeSuViIncludePath(targetConfigFilePath, config.hesuviIncludePath);

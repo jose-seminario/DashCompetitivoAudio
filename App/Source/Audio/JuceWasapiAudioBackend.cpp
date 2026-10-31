@@ -120,18 +120,54 @@ bool JuceWasapiAudioBackend::start(
     {
         setup.outputDeviceName = juce::String(config.deviceId.c_str());
     }
+
+    if (!config.inputDeviceId.empty())
+    {
+        setup.inputDeviceName = juce::String(config.inputDeviceId.c_str());
+    }
+    else
+    {
+        // Si no se especificó un dispositivo de entrada, buscamos un cable virtual disponible
+        const auto captureDevs = enumerateCaptureDevices();
+        for (const auto& dev : captureDevs)
+        {
+            if (dev.isVirtualCable || dev.friendlyName.find(L"CABLE") != std::wstring::npos)
+            {
+                setup.inputDeviceName = juce::String(dev.friendlyName.c_str());
+                break;
+            }
+        }
+    }
+
     setup.sampleRate = config.sampleRate > 0.0 ? config.sampleRate : 48000.0;
     setup.bufferSize = config.bufferSize > 0 ? config.bufferSize : 512;
     setup.useDefaultInputChannels = false;
     setup.useDefaultOutputChannels = true;
 
-    const auto err = deviceManager_.initialise(
-        0,
-        config.numChannels > 0 ? config.numChannels : 2,
+    const int numInChannels = config.numInputChannels > 0 ? config.numInputChannels : 2;
+    const int numOutChannels = config.numChannels > 0 ? config.numChannels : 2;
+
+    auto err = deviceManager_.initialise(
+        numInChannels,
+        numOutChannels,
         nullptr,
         true,
         setup.outputDeviceName,
         &setup);
+
+    // Fallback gracioso: si el dispositivo de entrada no está disponible (ej. sin cable virtual instalado),
+    // inicializar sólo dispositivo de salida para garantizar continuidad.
+    if (err.isNotEmpty() && numInChannels > 0)
+    {
+        setup.inputDeviceName.clear();
+        err = deviceManager_.initialise(
+            0,
+            numOutChannels,
+            nullptr,
+            true,
+            setup.outputDeviceName,
+            &setup);
+    }
 
     if (err.isNotEmpty())
     {
@@ -193,6 +229,25 @@ std::string JuceWasapiAudioBackend::getLastError() const
 {
     std::lock_guard<std::mutex> lock(errorMutex_);
     return lastError_;
+}
+
+float JuceWasapiAudioBackend::getCurrentLatencyMs() const noexcept
+{
+    if (auto* currentDevice = const_cast<juce::AudioDeviceManager&>(deviceManager_).getCurrentAudioDevice())
+    {
+        const double sr = currentDevice->getCurrentSampleRate();
+        if (sr > 0.0)
+        {
+            const int totalLatencySamples = currentDevice->getInputLatencyInSamples() + currentDevice->getOutputLatencyInSamples();
+            return static_cast<float>((totalLatencySamples * 1000.0) / sr);
+        }
+    }
+    return 0.0f;
+}
+
+float JuceWasapiAudioBackend::getCpuUsage() const noexcept
+{
+    return static_cast<float>(const_cast<juce::AudioDeviceManager&>(deviceManager_).getCpuUsage() * 100.0);
 }
 
 void JuceWasapiAudioBackend::audioDeviceIOCallbackWithContext(

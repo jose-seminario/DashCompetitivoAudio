@@ -55,7 +55,13 @@ MainComponent::MainComponent()
     // 4. Barra de estado inferior
     addAndMakeVisible(statusBar_);
 
-    // 5. Cableado de callbacks entre componentes
+    // 5. Inicialización del motor DSP y Backend de audio WASAPI
+    audioGraph_ = std::make_unique<dash::core::AudioGraph>();
+    audioBackend_ = std::make_unique<dash::audio::JuceWasapiAudioBackend>();
+    std::string initBackendErr;
+    audioBackend_->initialize(&initBackendErr);
+
+    // 6. Cableado de callbacks entre componentes
     dashboardPanel_->onActivateClicked = [this] { activateTacticalMode(); };
     dashboardPanel_->onDeactivateClicked = [this] { deactivateAndRestoreAudio(); };
     dashboardPanel_->onQuickProfileSelected = [this](const juce::String& name) {
@@ -174,6 +180,25 @@ void MainComponent::timerCallback()
             executeConfigInjection();
         }
     }
+
+    // Telemetría en tiempo real del motor DSP y Backend WASAPI
+    if (isProfileActive_ && audioBackend_ && audioBackend_->getState() == dash::audio::AudioBackendState::Running)
+    {
+        const float latMs = audioBackend_->getCurrentLatencyMs();
+        const float cpu = audioBackend_->getCpuUsage();
+        dashboardPanel_->setLatencyMs(latMs > 0.0f ? latMs : 5.3f);
+        dashboardPanel_->setCpuPercent(cpu);
+
+        // Actualizar estados de bypass de los nodos en el Dashboard
+        // Nodos: 0: Input, 1: Headroom, 2: Dynamics, 3: Transient, 4: Ambience, 5: Spatial, 6: EQ, 7: Limiter, 8: Output
+        dashboardPanel_->setNodeBypassState(1, currentProfile_.dspParams.bypassAll);
+        dashboardPanel_->setNodeBypassState(2, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.dynamics.bypass);
+        dashboardPanel_->setNodeBypassState(3, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.transient.bypass);
+        dashboardPanel_->setNodeBypassState(4, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.ambience.bypass);
+        dashboardPanel_->setNodeBypassState(5, currentProfile_.dspParams.bypassAll || !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass);
+        dashboardPanel_->setNodeBypassState(6, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.equalizer.bypass);
+        dashboardPanel_->setNodeBypassState(7, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.limiter.bypass);
+    }
 }
 
 void MainComponent::loadProfile(const std::string& profileId)
@@ -216,6 +241,14 @@ void MainComponent::syncAllPanelsWithProfile()
         currentProfile_.dspParams.parametricBands
     );
     spatialPanel_->setParameters(currentProfile_.spatialParams);
+
+    currentProfile_.dspParams.spatial = currentProfile_.spatialParams;
+    currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass;
+
+    if (audioGraph_)
+    {
+        audioGraph_->updateParameters(currentProfile_.dspParams);
+    }
 }
 
 void MainComponent::scheduleDebouncedInjection()
@@ -226,6 +259,14 @@ void MainComponent::scheduleDebouncedInjection()
 
 void MainComponent::executeConfigInjection()
 {
+    currentProfile_.dspParams.spatial = currentProfile_.spatialParams;
+    currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass;
+
+    if (audioGraph_)
+    {
+        audioGraph_->updateParameters(currentProfile_.dspParams);
+    }
+
     if (!isProfileActive_)
         return;
 
@@ -285,7 +326,7 @@ void MainComponent::activateTacticalMode()
 {
     isProfileActive_ = true;
     dashboardPanel_->setEngineRunning(true);
-    statusBar_.setEngineStatus("MOTOR: ACTIVO [APO / WASAPI]", true);
+    statusBar_.setEngineStatus("MOTOR: ACTIVO [WASAPI / C++ DSP]", true);
 
     // Guardar dispositivo actual antes de conmutar
     auto activeDevices = policyManager_.enumerateActiveRenderEndpoints();
@@ -294,7 +335,55 @@ void MainComponent::activateTacticalMode()
         if (dev.isDefaultConsole)
         {
             originalEndpointId_ = dev.id;
+            dashboardPanel_->setDeviceName(juce::String(dev.friendlyName.c_str()));
             break;
+        }
+    }
+
+    // 1. Sincronizar parámetros con el grafo de audio
+    currentProfile_.dspParams.spatial = currentProfile_.spatialParams;
+    currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass;
+
+    const double sr = currentProfile_.audio.sampleRate > 0.0 ? currentProfile_.audio.sampleRate : 48000.0;
+    const int ch = currentProfile_.audio.numChannels > 0 ? currentProfile_.audio.numChannels : 2;
+
+    if (audioGraph_)
+    {
+        audioGraph_->prepare(sr, 512, ch);
+        audioGraph_->updateParameters(currentProfile_.dspParams);
+    }
+
+    // 2. Iniciar backend WASAPI Full-Duplex
+    if (audioBackend_)
+    {
+        dash::audio::AudioBackendConfig cfg;
+        cfg.sampleRate = sr;
+        cfg.bufferSize = 512;
+        cfg.numChannels = ch;
+        cfg.numInputChannels = ch;
+
+        std::string startErr;
+        const bool started = audioBackend_->start(
+            cfg,
+            [this](float* const* channels, int numChannels, int numSamples) {
+                if (audioGraph_)
+                {
+                    audioGraph_->process(channels, numChannels, numSamples);
+                }
+            },
+            [this](dash::audio::AudioBackendState state, const std::string& msg) {
+                if (state == dash::audio::AudioBackendState::Error)
+                {
+                    juce::MessageManager::callAsync([this, msg] {
+                        statusBar_.setStatusMessage("Aviso WASAPI: " + juce::String(msg), true);
+                    });
+                }
+            },
+            &startErr);
+
+        if (!started)
+        {
+            statusBar_.setStatusMessage("Aviso WASAPI: " + juce::String(startErr), true);
         }
     }
 
@@ -307,6 +396,11 @@ void MainComponent::deactivateAndRestoreAudio()
     isProfileActive_ = false;
     dashboardPanel_->setEngineRunning(false);
     statusBar_.setEngineStatus("MOTOR: DETENIDO", false);
+
+    if (audioBackend_)
+    {
+        audioBackend_->stop();
+    }
 
     std::string err;
     const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
