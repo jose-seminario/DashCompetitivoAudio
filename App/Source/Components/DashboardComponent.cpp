@@ -67,7 +67,41 @@ DashboardComponent::DashboardComponent()
     deactivateBtn_.onClick = [this] { if (onDeactivateClicked) onDeactivateClicked(); };
     addAndMakeVisible(deactivateBtn_);
 
-    // 3. Cadena visual de 8 nodos
+    // 3. Tutorial de Primer Uso y Autoconfiguración
+    tutorialTitleLabel_.setText("GUÍA RÁPIDA DE PRIMER USO", juce::dontSendNotification);
+    tutorialTitleLabel_.setFont(juce::FontOptions(11.5f).withStyle("Bold"));
+    tutorialTitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    addAndMakeVisible(tutorialTitleLabel_);
+
+    step1Label_.setText("Paso 1: Selecciona 'CABLE Input' como dispositivo de salida en Windows.", juce::dontSendNotification);
+    step1Label_.setFont(juce::FontOptions(12.0f));
+    step1Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+    addAndMakeVisible(step1Label_);
+
+    autoConfigBtn_.setButtonText("Autoconfigurar Audio (VB-Cable)");
+    autoConfigBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
+    autoConfigBtn_.onClick = [this] {
+        if (onAutoConfigClicked)
+            onAutoConfigClicked();
+    };
+    addAndMakeVisible(autoConfigBtn_);
+
+    step2Label_.setText("Paso 2: Haz clic en 'Activar Motor Táctico'.", juce::dontSendNotification);
+    step2Label_.setFont(juce::FontOptions(12.0f));
+    step2Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+    addAndMakeVisible(step2Label_);
+
+    step3Label_.setText("Paso 3: ¡A jugar!", juce::dontSendNotification);
+    step3Label_.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
+    step3Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kSuccessEmerald);
+    addAndMakeVisible(step3Label_);
+
+    dismissTutorialBtn_.setButtonText("Ocultar Guía");
+    dismissTutorialBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kBgCardElevated);
+    dismissTutorialBtn_.onClick = [this] { setTutorialVisible(false); };
+    addAndMakeVisible(dismissTutorialBtn_);
+
+    // 4. Cadena visual de 9 nodos
     chainNodes_ = {
         { "INPUT", "0.0 dBFS", false, {} },
         { "HEADROOM", "-6.0 dB", false, {} },
@@ -80,7 +114,7 @@ DashboardComponent::DashboardComponent()
         { "OUTPUT", "Binaural Out", false, {} }
     };
 
-    // 4. Controles Tácticos Rápidos
+    // 5. Controles Tácticos Rápidos
     quickTitleLabel_.setText("PERSONALIZACIÓN TÁCTICA RÁPIDA (EASY MODE)", juce::dontSendNotification);
     quickTitleLabel_.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
     quickTitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
@@ -140,19 +174,46 @@ void DashboardComponent::initTacticalSlider(
     addAndMakeVisible(l);
 }
 
+void DashboardComponent::setTutorialVisible(bool visible)
+{
+    showTutorial_ = visible;
+    tutorialTitleLabel_.setVisible(visible);
+    step1Label_.setVisible(visible);
+    step2Label_.setVisible(visible);
+    step3Label_.setVisible(visible);
+    autoConfigBtn_.setVisible(visible);
+    dismissTutorialBtn_.setVisible(visible);
+    resized();
+    repaint();
+}
+
 void DashboardComponent::paint(juce::Graphics& g)
 {
     g.fillAll(DashLookAndFeel::kBgDark);
 
     // 1. Tarjeta del Motor
-    const auto topCardArea = juce::Rectangle<float>(16, 52, (float)getWidth() - 32, 110);
+    const auto topCardArea = juce::Rectangle<float>(16, 48, (float)getWidth() - 32, 108);
     g.setColour(DashLookAndFeel::kBgCard);
     g.fillRoundedRectangle(topCardArea, 8.0f);
     g.setColour(DashLookAndFeel::kBorderSubtle);
     g.drawRoundedRectangle(topCardArea, 8.0f, 1.2f);
 
-    // 2. Tarjeta de Cadena de Procesamiento
-    const auto chainArea = juce::Rectangle<float>(16, 172, (float)getWidth() - 32, 105);
+    float curCardY = 162.0f;
+
+    // 2. Tarjeta del Tutorial de Primer Uso (si está activo)
+    if (showTutorial_)
+    {
+        const auto tutArea = juce::Rectangle<float>(16, curCardY, (float)getWidth() - 32, 68);
+        g.setColour(DashLookAndFeel::kBgCard);
+        g.fillRoundedRectangle(tutArea, 8.0f);
+        g.setColour(DashLookAndFeel::kAccentCyan.withAlpha(0.6f));
+        g.drawRoundedRectangle(tutArea, 8.0f, 1.2f);
+
+        curCardY += 76.0f;
+    }
+
+    // 3. Tarjeta de Cadena de Procesamiento
+    const auto chainArea = juce::Rectangle<float>(16, curCardY, (float)getWidth() - 32, 92);
     g.setColour(DashLookAndFeel::kBgCard);
     g.fillRoundedRectangle(chainArea, 8.0f);
     g.setColour(DashLookAndFeel::kBorderSubtle);
@@ -174,11 +235,11 @@ void DashboardComponent::paint(juce::Graphics& g)
         g.drawRoundedRectangle(b, 5.0f, 1.0f);
 
         g.setColour(node.bypassed ? DashLookAndFeel::kTextMuted : DashLookAndFeel::kTextMain);
-        g.drawText(node.name, (int)b.getX(), (int)b.getY() + 8, (int)b.getWidth(), 14, juce::Justification::centred);
+        g.drawText(node.name, (int)b.getX(), (int)b.getY() + 6, (int)b.getWidth(), 14, juce::Justification::centred);
 
         g.setFont(juce::FontOptions(10.0f));
         g.setColour(node.bypassed ? DashLookAndFeel::kDangerCrimson : DashLookAndFeel::kAccentCyan);
-        g.drawText(node.bypassed ? "BYPASS" : node.info, (int)b.getX(), (int)b.getY() + 26, (int)b.getWidth(), 14, juce::Justification::centred);
+        g.drawText(node.bypassed ? "BYPASS" : node.info, (int)b.getX(), (int)b.getY() + 24, (int)b.getWidth(), 14, juce::Justification::centred);
 
         // Flecha conectora hacia el siguiente nodo
         if (i + 1 < chainNodes_.size())
@@ -190,10 +251,12 @@ void DashboardComponent::paint(juce::Graphics& g)
         }
     }
 
-    // 3. Tarjeta de Controles Tácticos (Easy Mode)
+    curCardY += 100.0f;
+
+    // 4. Tarjeta de Controles Tácticos (Easy Mode)
     if (currentMode_ == DisplayMode::Easy)
     {
-        const auto quickArea = juce::Rectangle<float>(16, 287, (float)getWidth() - 32, (float)getHeight() - 300);
+        const auto quickArea = juce::Rectangle<float>(16, curCardY, (float)getWidth() - 32, (float)getHeight() - curCardY - 12);
         g.setColour(DashLookAndFeel::kBgCard);
         g.fillRoundedRectangle(quickArea, 8.0f);
         g.setColour(DashLookAndFeel::kBorderSubtle);
@@ -204,32 +267,51 @@ void DashboardComponent::paint(juce::Graphics& g)
 void DashboardComponent::resized()
 {
     // Fila superior: Selector de Modo
-    easyModeBtn_.setBounds(16, 12, 220, 28);
-    advancedModeBtn_.setBounds(244, 12, 240, 28);
+    easyModeBtn_.setBounds(16, 12, 220, 26);
+    advancedModeBtn_.setBounds(244, 12, 240, 26);
 
-    // Tarjeta del Motor
-    engineCardTitle_.setBounds(32, 60, 300, 20);
-    backendLabel_.setBounds(32, 85, 340, 18);
-    deviceLabel_.setBounds(32, 105, 380, 18);
-    formatLabel_.setBounds(32, 125, 340, 18);
+    // Tarjeta del Motor (y=48 .. 156)
+    engineCardTitle_.setBounds(32, 54, 300, 18);
+    backendLabel_.setBounds(32, 76, 340, 18);
+    deviceLabel_.setBounds(32, 96, 380, 18);
+    formatLabel_.setBounds(32, 116, 340, 18);
 
-    latencyLabel_.setBounds(430, 85, 220, 18);
-    cpuLabel_.setBounds(430, 105, 220, 18);
+    latencyLabel_.setBounds(430, 76, 220, 18);
+    cpuLabel_.setBounds(430, 96, 220, 18);
 
-    activateBtn_.setBounds(getWidth() - 250, 68, 220, 36);
-    deactivateBtn_.setBounds(getWidth() - 250, 110, 220, 34);
+    activateBtn_.setBounds(getWidth() - 250, 60, 220, 36);
+    deactivateBtn_.setBounds(getWidth() - 250, 102, 220, 32);
 
-    // Disposición horizontal de la Cadena Visual (9 nodos)
+    int curY = 162;
+
+    // Tutorial de Primer Uso
+    if (showTutorial_)
+    {
+        tutorialTitleLabel_.setBounds(32, curY + 6, 260, 16);
+        dismissTutorialBtn_.setBounds(getWidth() - 130, curY + 6, 98, 20);
+
+        step1Label_.setBounds(32, curY + 24, 460, 18);
+        autoConfigBtn_.setBounds(500, curY + 22, 210, 22);
+
+        step2Label_.setBounds(32, curY + 44, 320, 18);
+        step3Label_.setBounds(360, curY + 44, 160, 18);
+
+        curY += 76;
+    }
+
+    // Cadena Visual (9 nodos)
     const int chainStartX = 26;
-    const int chainY = 195;
+    const int chainY = curY + 16;
     const int availableW = getWidth() - 52;
     const int nodeW = (availableW - (static_cast<int>(chainNodes_.size()) - 1) * 14) / static_cast<int>(chainNodes_.size());
-    const int nodeH = 54;
+    const int nodeH = 48;
 
     for (size_t i = 0; i < chainNodes_.size(); ++i)
     {
         chainNodes_[i].bounds = juce::Rectangle<int>(chainStartX + static_cast<int>(i) * (nodeW + 14), chainY, nodeW, nodeH);
     }
+
+    curY += 100;
 
     // Controles Tácticos (Easy Mode)
     const bool isEasy = (currentMode_ == DisplayMode::Easy);
@@ -245,24 +327,24 @@ void DashboardComponent::resized()
 
     if (isEasy)
     {
-        quickTitleLabel_.setBounds(32, 298, 380, 20);
-        quickProfileSelector_.setBounds(getWidth() - 320, 296, 288, 28);
+        quickTitleLabel_.setBounds(32, curY + 12, 380, 20);
+        quickProfileSelector_.setBounds(getWidth() - 320, curY + 10, 288, 26);
 
-        const int dialY = 345;
+        const int dialY = curY + 42;
         const int dialW = 140;
-        const int dialH = 110;
+        const int dialH = 100;
         const int spacing = (getWidth() - 64 - dialW * 3) / 4;
 
         gunLabel_.setBounds(32 + spacing, dialY, dialW, 16);
-        gunSlider_.setBounds(32 + spacing, dialY + 18, dialW, dialH);
+        gunSlider_.setBounds(32 + spacing, dialY + 16, dialW, dialH);
 
         stepsLabel_.setBounds(32 + spacing * 2 + dialW, dialY, dialW, 16);
-        stepsSlider_.setBounds(32 + spacing * 2 + dialW, dialY + 18, dialW, dialH);
+        stepsSlider_.setBounds(32 + spacing * 2 + dialW, dialY + 16, dialW, dialH);
 
         ambLabel_.setBounds(32 + spacing * 3 + dialW * 2, dialY, dialW, 16);
-        ambSlider_.setBounds(32 + spacing * 3 + dialW * 2, dialY + 18, dialW, dialH);
+        ambSlider_.setBounds(32 + spacing * 3 + dialW * 2, dialY + 16, dialW, dialH);
 
-        spatialToggle_.setBounds(getWidth() / 2 - 140, dialY + dialH + 30, 280, 26);
+        spatialToggle_.setBounds(getWidth() / 2 - 140, dialY + dialH + 24, 280, 24);
     }
 }
 
@@ -331,10 +413,10 @@ void DashboardComponent::updateQuickControls(float gunReductionDb, float footste
 
 void DashboardComponent::getQuickControlsValues(float& outGunReductionDb, float& outFootstepsDb, float& outAmbienceReductionDb, bool& outSpatialEnabled) const
 {
-    outGunReductionDb    = static_cast<float>(gunSlider_.getValue());
-    outFootstepsDb       = static_cast<float>(stepsSlider_.getValue());
+    outGunReductionDb      = static_cast<float>(gunSlider_.getValue());
+    outFootstepsDb         = static_cast<float>(stepsSlider_.getValue());
     outAmbienceReductionDb = static_cast<float>(ambSlider_.getValue());
-    outSpatialEnabled    = spatialToggle_.getToggleState();
+    outSpatialEnabled      = spatialToggle_.getToggleState();
 }
 
 void DashboardComponent::setNodeBypassState(int nodeIndex, bool isBypassed)

@@ -12,6 +12,7 @@ namespace dash::ui
  * Presenta:
  *  - Conmutador Easy Mode / Advanced Mode.
  *  - En Easy Mode: Selectores rápidos de juego, auricular y perfil con controles tácticos directos.
+ *  - Tutorial de Primer Uso con pasos claros y botón de Autoconfiguración a VB-Cable.
  *  - Cadena Visual de Procesamiento: Input -> Headroom -> Dynamics -> Transient -> Ambience -> Spatial -> EQ -> Limiter -> Output.
  *  - Estado operativo real del motor, backend, clipping y latencia.
  */
@@ -32,6 +33,7 @@ public:
     std::function<void(int nodeIndex)> onChainNodeClicked;
     std::function<void()> onActivateClicked;
     std::function<void()> onDeactivateClicked;
+    std::function<void()> onAutoConfigClicked;
     std::function<void(const juce::String& profileId)> onQuickProfileSelected;
     std::function<void(float gun, float stepsDb, float ambGuard, bool spatialEnabled)> onQuickControlsChanged;
 
@@ -40,6 +42,9 @@ public:
     void setFormatInfo(double sampleRate, const juce::String& layout);
     void setLatencyMs(float latencyMs);
     void setCpuPercent(float cpuPercent);
+
+    void setTutorialVisible(bool visible);
+    [[nodiscard]] bool isTutorialVisible() const noexcept { return showTutorial_; }
 
     void updateQuickControls(float gunReductionDb, float footstepsDb, float ambienceReductionDb, bool spatialEnabled);
     void getQuickControlsValues(float& outGunReductionDb, float& outFootstepsDb, float& outAmbienceReductionDb, bool& outSpatialEnabled) const;
@@ -51,6 +56,7 @@ private:
 
     DisplayMode currentMode_ = DisplayMode::Easy;
     bool isRunning_ = false;
+    bool showTutorial_ = true;
 
     // 1. Selector de modo
     juce::TextButton easyModeBtn_;
@@ -66,7 +72,15 @@ private:
     juce::TextButton activateBtn_;
     juce::TextButton deactivateBtn_;
 
-    // 3. Cadena Visual Interactiva (8 nodos)
+    // 3. Tutorial de Primer Uso y Autoconfiguración
+    juce::Label tutorialTitleLabel_;
+    juce::Label step1Label_;
+    juce::Label step2Label_;
+    juce::Label step3Label_;
+    juce::TextButton autoConfigBtn_;
+    juce::TextButton dismissTutorialBtn_;
+
+    // 4. Cadena Visual Interactiva (9 nodos)
     struct ChainNode
     {
         juce::String name;
@@ -76,7 +90,7 @@ private:
     };
     std::vector<ChainNode> chainNodes_;
 
-    // 4. Controles Tácticos Rápidos (Easy Mode)
+    // 5. Controles Tácticos Rápidos (Easy Mode)
     juce::Label quickTitleLabel_;
     juce::ComboBox quickProfileSelector_;
     juce::Slider gunSlider_;

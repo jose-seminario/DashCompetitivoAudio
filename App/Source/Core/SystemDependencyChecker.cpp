@@ -8,6 +8,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <shellapi.h>
+#include <urlmon.h>
 #endif
 
 namespace dash::audio
@@ -148,11 +149,137 @@ void SystemDependencyChecker::openOfficialDownloadLinks(bool openApo, bool openV
     if (openVbCable)
         ::ShellExecuteW(nullptr, L"open", kVbCableUrl, nullptr, nullptr, SW_SHOWNORMAL);
     if (openHeSuViPage)
-        ::ShellExecuteW(nullptr, L"open", kHeSuViUrl, nullptr, nullptr, SW_SHOWNORMAL);
+        ::ShellExecuteW(nullptr, L"open", kHeSuViUrl, nullptr, nullptr, SW_SHNORMAL);
 #else
     (void)openApo;
     (void)openVbCable;
     (void)openHeSuViPage;
+#endif
+}
+
+bool SystemDependencyChecker::downloadAndInstallDependencies(
+    const DependencyStatus& status,
+    std::string* outMessage,
+    std::function<void(const std::string& msg, bool isError)> progressCallback)
+{
+#ifdef _WIN32
+    std::error_code ec;
+    const auto tempDir = std::filesystem::temp_directory_path(ec);
+    if (ec)
+    {
+        if (outMessage) *outMessage = "Error al acceder al directorio temporal %TEMP%.";
+        if (progressCallback) progressCallback("Error al acceder a %TEMP%", true);
+        return false;
+    }
+
+    bool anyInstalled = false;
+
+    // 1. Descarga e instalación de Equalizer APO
+    if (!status.hasEqualizerApo)
+    {
+        if (progressCallback)
+            progressCallback("Descargando instalador oficial de Equalizer APO a %TEMP%...", false);
+
+        const auto apoPath = tempDir / "EqualizerAPO64-1.3.2.exe";
+        const HRESULT hr = ::URLDownloadToFileW(nullptr, kEqualizerApoInstallerUrl, apoPath.c_str(), 0, nullptr);
+        if (SUCCEEDED(hr))
+        {
+            if (progressCallback)
+                progressCallback("Ejecutando instalador de Equalizer APO (solicitando elevación UAC)...", false);
+
+            const HINSTANCE res = ::ShellExecuteW(nullptr, L"runas", apoPath.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+            if (reinterpret_cast<intptr_t>(res) > 32)
+            {
+                anyInstalled = true;
+            }
+            else
+            {
+                if (progressCallback)
+                    progressCallback("Instalador de Equalizer APO cancelado o denegado por UAC.", true);
+            }
+        }
+        else
+        {
+            if (progressCallback)
+                progressCallback("Fallo al descargar Equalizer APO. Abriendo enlace oficial...", true);
+            openOfficialDownloadLinks(true, false, false);
+        }
+    }
+
+    // 2. Descarga e instalación de VB-Audio Cable
+    if (!status.hasVbAudioCable)
+    {
+        if (progressCallback)
+            progressCallback("Descargando paquete oficial de drivers VB-Audio Cable...", false);
+
+        const auto zipPath = tempDir / "VBCABLE_Driver_Pack43.zip";
+        const auto extractDir = tempDir / "VBCABLE_Driver_Pack43";
+
+        const HRESULT hr = ::URLDownloadToFileW(nullptr, kVbCableZipUrl, zipPath.c_str(), 0, nullptr);
+        if (SUCCEEDED(hr))
+        {
+            if (progressCallback)
+                progressCallback("Extrayendo paquete de VB-Audio Cable...", false);
+
+            std::wstring psCmd = L"-NoProfile -ExecutionPolicy Bypass -Command \"Expand-Archive -Path '" + zipPath.wstring() + L"' -DestinationPath '" + extractDir.wstring() + L"' -Force\"";
+
+            SHELLEXECUTEINFOW sei = { sizeof(sei) };
+            sei.fMask = SEE_MASK_NOCLOSEPROCESS;
+            sei.lpVerb = L"open";
+            sei.lpFile = L"powershell.exe";
+            sei.lpParameters = psCmd.c_str();
+            sei.nShow = SW_HIDE;
+            if (::ShellExecuteExW(&sei) && sei.hProcess)
+            {
+                ::WaitForSingleObject(sei.hProcess, 15000);
+                ::CloseHandle(sei.hProcess);
+            }
+
+            auto setupExe = extractDir / "VBCABLE_Setup_x64.exe";
+            if (!std::filesystem::exists(setupExe, ec))
+                setupExe = extractDir / "VBCABLE_Driver_Pack43" / "VBCABLE_Setup_x64.exe";
+
+            if (std::filesystem::exists(setupExe, ec))
+            {
+                if (progressCallback)
+                    progressCallback("Ejecutando instalador de VB-Audio Cable (solicitando elevación UAC)...", false);
+
+                const HINSTANCE res = ::ShellExecuteW(nullptr, L"runas", setupExe.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+                if (reinterpret_cast<intptr_t>(res) > 32)
+                {
+                    anyInstalled = true;
+                }
+                else
+                {
+                    if (progressCallback)
+                        progressCallback("Instalador de VB-Cable cancelado o denegado por UAC.", true);
+                }
+            }
+            else
+            {
+                openOfficialDownloadLinks(false, true, false);
+            }
+        }
+        else
+        {
+            if (progressCallback)
+                progressCallback("Fallo al descargar VB-Cable. Abriendo enlace oficial...", true);
+            openOfficialDownloadLinks(false, true, false);
+        }
+    }
+
+    const std::string finalMsg = "Instalación completada. Por favor, REINICIA tu computadora para activar los drivers virtuales";
+    if (outMessage)
+        *outMessage = finalMsg;
+    if (progressCallback)
+        progressCallback(finalMsg, false);
+
+    return anyInstalled;
+#else
+    (void)status;
+    if (outMessage) *outMessage = "Instalación automática solo disponible en Windows.";
+    if (progressCallback) progressCallback("Instalación automática solo disponible en Windows.", true);
+    return false;
 #endif
 }
 

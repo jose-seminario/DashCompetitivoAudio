@@ -17,10 +17,12 @@
 #include "Components/HeadphonePanel.h"
 #include "Components/BenchmarkPanel.h"
 #include "Components/SystemStatusPanel.h"
+#include "Components/OnboardingWizard.h"
 
 #include "Core/AudioPolicyManager.h"
 #include "Core/ApoConfigInjector.h"
 #include "Core/ApoConfigManager.h"
+#include "Core/SystemDependencyChecker.h"
 #include "Audio/JuceWasapiAudioBackend.h"
 #include <DashAudioCore/AudioGraph.h>
 #include "Profiles/AudioProfile.h"
@@ -38,6 +40,7 @@ namespace dash::ui
  *  - Delegación de perfiles a ProfileRepository.
  *  - Delegación de inyección de configuración Windows a ApoConfigManager.
  *  - Gestión del LookAndFeel táctico y temporizador de telemetría a 30 FPS.
+ *  - Integración del Asistente de Primera Vez (OnboardingWizard) y Autoconfiguración.
  */
 class MainComponent final
     : public juce::Component,
@@ -61,6 +64,13 @@ private:
 
     void activateTacticalMode();
     void deactivateAndRestoreAudio();
+
+    // Gestión del Asistente de Primera Vez y Autoconfiguración de Audio
+    void checkDependenciesAndSetupWizard();
+    void autoConfigureAudio();
+    void startAutoInstall();
+    void recheckDependencies();
+    void dismissWizard();
 
     // Estilo visual del sistema
     DashLookAndFeel dashLookAndFeel_;
@@ -95,6 +105,9 @@ private:
     std::unique_ptr<HeadphonePanel>          headphonePanel_;
     std::unique_ptr<BenchmarkPanel>          benchmarkPanel_;
     std::unique_ptr<SystemStatusPanel>       systemStatusPanel_;
+
+    // Asistente visual a pantalla completa (Onboarding Wizard)
+    std::unique_ptr<OnboardingWizard>        onboardingWizard_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

@@ -60,6 +60,8 @@ target_sources(DashCompetitivoAudio
         Source/Components/BenchmarkPanel.cpp
         Source/Components/SystemStatusPanel.h
         Source/Components/SystemStatusPanel.cpp
+        Source/Components/OnboardingWizard.h
+        Source/Components/OnboardingWizard.cpp
 )
 
 target_include_directories(DashCompetitivoAudio

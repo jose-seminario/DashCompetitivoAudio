@@ -1,6 +1,8 @@
 #include "MainComponent.h"
 
 #include <cmath>
+#include <algorithm>
+#include <thread>
 
 namespace dash::ui
 {
@@ -64,6 +66,8 @@ MainComponent::MainComponent()
     // 6. Cableado de callbacks entre componentes
     dashboardPanel_->onActivateClicked = [this] { activateTacticalMode(); };
     dashboardPanel_->onDeactivateClicked = [this] { deactivateAndRestoreAudio(); };
+    dashboardPanel_->onAutoConfigClicked = [this] { autoConfigureAudio(); };
+
     dashboardPanel_->onQuickProfileSelected = [this](const juce::String& name) {
         if (name.containsIgnoreCase("Balanced"))
             loadProfile("warzone-balanced-default");
@@ -177,8 +181,11 @@ MainComponent::MainComponent()
         scheduleDebouncedInjection();
     };
 
-    // 6. Cargar perfil inicial por defecto
+    // 7. Cargar perfil inicial por defecto
     loadProfile("warzone-competitive-default");
+
+    // 8. Verificación de dependencias del sistema y asistente de primera vez
+    checkDependenciesAndSetupWizard();
 
     // Iniciar temporizador de telemetría a 30 Hz
     startTimerHz(30);
@@ -208,6 +215,12 @@ void MainComponent::resized()
 
     tabs_.setBounds(0, 44, getWidth(), getHeight() - 76);
     statusBar_.setBounds(0, getHeight() - 32, getWidth(), 32);
+
+    if (onboardingWizard_ && onboardingWizard_->isVisible())
+    {
+        onboardingWizard_->setBounds(getLocalBounds());
+        onboardingWizard_->toFront(true);
+    }
 }
 
 void MainComponent::timerCallback()
@@ -251,7 +264,6 @@ void MainComponent::timerCallback()
         }
 
         // Actualizar estados de bypass de los nodos en el Dashboard
-        // Nodos: 0: Input, 1: Headroom, 2: Dynamics, 3: Transient, 4: Ambience, 5: Spatial, 6: EQ, 7: Limiter, 8: Output
         dashboardPanel_->setNodeBypassState(1, currentProfile_.dspParams.bypassAll);
         dashboardPanel_->setNodeBypassState(2, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.dynamics.bypass);
         dashboardPanel_->setNodeBypassState(3, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.transient.bypass);
@@ -497,6 +509,164 @@ void MainComponent::deactivateAndRestoreAudio()
     else
     {
         statusBar_.setStatusMessage("Aviso al restaurar APO: " + juce::String(err), true);
+    }
+}
+
+void MainComponent::checkDependenciesAndSetupWizard()
+{
+    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+    const bool missingCritical = !status.hasEqualizerApo || !status.hasVbAudioCable;
+
+    if (missingCritical)
+    {
+        if (!onboardingWizard_)
+            onboardingWizard_ = std::make_unique<OnboardingWizard>();
+
+        onboardingWizard_->updateStatus(status);
+
+        onboardingWizard_->onAutoInstallRequested = [this] {
+            startAutoInstall();
+        };
+
+        onboardingWizard_->onManualDownloadRequested = [this] {
+            dash::audio::SystemDependencyChecker::openOfficialDownloadLinks();
+        };
+
+        onboardingWizard_->onRecheckRequested = [this] {
+            recheckDependencies();
+        };
+
+        onboardingWizard_->onDismissWizard = [this] {
+            dismissWizard();
+        };
+
+        addAndMakeVisible(onboardingWizard_.get());
+        onboardingWizard_->toFront(true);
+        dashboardPanel_->setTutorialVisible(false);
+    }
+    else
+    {
+        dismissWizard();
+        dashboardPanel_->setTutorialVisible(true);
+    }
+}
+
+void MainComponent::dismissWizard()
+{
+    if (onboardingWizard_)
+    {
+        removeChildComponent(onboardingWizard_.get());
+        onboardingWizard_.reset();
+    }
+    dashboardPanel_->setTutorialVisible(true);
+    resized();
+}
+
+void MainComponent::recheckDependencies()
+{
+    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+    if (onboardingWizard_)
+    {
+        onboardingWizard_->updateStatus(status);
+    }
+
+    if (status.hasEqualizerApo && status.hasVbAudioCable)
+    {
+        statusBar_.setStatusMessage("Dependencias verificadas correctamente.");
+    }
+    else
+    {
+        statusBar_.setStatusMessage("Aún faltan componentes requeridos en el sistema.", true);
+    }
+}
+
+void MainComponent::startAutoInstall()
+{
+    if (onboardingWizard_)
+    {
+        onboardingWizard_->setInstallingState(true, "Descargando instaladores oficiales a %TEMP%...");
+    }
+
+    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+
+    // Ejecución en segundo plano para mantener la reactividad visual de la interfaz
+    std::thread([this, status] {
+        std::string finalMessage;
+        dash::audio::SystemDependencyChecker::downloadAndInstallDependencies(
+            status,
+            &finalMessage,
+            [this](const std::string& msg, bool isError) {
+                juce::MessageManager::callAsync([this, msg, isError] {
+                    if (onboardingWizard_)
+                        onboardingWizard_->setInstallingState(true, juce::String(msg.c_str()));
+                    statusBar_.setStatusMessage(juce::String(msg.c_str()), isError);
+                });
+            });
+
+        juce::MessageManager::callAsync([this, finalMessage] {
+            if (onboardingWizard_)
+            {
+                onboardingWizard_->setInstallingState(false, juce::String(finalMessage.c_str()));
+                recheckDependencies();
+            }
+
+            juce::AlertWindow::showMessageBoxAsync(
+                juce::AlertWindow::InfoIcon,
+                "Instalación de Drivers",
+                juce::String(finalMessage.c_str()),
+                "Entendido");
+        });
+    }).detach();
+}
+
+void MainComponent::autoConfigureAudio()
+{
+    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+    std::wstring cableEndpointId = status.detectedCableEndpointId;
+
+    if (cableEndpointId.empty())
+    {
+        const auto endpoints = policyManager_.enumerateActiveRenderEndpoints();
+        for (const auto& ep : endpoints)
+        {
+            std::wstring lower = ep.friendlyName;
+            std::transform(lower.begin(), lower.end(), lower.begin(), ::towlower);
+            if (lower.find(L"cable input") != std::wstring::npos ||
+                lower.find(L"hi-fi cable") != std::wstring::npos ||
+                lower.find(L"vb-audio") != std::wstring::npos)
+            {
+                cableEndpointId = ep.id;
+                break;
+            }
+        }
+    }
+
+    if (!cableEndpointId.empty())
+    {
+        std::string err;
+        if (policyManager_.setDefaultEndpoint(cableEndpointId, &err))
+        {
+            statusBar_.setStatusMessage("Audio redirigido a VB-Cable exitosamente.");
+
+            // Actualizar el nombre mostrado en el dashboard
+            const auto endpoints = policyManager_.enumerateActiveRenderEndpoints();
+            for (const auto& ep : endpoints)
+            {
+                if (ep.id == cableEndpointId)
+                {
+                    dashboardPanel_->setDeviceName(juce::String(ep.friendlyName.c_str()));
+                    break;
+                }
+            }
+        }
+        else
+        {
+            statusBar_.setStatusMessage("Fallo al cambiar endpoint: " + juce::String(err), true);
+        }
+    }
+    else
+    {
+        statusBar_.setStatusMessage("No se encontró 'CABLE Input'. Por favor instala VB-Cable primero.", true);
     }
 }
 
