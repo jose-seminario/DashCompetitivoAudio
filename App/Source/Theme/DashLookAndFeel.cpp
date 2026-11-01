@@ -83,19 +83,42 @@ void DashLookAndFeel::drawButtonBackground(
     bool shouldDrawButtonAsDown)
 {
     const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
-    const float cornerRadius = 6.0f;
+    const float cornerRadius = 5.0f;
 
     juce::Colour baseColor = backgroundColour;
+
     if (shouldDrawButtonAsDown)
-        baseColor = baseColor.darker(0.15f);
+    {
+        // Estado Down (al hacer clic): Brillo interior cian suave (glow) para feedback táctil reactivo
+        g.setColour(baseColor.darker(0.12f));
+        g.fillRoundedRectangle(bounds, cornerRadius);
+
+        // Brillo interior cian suave (#06B6D4) reactivo a la pulsación
+        g.setColour(kAccentCyan.withAlpha(0.20f));
+        g.fillRoundedRectangle(bounds.reduced(1.2f), cornerRadius - 1.0f);
+
+        // Borde cian sutil activo (#06B6D4)
+        g.setColour(kAccentCyan);
+        g.drawRoundedRectangle(bounds, cornerRadius, 1.4f);
+    }
     else if (shouldDrawButtonAsHighlighted)
-        baseColor = baseColor.brighter(0.15f);
+    {
+        // Estado Hover (ratón encima): Botón oscuro plano ligeramente aclarado con borde sutil cian (#06B6D4)
+        g.setColour(baseColor.brighter(0.06f));
+        g.fillRoundedRectangle(bounds, cornerRadius);
 
-    g.setColour(baseColor);
-    g.fillRoundedRectangle(bounds, cornerRadius);
+        g.setColour(kAccentCyan);
+        g.drawRoundedRectangle(bounds, cornerRadius, 1.2f);
+    }
+    else
+    {
+        // Estado Normal: Botón oscuro plano sin bordes brillantes
+        g.setColour(baseColor);
+        g.fillRoundedRectangle(bounds, cornerRadius);
 
-    g.setColour(shouldDrawButtonAsHighlighted ? kBorderFocus : kBorderSubtle);
-    g.drawRoundedRectangle(bounds, cornerRadius, 1.2f);
+        g.setColour(kBorderSubtle);
+        g.drawRoundedRectangle(bounds, cornerRadius, 1.0f);
+    }
 }
 
 void DashLookAndFeel::drawComboBox(

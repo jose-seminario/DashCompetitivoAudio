@@ -77,6 +77,10 @@ target_compile_definitions(DashCompetitivoAudio
         JUCE_APPLICATION_VERSION_STRING="$<TARGET_PROPERTY:DashCompetitivoAudio,JUCE_VERSION>"
 )
 
+if(MSVC)
+    target_compile_options(DashCompetitivoAudio PRIVATE /utf-8)
+endif()
+
 target_link_libraries(DashCompetitivoAudio
     PRIVATE
         DashAudioCore

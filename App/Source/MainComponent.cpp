@@ -42,15 +42,15 @@ MainComponent::MainComponent()
     tabs_.setColour(juce::TabbedComponent::outlineColourId, juce::Colours::transparentBlack);
 
     const auto tabBg = DashLookAndFeel::kBgCardElevated;
-    tabs_.addTab("DASHBOARD", tabBg, dashboardPanel_.get(), false);
-    tabs_.addTab("PERFILES", tabBg, profilePanel_.get(), false);
-    tabs_.addTab("MOTOR & WASAPI", tabBg, audioEnginePanel_.get(), false);
-    tabs_.addTab("DINÁMICA BS.1770", tabBg, dynamicsPanel_.get(), false);
-    tabs_.addTab("DISPAROS & RUIDO", tabBg, tacticalPanel_.get(), false);
-    tabs_.addTab("ECUALIZADOR", tabBg, equalizerPanel_.get(), false);
-    tabs_.addTab("AUDIO ESPACIAL 3D", tabBg, spatialPanel_.get(), false);
-    tabs_.addTab("AURICULARES", tabBg, headphonePanel_.get(), false);
-    tabs_.addTab("BENCHMARK", tabBg, benchmarkPanel_.get(), false);
+    tabs_.addTab("INICIO", tabBg, dashboardPanel_.get(), false);
+    tabs_.addTab("PERFIL", tabBg, profilePanel_.get(), false);
+    tabs_.addTab("MOTOR", tabBg, audioEnginePanel_.get(), false);
+    tabs_.addTab("DINÁMICA", tabBg, dynamicsPanel_.get(), false);
+    tabs_.addTab("TÁCTICO", tabBg, tacticalPanel_.get(), false);
+    tabs_.addTab("EQ", tabBg, equalizerPanel_.get(), false);
+    tabs_.addTab("3D", tabBg, spatialPanel_.get(), false);
+    tabs_.addTab("AURIS", tabBg, headphonePanel_.get(), false);
+    tabs_.addTab("BENCH", tabBg, benchmarkPanel_.get(), false);
     tabs_.addTab("SISTEMA", tabBg, systemStatusPanel_.get(), false);
     addAndMakeVisible(tabs_);
 
@@ -479,7 +479,7 @@ void MainComponent::activateTacticalMode()
     statusBar_.setEngineStatus("MOTOR: ACTIVO [WASAPI / C++ DSP]", true);
 
     executeConfigInjection();
-    statusBar_.setStatusMessage("Modo táctico activado con éxito.");
+    statusBar_.setStatusMessage("Modo Táctico activado con éxito.");
 }
 
 void MainComponent::deactivateAndRestoreAudio()
