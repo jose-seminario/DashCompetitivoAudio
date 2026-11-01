@@ -194,33 +194,33 @@ void DashLookAndFeel::drawPopupMenuItem(
 
     auto textArea = area.reduced(10, 0);
     g.setColour(isHighlighted ? kAccentCyan : (isActive ? kTextMain : kTextMuted));
-    g.setFont(juce::FontOptions("Segoe UI", 13.5f));
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f)));
     g.drawFittedText(text, textArea, juce::Justification::centredLeft, 1);
 }
 
 juce::Font DashLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
 {
-    return juce::FontOptions("Segoe UI", juce::jmin(14.0f, (float)buttonHeight * 0.52f)).withStyle("Bold");
+    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(juce::jmin(14.0f, (float)buttonHeight * 0.52f)).withStyle("Bold"));
 }
 
 juce::Font DashLookAndFeel::getTabButtonFont(juce::TabBarButton&, float height)
 {
-    return juce::FontOptions("Segoe UI", juce::jmin(13.0f, height * 0.45f)).withStyle("Bold");
+    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(juce::jmin(13.0f, height * 0.45f)).withStyle("Bold"));
 }
 
 juce::Font DashLookAndFeel::getLabelFont(juce::Label&)
 {
-    return juce::FontOptions("Segoe UI", 13.5f);
+    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f));
 }
 
 juce::Font DashLookAndFeel::getComboBoxFont(juce::ComboBox&)
 {
-    return juce::FontOptions("Segoe UI", 13.0f);
+    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f));
 }
 
 juce::Font DashLookAndFeel::getPopupMenuFont()
 {
-    return juce::FontOptions("Segoe UI", 13.0f);
+    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f));
 }
 
 } // namespace dash::ui
