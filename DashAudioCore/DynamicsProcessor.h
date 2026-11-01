@@ -34,7 +34,7 @@ struct DynamicsParameters
     float releaseMs        = 120.0f;  // [5.0 .. 1000.0 ms] Tiempo de relajación de ganancia descendente
     float upwardAmount     = 0.75f;   // [0.0 .. 1.0] Intensidad de elevación de micro-detalles (Upward)
     float downwardAmount   = 0.75f;   // [0.0 .. 1.0] Intensidad de atenuación de disparos/picos (Downward)
-    float makeupGainDb     = 0.0f;    // [-12.0 .. +12.0 dB] Compensación final de ganancia
+    float makeupGainDb     = 6.0f;    // [-12.0 .. +12.0 dB] Compensación final de ganancia (Makeup Gain)
     float scLowHz          = 20.0f;   // [20.0 .. 1000.0 Hz] Frecuencia de corte pasa-altos de sidechain
     float scHighHz         = 20000.0f;// [1000.0 .. 20000.0 Hz] Frecuencia de corte pasa-bajos de sidechain
     float gateThresholdDb  = -62.0f;  // [-90.0 .. -30.0 dB] Umbral de corte de la compuerta de ruido

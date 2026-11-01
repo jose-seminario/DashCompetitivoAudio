@@ -18,29 +18,29 @@ namespace dash::ui
 
 BenchmarkPanel::BenchmarkPanel()
 {
-    titleLabel_.setText("BENCHMARK ACÚSTICO, LATENCIA Y PRESUPUESTO DE TIEMPO DSP", juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
+    titleLabel_.setText(juce::String::fromUTF8(u8"BENCHMARK ACÚSTICO, LATENCIA Y PRESUPUESTO DE TIEMPO DSP"), juce::dontSendNotification);
+    titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(titleLabel_);
 
-    summaryBudgetLabel_.setText("Presupuesto de Búfer: 5333 µs (5.33 ms a 48 kHz / 256 samples) | Consumo Total: ~98 µs (1.8% de CPU)", juce::dontSendNotification);
-    summaryBudgetLabel_.setFont(juce::FontOptions(12.0f));
+    summaryBudgetLabel_.setText(juce::String::fromUTF8(u8"Presupuesto de Búfer: 5333 µs (5.33 ms a 48 kHz / 256 samples) | Consumo Total: ~98 µs (1.8% de CPU)"), juce::dontSendNotification);
+    summaryBudgetLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     summaryBudgetLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kSuccessEmerald);
     addAndMakeVisible(summaryBudgetLabel_);
 
-    runBenchmarkBtn_.setButtonText("EJECUTAR TEST DE ESTRÉS DSP");
+    runBenchmarkBtn_.setButtonText(juce::String::fromUTF8(u8"EJECUTAR TEST DE ESTRÉS DSP"));
     runBenchmarkBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
     runBenchmarkBtn_.onClick = [this] { runBenchmarkTest(); };
     addAndMakeVisible(runBenchmarkBtn_);
 
     metrics_ = {
-        { "1. Input Scaling & Headroom (-6 dB)", 4.2f, 0.08f, "ÓPTIMO" },
-        { "2. Dynamics Processor (ITU-R BS.1770-4)", 18.5f, 0.35f, "ÓPTIMO" },
-        { "3. Transient Suppressor (Linkwitz-Riley 280 Hz)", 16.1f, 0.30f, "ÓPTIMO" },
-        { "4. Ambience Guard (350 Hz - 2.5 kHz)", 14.8f, 0.28f, "ÓPTIMO" },
-        { "5. Equalizer Processor (31 bandas ISO)", 19.3f, 0.36f, "ÓPTIMO" },
-        { "6. Spatial Audio 3D (Woodworth FIR 256 taps)", 18.2f, 0.34f, "ÓPTIMO" },
-        { "7. Peak Limiter (-0.5 dBFS Ceiling)", 7.1f, 0.13f, "ÓPTIMO" }
+        { "1. Input Scaling & Headroom (-6 dB)", 4.2f, 0.08f, juce::String::fromUTF8(u8"ÓPTIMO") },
+        { "2. Dynamics Processor (ITU-R BS.1770-4)", 18.5f, 0.35f, juce::String::fromUTF8(u8"ÓPTIMO") },
+        { "3. Transient Suppressor (Linkwitz-Riley 280 Hz)", 16.1f, 0.30f, juce::String::fromUTF8(u8"ÓPTIMO") },
+        { "4. Ambience Guard (350 Hz - 2.5 kHz)", 14.8f, 0.28f, juce::String::fromUTF8(u8"ÓPTIMO") },
+        { "5. Equalizer Processor (31 bandas ISO)", 19.3f, 0.36f, juce::String::fromUTF8(u8"ÓPTIMO") },
+        { "6. Spatial Audio 3D (Woodworth FIR 256 taps)", 18.2f, 0.34f, juce::String::fromUTF8(u8"ÓPTIMO") },
+        { "7. Peak Limiter (-0.5 dBFS Ceiling)", 7.1f, 0.13f, juce::String::fromUTF8(u8"ÓPTIMO") }
     };
 }
 
@@ -63,12 +63,12 @@ void BenchmarkPanel::paint(juce::Graphics& g)
     g.setColour(DashLookAndFeel::kBgCardElevated);
     g.fillRoundedRectangle((float)x, (float)startY, (float)w, 28.0f, 4.0f);
 
-    g.setFont(juce::FontOptions(11.5f).withStyle("Bold"));
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f).withStyle("Bold")));
     g.setColour(DashLookAndFeel::kTextMuted);
-    g.drawText("ETAPA DSP DEL AUDIOGRAPH", x + 12, startY, 320, 28, juce::Justification::centredLeft);
-    g.drawText("TIEMPO (µs / bloque)", x + 350, startY, 150, 28, juce::Justification::centredLeft);
-    g.drawText("CARGA DE HILO", x + 520, startY, 120, 28, juce::Justification::centredLeft);
-    g.drawText("ESTADO", x + 660, startY, 100, 28, juce::Justification::centredLeft);
+    g.drawText(juce::String::fromUTF8(u8"ETAPA DSP DEL AUDIOGRAPH"), x + 12, startY, 320, 28, juce::Justification::centredLeft);
+    g.drawText(juce::String::fromUTF8(u8"TIEMPO (µs / bloque)"), x + 350, startY, 150, 28, juce::Justification::centredLeft);
+    g.drawText(juce::String::fromUTF8(u8"CARGA DE HILO"), x + 520, startY, 120, 28, juce::Justification::centredLeft);
+    g.drawText(juce::String::fromUTF8(u8"ESTADO"), x + 660, startY, 100, 28, juce::Justification::centredLeft);
 
     // Filas de métricas
     int curY = startY + 34;
@@ -82,11 +82,11 @@ void BenchmarkPanel::paint(juce::Graphics& g)
         }
 
         g.setColour(DashLookAndFeel::kTextMain);
-        g.setFont(juce::FontOptions(12.0f));
+        g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
         g.drawText(m.stageName, x + 12, curY, 320, rowH, juce::Justification::centredLeft);
 
         g.setColour(DashLookAndFeel::kAccentCyan);
-        g.drawText(juce::String(m.executionTimeUs, 1) + " µs", x + 350, curY, 150, rowH, juce::Justification::centredLeft);
+        g.drawText(juce::String(m.executionTimeUs, 1) + juce::String::fromUTF8(u8" µs"), x + 350, curY, 150, rowH, juce::Justification::centredLeft);
 
         g.setColour(DashLookAndFeel::kTextMain);
         g.drawText(juce::String(m.cpuPercent, 2) + " %", x + 520, curY, 120, rowH, juce::Justification::centredLeft);
@@ -139,7 +139,7 @@ void BenchmarkPanel::runBenchmarkTest()
         float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
         metrics_[0].executionTimeUs = std::max(0.5f, us);
         metrics_[0].cpuPercent = (metrics_[0].executionTimeUs / kBudgetUs) * 100.0f;
-        metrics_[0].status = "ÓPTIMO";
+        metrics_[0].status = juce::String::fromUTF8(u8"ÓPTIMO");
     }
 
     // 2. Dynamics Processor
@@ -155,7 +155,7 @@ void BenchmarkPanel::runBenchmarkTest()
         float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
         metrics_[1].executionTimeUs = std::max(1.0f, us);
         metrics_[1].cpuPercent = (metrics_[1].executionTimeUs / kBudgetUs) * 100.0f;
-        metrics_[1].status = (metrics_[1].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+        metrics_[1].status = (metrics_[1].cpuPercent < 5.0f) ? juce::String::fromUTF8(u8"ÓPTIMO") : juce::String::fromUTF8(u8"ACEPTABLE");
     }
 
     // 3. Transient Suppressor
@@ -171,7 +171,7 @@ void BenchmarkPanel::runBenchmarkTest()
         float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
         metrics_[2].executionTimeUs = std::max(1.0f, us);
         metrics_[2].cpuPercent = (metrics_[2].executionTimeUs / kBudgetUs) * 100.0f;
-        metrics_[2].status = (metrics_[2].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+        metrics_[2].status = (metrics_[2].cpuPercent < 5.0f) ? juce::String::fromUTF8(u8"ÓPTIMO") : juce::String::fromUTF8(u8"ACEPTABLE");
     }
 
     // 4. Ambience Guard
@@ -187,7 +187,7 @@ void BenchmarkPanel::runBenchmarkTest()
         float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
         metrics_[3].executionTimeUs = std::max(1.0f, us);
         metrics_[3].cpuPercent = (metrics_[3].executionTimeUs / kBudgetUs) * 100.0f;
-        metrics_[3].status = (metrics_[3].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+        metrics_[3].status = (metrics_[3].cpuPercent < 5.0f) ? juce::String::fromUTF8(u8"ÓPTIMO") : juce::String::fromUTF8(u8"ACEPTABLE");
     }
 
     // 5. Equalizer Processor
@@ -203,7 +203,7 @@ void BenchmarkPanel::runBenchmarkTest()
         float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
         metrics_[4].executionTimeUs = std::max(1.0f, us);
         metrics_[4].cpuPercent = (metrics_[4].executionTimeUs / kBudgetUs) * 100.0f;
-        metrics_[4].status = (metrics_[4].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+        metrics_[4].status = (metrics_[4].cpuPercent < 5.0f) ? juce::String::fromUTF8(u8"ÓPTIMO") : juce::String::fromUTF8(u8"ACEPTABLE");
     }
 
     // 6. Spatial Audio 3D
@@ -222,7 +222,7 @@ void BenchmarkPanel::runBenchmarkTest()
         float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
         metrics_[5].executionTimeUs = std::max(1.0f, us);
         metrics_[5].cpuPercent = (metrics_[5].executionTimeUs / kBudgetUs) * 100.0f;
-        metrics_[5].status = (metrics_[5].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+        metrics_[5].status = (metrics_[5].cpuPercent < 5.0f) ? juce::String::fromUTF8(u8"ÓPTIMO") : juce::String::fromUTF8(u8"ACEPTABLE");
     }
 
     // 7. Peak Limiter
@@ -238,7 +238,7 @@ void BenchmarkPanel::runBenchmarkTest()
         float us = std::chrono::duration<float, std::micro>(end - start).count() / static_cast<float>(kIterations);
         metrics_[6].executionTimeUs = std::max(0.5f, us);
         metrics_[6].cpuPercent = (metrics_[6].executionTimeUs / kBudgetUs) * 100.0f;
-        metrics_[6].status = (metrics_[6].cpuPercent < 5.0f) ? "ÓPTIMO" : "ACEPTABLE";
+        metrics_[6].status = (metrics_[6].cpuPercent < 5.0f) ? juce::String::fromUTF8(u8"ÓPTIMO") : juce::String::fromUTF8(u8"ACEPTABLE");
     }
 
     float totalUs = 0.0f;
@@ -250,8 +250,8 @@ void BenchmarkPanel::runBenchmarkTest()
     }
 
     summaryBudgetLabel_.setText(
-        "Presupuesto de Búfer: 5333 µs (5.33 ms a 48 kHz / 256 samples) | Consumo Total: ~"
-        + juce::String(totalUs, 1) + " µs (" + juce::String(totalCpu, 2) + "% de CPU)",
+        juce::String::fromUTF8(u8"Presupuesto de Búfer: 5333 µs (5.33 ms a 48 kHz / 256 samples) | Consumo Total: ~")
+        + juce::String(totalUs, 1) + juce::String::fromUTF8(u8" µs (") + juce::String(totalCpu, 2) + "% de CPU)",
         juce::dontSendNotification);
 
     repaint();

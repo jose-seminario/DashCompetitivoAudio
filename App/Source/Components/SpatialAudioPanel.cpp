@@ -8,8 +8,8 @@ namespace dash::ui
 
 SpatialAudioPanel::SpatialAudioPanel()
 {
-    titleLabel_.setText("MOTOR ESPACIAL 3D, HRTF Y RENDERIZADOR BINAURAL (HASTA 16 CANALES)", juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
+    titleLabel_.setText(juce::String::fromUTF8(u8"MOTOR ESPACIAL 3D, HRTF Y RENDERIZADOR BINAURAL (HASTA 16 CANALES)"), juce::dontSendNotification);
+    titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(titleLabel_);
 
@@ -22,22 +22,23 @@ SpatialAudioPanel::SpatialAudioPanel()
     };
     addAndMakeVisible(bypassToggle_);
 
-    hrtfModelLabel_.setText("Modelo de Síntesis HRTF / HRIR:", juce::dontSendNotification);
-    hrtfModelLabel_.setFont(juce::FontOptions(12.5f));
+    hrtfModelLabel_.setText(juce::String::fromUTF8(u8"Modelo de Síntesis HRTF / HRIR:"), juce::dontSendNotification);
+    hrtfModelLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(hrtfModelLabel_);
 
-    hrtfModelSelector_.addItem("Difracción Analítica Esférica Woodworth (Cero Latencia)", 1);
-    hrtfModelSelector_.addItem("Adaptador de Respuestas al Impulso HeSuVi (WAV Multicanal)", 2);
+    hrtfModelSelector_.addItem(juce::String::fromUTF8(u8"Difracción Analítica Esférica Woodworth (Cero Latencia)"), 1);
+    hrtfModelSelector_.addItem(juce::String::fromUTF8(u8"Adaptador de Respuestas al Impulso HeSuVi (WAV Multicanal)"), 2);
     hrtfModelSelector_.setSelectedId(1, juce::dontSendNotification);
     addAndMakeVisible(hrtfModelSelector_);
 
-    initKnob(widthSlider_, widthLabel_, "Anchura de Escenario", 0.5, 2.0, 1.0, "x");
-    initKnob(distanceSlider_, distanceLabel_, "Distancia Acústica", 0.5, 4.0, 1.4, " m");
-    initKnob(frontBackSlider_, frontBackLabel_, "Separación Frente/Atrás", 0.0, 1.5, 1.0, "x");
-    initKnob(elevationSlider_, elevationLabel_, "Énfasis Altura (Techo)", -6.0, 6.0, 0.0, " dB");
+    // Ampliación del rango hasta 3.0x para escenario y separación frente/atrás
+    initKnob(widthSlider_, widthLabel_, juce::String::fromUTF8(u8"Anchura de Escenario"), 0.5, 3.0, 1.0, "x");
+    initKnob(distanceSlider_, distanceLabel_, juce::String::fromUTF8(u8"Distancia Acústica"), 0.5, 4.0, 1.4, " m");
+    initKnob(frontBackSlider_, frontBackLabel_, juce::String::fromUTF8(u8"Separación Frente/Atrás"), 0.0, 3.0, 1.0, "x");
+    initKnob(elevationSlider_, elevationLabel_, juce::String::fromUTF8(u8"Énfasis Altura (Techo)"), -6.0, 6.0, 0.0, " dB");
 
-    lfeBypassNoteLabel_.setText("Arquitectura de Fase: El canal LFE (subgraves < 120 Hz) elude automáticamente la convolución HRTF para erradicar cancelaciones destructivas (comb-filtering) en auriculares.", juce::dontSendNotification);
-    lfeBypassNoteLabel_.setFont(juce::FontOptions(11.5f));
+    lfeBypassNoteLabel_.setText(juce::String::fromUTF8(u8"Arquitectura de Fase: El canal LFE (subgraves < 120 Hz) elude automáticamente la convolución HRTF para erradicar cancelaciones destructivas (comb-filtering) en auriculares."), juce::dontSendNotification);
+    lfeBypassNoteLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     lfeBypassNoteLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(lfeBypassNoteLabel_);
 }
@@ -60,7 +61,7 @@ void SpatialAudioPanel::initKnob(
     addAndMakeVisible(s);
 
     l.setText(text, juce::dontSendNotification);
-    l.setFont(juce::FontOptions(11.0f));
+    l.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     l.setJustificationType(juce::Justification::centred);
     l.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(l);
@@ -87,8 +88,8 @@ void SpatialAudioPanel::paint(juce::Graphics& g)
     g.drawRoundedRectangle(rightCard, 8.0f, 1.2f);
 
     g.setColour(DashLookAndFeel::kTextMain);
-    g.setFont(juce::FontOptions(12.5f).withStyle("Bold"));
-    g.drawText("CAMPO ACÚSTICO 3D (DISPOSICIÓN 7.1 EN AURICULARES)", 506, 56, (int)rightCard.getWidth() - 32, 20, juce::Justification::centredLeft);
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f).withStyle("Bold")));
+    g.drawText(juce::String::fromUTF8(u8"CAMPO ACÚSTICO 3D (DISPOSICIÓN 7.1 EN AURICULARES)"), 506, 56, (int)rightCard.getWidth() - 32, 20, juce::Justification::centredLeft);
 
     drawTopDownSpeakerLayout(g, rightCard.reduced(24.0f).withTrimmedTop(36.0f));
 }
@@ -130,7 +131,7 @@ void SpatialAudioPanel::drawTopDownSpeakerLayout(juce::Graphics& g, const juce::
         { "LFE",  0.0f, true  }
     }};
 
-    g.setFont(juce::FontOptions(10.0f).withStyle("Bold"));
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(10.0f).withStyle("Bold")));
     for (const auto& spk : spks)
     {
         float r = radius;

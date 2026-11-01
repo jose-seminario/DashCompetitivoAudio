@@ -13,20 +13,20 @@ namespace dash::ui
 
 SystemStatusPanel::SystemStatusPanel()
 {
-    titleLabel_.setText("ESTADO DEL SISTEMA, PRIVILEGIOS Y DEPENDENCIAS WINDOWS", juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
+    titleLabel_.setText(juce::String::fromUTF8(u8"ESTADO DEL SISTEMA, PRIVILEGIOS Y DEPENDENCIAS WINDOWS"), juce::dontSendNotification);
+    titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(titleLabel_);
 
-    overallStatusLabel_.setFont(juce::FontOptions(12.5f).withStyle("Bold"));
+    overallStatusLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f).withStyle("Bold")));
     addAndMakeVisible(overallStatusLabel_);
 
-    recheckBtn_.setButtonText("VOLVER A COMPROBAR");
+    recheckBtn_.setButtonText(juce::String::fromUTF8(u8"VOLVER A COMPROBAR"));
     recheckBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
     recheckBtn_.onClick = [this] { refreshStatus(); };
     addAndMakeVisible(recheckBtn_);
 
-    runAsAdminBtn_.setButtonText(juce::String::fromUTF8("ELEVACI\xc3\x93N UAC (ADMINISTRADOR)"));
+    runAsAdminBtn_.setButtonText(juce::String::fromUTF8(u8"ELEVACIÓN UAC (ADMINISTRADOR)"));
     runAsAdminBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kWarningAmber);
     runAsAdminBtn_.onClick = [] {
 #ifdef _WIN32
@@ -41,7 +41,7 @@ SystemStatusPanel::SystemStatusPanel()
     detailsEditor_.setColour(juce::TextEditor::backgroundColourId, DashLookAndFeel::kBgCardElevated);
     detailsEditor_.setColour(juce::TextEditor::textColourId, DashLookAndFeel::kTextMain);
     detailsEditor_.setColour(juce::TextEditor::outlineColourId, DashLookAndFeel::kBorderSubtle);
-    detailsEditor_.setFont(juce::FontOptions(12.0f));
+    detailsEditor_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     addAndMakeVisible(detailsEditor_);
 
     refreshStatus();
@@ -81,38 +81,38 @@ void SystemStatusPanel::refreshStatus()
         && std::filesystem::exists(status_.apoDllPath.parent_path() / "VSTPlugins", ec);
 
     juce::String report;
-    report << "=== REPORTE DE DEPENDENCIAS DEL SISTEMA ===\n\n";
+    report << juce::String::fromUTF8(u8"=== REPORTE DE DEPENDENCIAS DEL SISTEMA ===\n\n");
 
-    report << "1. Equalizer APO Instalado: " << (status_.hasEqualizerApo ? "[OK] Detectado" : "[FALTA] No encontrado") << "\n";
+    report << juce::String::fromUTF8(u8"1. Equalizer APO Instalado: ") << (status_.hasEqualizerApo ? juce::String::fromUTF8(u8"[OK] Detectado") : juce::String::fromUTF8(u8"[FALTA] No encontrado")) << "\n";
     if (status_.hasEqualizerApo)
-        report << "   Ruta DLL: " << juce::String(status_.apoDllPath.string()) << "\n\n";
+        report << juce::String::fromUTF8(u8"   Ruta DLL: ") << juce::String(status_.apoDllPath.string()) << "\n\n";
     else
         report << "\n";
 
-    report << "2. Directorio de Plugins VST (EqualizerAPO\\VSTPlugins): "
-           << (hasVstDir ? "[OK] Presente" : "[ADVERTENCIA] Requiere despliegue") << "\n\n";
+    report << juce::String::fromUTF8(u8"2. Directorio de Plugins VST (EqualizerAPO\\VSTPlugins): ")
+           << (hasVstDir ? juce::String::fromUTF8(u8"[OK] Presente") : juce::String::fromUTF8(u8"[ADVERTENCIA] Requiere despliegue")) << "\n\n";
 
-    report << "3. Motor Binaural HeSuVi: "
-           << (status_.hasHeSuVi ? "[OK] Detectado" : "[OPCIONAL] No detectado") << "\n";
+    report << juce::String::fromUTF8(u8"3. Motor Binaural HeSuVi: ")
+           << (status_.hasHeSuVi ? juce::String::fromUTF8(u8"[OK] Detectado") : juce::String::fromUTF8(u8"[OPCIONAL] No detectado")) << "\n";
     if (status_.hasHeSuVi)
-        report << "   Ruta HeSuVi: " << juce::String(status_.hesuviDirPath.string()) << "\n\n";
+        report << juce::String::fromUTF8(u8"   Ruta HeSuVi: ") << juce::String(status_.hesuviDirPath.string()) << "\n\n";
     else
         report << "\n";
 
-    report << "4. Cable de Audio Virtual (VB-Audio / Hi-Fi): "
-           << (status_.hasVbAudioCable ? "[OK] Detectado" : "[OPCIONAL] No detectado (usando modo directo)") << "\n";
+    report << juce::String::fromUTF8(u8"4. Cable de Audio Virtual (VB-Audio / Hi-Fi): ")
+           << (status_.hasVbAudioCable ? juce::String::fromUTF8(u8"[OK] Detectado") : juce::String::fromUTF8(u8"[OPCIONAL] No detectado (usando modo directo)")) << "\n";
     if (status_.hasVbAudioCable && !status_.detectedCableName.empty())
-        report << "   Dispositivo: " << juce::String(status_.detectedCableName.c_str()) << "\n\n";
+        report << juce::String::fromUTF8(u8"   Dispositivo: ") << juce::String(status_.detectedCableName.c_str()) << "\n\n";
     else
         report << "\n";
 
-    report << "5. Privilegios de Administrador del Proceso: "
-           << (status_.isRunningAsAdmin ? "[OK] Proceso elevado (acceso de escritura en Program Files)" : "[INFO] Usuario estándar (requiere elevación UAC para config.txt)") << "\n";
+    report << juce::String::fromUTF8(u8"5. Privilegios de Administrador del Proceso: ")
+           << (status_.isRunningAsAdmin ? juce::String::fromUTF8(u8"[OK] Proceso elevado (acceso de escritura en Program Files)") : juce::String::fromUTF8(u8"[INFO] Usuario estándar (requiere elevación UAC para config.txt)")) << "\n";
 
     detailsEditor_.setText(report);
 
     const bool allOk = status_.hasEqualizerApo && status_.isRunningAsAdmin;
-    overallStatusLabel_.setText(allOk ? juce::String::fromUTF8("ESTADO GENERAL: LISTO PARA PROCESAMIENTO") : juce::String::fromUTF8("ESTADO GENERAL: ACCI\xc3\x93N REQUERIDA"), juce::dontSendNotification);
+    overallStatusLabel_.setText(allOk ? juce::String::fromUTF8(u8"ESTADO GENERAL: LISTO PARA PROCESAMIENTO") : juce::String::fromUTF8(u8"ESTADO GENERAL: ACCIÓN REQUERIDA"), juce::dontSendNotification);
     overallStatusLabel_.setColour(juce::Label::textColourId, allOk ? DashLookAndFeel::kSuccessEmerald : DashLookAndFeel::kWarningAmber);
 
     runAsAdminBtn_.setVisible(!status_.isRunningAsAdmin);

@@ -10,7 +10,7 @@ namespace dash::ui
  * Panel de Dinámica y Compresión Híbrida ITU-R BS.1770-4 (DynamicsPanel).
  *
  * Ofrece control exhaustivo sobre Target LUFS, ratio, envolventes de ataque/relajación,
- * compresión ascendente/descendente y curva de transferencia estática.
+ * compresión ascendente/descendente, ganancia de maquillaje (Makeup Gain) y curva de transferencia estática.
  */
 class DynamicsPanel final : public juce::Component
 {
@@ -52,6 +52,9 @@ private:
 
     juce::Slider downwardSlider_;
     juce::Label  downwardLabel_;
+
+    juce::Slider makeupGainSlider_;
+    juce::Label  makeupGainLabel_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DynamicsPanel)
 };

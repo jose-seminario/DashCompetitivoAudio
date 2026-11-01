@@ -6,23 +6,23 @@ namespace dash::ui
 
 AudioEnginePanel::AudioEnginePanel()
 {
-    titleLabel_.setText("MOTOR DE AUDIO Y DISPOSITIVOS DE REPRODUCCIÓN (WASAPI / APO)", juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
+    titleLabel_.setText(juce::String::fromUTF8(u8"MOTOR DE AUDIO Y DISPOSITIVOS DE REPRODUCCIÓN (WASAPI / APO)"), juce::dontSendNotification);
+    titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(titleLabel_);
 
-    deviceSelectLabel_.setText("Dispositivo de Reproducción (Endpoint):", juce::dontSendNotification);
-    deviceSelectLabel_.setFont(juce::FontOptions(12.5f));
+    deviceSelectLabel_.setText(juce::String::fromUTF8(u8"Dispositivo de Reproducción (Endpoint):"), juce::dontSendNotification);
+    deviceSelectLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(deviceSelectLabel_);
 
     addAndMakeVisible(deviceSelector_);
 
-    refreshDevicesBtn_.setButtonText("ACTUALIZAR DISPOSITIVOS");
+    refreshDevicesBtn_.setButtonText(juce::String::fromUTF8(u8"ACTUALIZAR DISPOSITIVOS"));
     refreshDevicesBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kBgCardElevated);
     refreshDevicesBtn_.onClick = [this] { refreshDevices(); };
     addAndMakeVisible(refreshDevicesBtn_);
 
-    setAsDefaultBtn_.setButtonText("ESTABLECER COMO PREDETERMINADO EN WINDOWS");
+    setAsDefaultBtn_.setButtonText(juce::String::fromUTF8(u8"ESTABLECER COMO PREDETERMINADO EN WINDOWS"));
     setAsDefaultBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
     setAsDefaultBtn_.onClick = [this] {
         const int idx = deviceSelector_.getSelectedId() - 1;
@@ -37,38 +37,38 @@ AudioEnginePanel::AudioEnginePanel()
     addAndMakeVisible(setAsDefaultBtn_);
 
     // Sample Rate
-    sampleRateLabel_.setText("Frecuencia de Muestreo:", juce::dontSendNotification);
-    sampleRateLabel_.setFont(juce::FontOptions(12.5f));
+    sampleRateLabel_.setText(juce::String::fromUTF8(u8"Frecuencia de Muestreo:"), juce::dontSendNotification);
+    sampleRateLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(sampleRateLabel_);
 
-    sampleRateSelector_.addItem("44100 Hz (Estándar CD)", 1);
-    sampleRateSelector_.addItem("48000 Hz (Recomendado Juegos)", 2);
-    sampleRateSelector_.addItem("96000 Hz (Alta Fidelidad)", 3);
+    sampleRateSelector_.addItem(juce::String::fromUTF8(u8"44100 Hz (Estándar CD)"), 1);
+    sampleRateSelector_.addItem(juce::String::fromUTF8(u8"48000 Hz (Recomendado Juegos)"), 2);
+    sampleRateSelector_.addItem(juce::String::fromUTF8(u8"96000 Hz (Alta Fidelidad)"), 3);
     sampleRateSelector_.setSelectedId(2, juce::dontSendNotification);
     addAndMakeVisible(sampleRateSelector_);
 
     // Buffer Size
-    bufferSizeLabel_.setText("Tamaño de Búfer (Latencia):", juce::dontSendNotification);
-    bufferSizeLabel_.setFont(juce::FontOptions(12.5f));
+    bufferSizeLabel_.setText(juce::String::fromUTF8(u8"Tamaño de Búfer (Latencia):"), juce::dontSendNotification);
+    bufferSizeLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(bufferSizeLabel_);
 
-    bufferSizeSelector_.addItem("128 muestras (2.6 ms - Baja Latencia Extrema)", 1);
-    bufferSizeSelector_.addItem("256 muestras (5.3 ms - Óptimo Competitivo)", 2);
-    bufferSizeSelector_.addItem("512 muestras (10.6 ms - Balanceado)", 3);
-    bufferSizeSelector_.addItem("1024 muestras (21.3 ms - Modo Seguro)", 4);
+    bufferSizeSelector_.addItem(juce::String::fromUTF8(u8"128 muestras (2.6 ms - Baja Latencia Extrema)"), 1);
+    bufferSizeSelector_.addItem(juce::String::fromUTF8(u8"256 muestras (5.3 ms - Óptimo Competitivo)"), 2);
+    bufferSizeSelector_.addItem(juce::String::fromUTF8(u8"512 muestras (10.6 ms - Balanceado)"), 3);
+    bufferSizeSelector_.addItem(juce::String::fromUTF8(u8"1024 muestras (21.3 ms - Modo Seguro)"), 4);
     bufferSizeSelector_.setSelectedId(2, juce::dontSendNotification);
     addAndMakeVisible(bufferSizeSelector_);
 
     // Channel Layout
-    layoutLabel_.setText("Layout de Entrada del Motor:", juce::dontSendNotification);
-    layoutLabel_.setFont(juce::FontOptions(12.5f));
+    layoutLabel_.setText(juce::String::fromUTF8(u8"Layout de Entrada del Motor:"), juce::dontSendNotification);
+    layoutLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(layoutLabel_);
 
-    layoutSelector_.addItem("2.0 Estéreo (2 canales)", 1);
-    layoutSelector_.addItem("5.1 Surround (6 canales)", 2);
-    layoutSelector_.addItem("7.1 Surround (8 canales - Warzone)", 3);
-    layoutSelector_.addItem("7.1.4 Inmersivo Atmos (12 canales)", 4);
-    layoutSelector_.addItem("9.1.6 Espacial Completo (16 canales)", 5);
+    layoutSelector_.addItem(juce::String::fromUTF8(u8"2.0 Estéreo (2 canales)"), 1);
+    layoutSelector_.addItem(juce::String::fromUTF8(u8"5.1 Surround (6 canales)"), 2);
+    layoutSelector_.addItem(juce::String::fromUTF8(u8"7.1 Surround (8 canales - Warzone)"), 3);
+    layoutSelector_.addItem(juce::String::fromUTF8(u8"7.1.4 Inmersivo Atmos (12 canales)"), 4);
+    layoutSelector_.addItem(juce::String::fromUTF8(u8"9.1.6 Espacial Completo (16 canales)"), 5);
     layoutSelector_.setSelectedId(3, juce::dontSendNotification);
     addAndMakeVisible(layoutSelector_);
 
@@ -113,8 +113,8 @@ AudioEnginePanel::AudioEnginePanel()
     bufferSizeSelector_.onChange = notifyFormatConfig;
     layoutSelector_.onChange = notifyFormatConfig;
 
-    infoTextLabel_.setText("Nota: El motor DashCompetitivoAudio procesa hasta 16 canales nativos en tiempo real con SIMD AVX2. Para Call of Duty: Warzone, se recomienda configurar Windows en 7.1 Surround con 48 kHz y 256 muestras de búfer.", juce::dontSendNotification);
-    infoTextLabel_.setFont(juce::FontOptions(11.5f));
+    infoTextLabel_.setText(juce::String::fromUTF8(u8"Nota: El motor DashCompetitivoAudio procesa hasta 16 canales nativos en tiempo real con SIMD AVX2. Para Call of Duty: Warzone, se recomienda configurar Windows en 7.1 Surround con 48 kHz y 256 muestras de búfer."), juce::dontSendNotification);
+    infoTextLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     infoTextLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(infoTextLabel_);
 
@@ -171,7 +171,7 @@ void AudioEnginePanel::refreshDevices()
         juce::String name(endpoints_[i].friendlyName.c_str());
         if (endpoints_[i].isDefaultConsole)
         {
-            name += " [PREDETERMINADO CONSOLA/JUEGOS]";
+            name += juce::String::fromUTF8(u8" [PREDETERMINADO CONSOLA/JUEGOS]");
             defaultIndex = static_cast<int>(i) + 1;
         }
         deviceSelector_.addItem(name, static_cast<int>(i) + 1);

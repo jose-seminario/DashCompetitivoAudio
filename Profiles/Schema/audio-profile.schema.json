@@ -54,7 +54,7 @@
         "variant": { "type": "string", "maxLength": 64 },
         "calibrationStatus": {
           "type": "string",
-          "enum": ["verified", "uncalibrated_pending_verified_measurement", "uncalibrated", "community", "experimental"]
+          "enum": ["verified", "uncalibrated_pending_verified_measurement", "uncalibrated", "community", "experimental", "CALIBRATED_AUTOEQ"]
         },
         "targetCurve": { "type": "string", "maxLength": 64 },
         "measurementSource": { "type": "string", "maxLength": 128 },
@@ -84,6 +84,7 @@
             "releaseMs": { "type": "number", "minimum": 5.0, "maximum": 5000.0 },
             "upwardAmount": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
             "downwardAmount": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
+            "makeupGainDb": { "type": "number", "minimum": -12.0, "maximum": 12.0 },
             "bypass": { "type": "boolean" }
           }
         },
@@ -153,7 +154,7 @@
         "enabled": { "type": "boolean" },
         "soundstageWidth": { "type": "number", "minimum": 0.2, "maximum": 3.0 },
         "apparentDistanceM": { "type": "number", "minimum": 0.2, "maximum": 10.0 },
-        "frontBackSeparation": { "type": "number", "minimum": 0.0, "maximum": 2.0 },
+        "frontBackSeparation": { "type": "number", "minimum": 0.0, "maximum": 3.0 },
         "elevationEmphasis": { "type": "number", "minimum": -6.0, "maximum": 6.0 },
         "bypass": { "type": "boolean" }
       }

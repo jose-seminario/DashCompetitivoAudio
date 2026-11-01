@@ -123,8 +123,8 @@ namespace
 
 EqualizerPanel::EqualizerPanel()
 {
-    titleLabel_.setText("ECUALIZADOR ACÚSTICO (31 BANDAS ISO + PARAMÉTRICO DE 10 BANDAS)", juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
+    titleLabel_.setText(juce::String::fromUTF8(u8"ECUALIZADOR ACÚSTICO (31 BANDAS ISO + PARAMÉTRICO DE 10 BANDAS)"), juce::dontSendNotification);
+    titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(titleLabel_);
 
@@ -133,7 +133,7 @@ EqualizerPanel::EqualizerPanel()
     bypassToggle_.onClick = [this] { notifyChange(); };
     addAndMakeVisible(bypassToggle_);
 
-    parametricModeToggle_.setButtonText("Activar Modo Paramétrico (PEQ)");
+    parametricModeToggle_.setButtonText(juce::String::fromUTF8(u8"Activar Modo Paramétrico (PEQ)"));
     parametricModeToggle_.setColour(juce::ToggleButton::textColourId, DashLookAndFeel::kAccentCyan);
     parametricModeToggle_.onClick = [this] {
         useParametric_ = parametricModeToggle_.getToggleState();
@@ -142,18 +142,18 @@ EqualizerPanel::EqualizerPanel()
     };
     addAndMakeVisible(parametricModeToggle_);
 
-    // 1. Controles rápidos de pasos y graves
+    // 1. Controles rápidos de pasos y graves (Rango de pasos ampliado a [-6, +12] dB)
     footstepsSlider_.setSliderStyle(juce::Slider::RotaryVerticalDrag);
     footstepsSlider_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 56, 16);
-    footstepsSlider_.setRange(-6.0, 6.0, 0.1);
+    footstepsSlider_.setRange(-6.0, 12.0, 0.1);
     footstepsSlider_.setValue(1.6, juce::dontSendNotification);
     footstepsSlider_.setTextValueSuffix(" dB");
     footstepsSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
     footstepsSlider_.onValueChange = [this] { notifyChange(); };
     addAndMakeVisible(footstepsSlider_);
 
-    footstepsLabel_.setText("Realce Pasos", juce::dontSendNotification);
-    footstepsLabel_.setFont(juce::FontOptions(11.0f));
+    footstepsLabel_.setText(juce::String::fromUTF8(u8"Realce Pasos"), juce::dontSendNotification);
+    footstepsLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     footstepsLabel_.setJustificationType(juce::Justification::centred);
     footstepsLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(footstepsLabel_);
@@ -167,8 +167,8 @@ EqualizerPanel::EqualizerPanel()
     bassSlider_.onValueChange = [this] { notifyChange(); };
     addAndMakeVisible(bassSlider_);
 
-    bassLabel_.setText("Control Graves", juce::dontSendNotification);
-    bassLabel_.setFont(juce::FontOptions(11.0f));
+    bassLabel_.setText(juce::String::fromUTF8(u8"Control Graves"), juce::dontSendNotification);
+    bassLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     bassLabel_.setJustificationType(juce::Justification::centred);
     bassLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(bassLabel_);
@@ -182,19 +182,19 @@ EqualizerPanel::EqualizerPanel()
     preampSlider_.onValueChange = [this] { notifyChange(); };
     addAndMakeVisible(preampSlider_);
 
-    preampLabel_.setText("Preamplificador", juce::dontSendNotification);
-    preampLabel_.setFont(juce::FontOptions(11.0f));
+    preampLabel_.setText(juce::String::fromUTF8(u8"Preamplificador"), juce::dontSendNotification);
+    preampLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     preampLabel_.setJustificationType(juce::Justification::centred);
     preampLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(preampLabel_);
 
     // 2. Editor de bandas paramétricas
-    bandSelectLabel_.setText("Banda:", juce::dontSendNotification);
-    bandSelectLabel_.setFont(juce::FontOptions(11.5f));
+    bandSelectLabel_.setText(juce::String::fromUTF8(u8"Banda:"), juce::dontSendNotification);
+    bandSelectLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     addAndMakeVisible(bandSelectLabel_);
 
     for (int i = 0; i < 10; ++i)
-        bandSelector_.addItem("Banda " + juce::String(i + 1), i + 1);
+        bandSelector_.addItem(juce::String::fromUTF8(u8"Banda ") + juce::String(i + 1), i + 1);
     bandSelector_.setSelectedId(1, juce::dontSendNotification);
     bandSelector_.onChange = [this] {
         selectedBandIndex_ = bandSelector_.getSelectedId() - 1;
@@ -202,7 +202,7 @@ EqualizerPanel::EqualizerPanel()
     };
     addAndMakeVisible(bandSelector_);
 
-    bandEnableToggle_.setButtonText("Habilitada");
+    bandEnableToggle_.setButtonText(juce::String::fromUTF8(u8"Habilitada"));
     bandEnableToggle_.setToggleState(true, juce::dontSendNotification);
     bandEnableToggle_.onClick = [this] {
         if (selectedBandIndex_ >= 0 && selectedBandIndex_ < 10)
@@ -213,16 +213,16 @@ EqualizerPanel::EqualizerPanel()
     };
     addAndMakeVisible(bandEnableToggle_);
 
-    filterTypeLabel_.setText("Tipo:", juce::dontSendNotification);
-    filterTypeLabel_.setFont(juce::FontOptions(11.5f));
+    filterTypeLabel_.setText(juce::String::fromUTF8(u8"Tipo:"), juce::dontSendNotification);
+    filterTypeLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     addAndMakeVisible(filterTypeLabel_);
 
-    filterTypeSelector_.addItem("Campana (Peaking)", 1);
-    filterTypeSelector_.addItem("Estante Graves (Low Shelf)", 2);
-    filterTypeSelector_.addItem("Estante Agudos (High Shelf)", 3);
-    filterTypeSelector_.addItem("Pasa-Altos (High Pass)", 4);
-    filterTypeSelector_.addItem("Pasa-Bajos (Low Pass)", 5);
-    filterTypeSelector_.addItem("Trampa (Notch)", 6);
+    filterTypeSelector_.addItem(juce::String::fromUTF8(u8"Campana (Peaking)"), 1);
+    filterTypeSelector_.addItem(juce::String::fromUTF8(u8"Estante Graves (Low Shelf)"), 2);
+    filterTypeSelector_.addItem(juce::String::fromUTF8(u8"Estante Agudos (High Shelf)"), 3);
+    filterTypeSelector_.addItem(juce::String::fromUTF8(u8"Pasa-Altos (High Pass)"), 4);
+    filterTypeSelector_.addItem(juce::String::fromUTF8(u8"Pasa-Bajos (Low Pass)"), 5);
+    filterTypeSelector_.addItem(juce::String::fromUTF8(u8"Trampa (Notch)"), 6);
     filterTypeSelector_.setSelectedId(1, juce::dontSendNotification);
     filterTypeSelector_.onChange = [this] {
         if (selectedBandIndex_ >= 0 && selectedBandIndex_ < 10)
@@ -260,8 +260,8 @@ EqualizerPanel::EqualizerPanel()
     };
     addAndMakeVisible(freqSlider_);
 
-    freqLabel_.setText("Frecuencia", juce::dontSendNotification);
-    freqLabel_.setFont(juce::FontOptions(11.0f));
+    freqLabel_.setText(juce::String::fromUTF8(u8"Frecuencia"), juce::dontSendNotification);
+    freqLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     freqLabel_.setJustificationType(juce::Justification::centred);
     freqLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(freqLabel_);
@@ -282,8 +282,8 @@ EqualizerPanel::EqualizerPanel()
     };
     addAndMakeVisible(gainSlider_);
 
-    gainLabel_.setText("Ganancia", juce::dontSendNotification);
-    gainLabel_.setFont(juce::FontOptions(11.0f));
+    gainLabel_.setText(juce::String::fromUTF8(u8"Ganancia"), juce::dontSendNotification);
+    gainLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     gainLabel_.setJustificationType(juce::Justification::centred);
     gainLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(gainLabel_);
@@ -303,8 +303,8 @@ EqualizerPanel::EqualizerPanel()
     };
     addAndMakeVisible(qSlider_);
 
-    qLabel_.setText("Factor Q", juce::dontSendNotification);
-    qLabel_.setFont(juce::FontOptions(11.0f));
+    qLabel_.setText(juce::String::fromUTF8(u8"Factor Q"), juce::dontSendNotification);
+    qLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     qLabel_.setJustificationType(juce::Justification::centred);
     qLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(qLabel_);
@@ -371,7 +371,7 @@ void EqualizerPanel::drawFrequencyResponseCurve(juce::Graphics& g, const juce::R
     const float minLog = std::log10(20.0f);
     const float maxLog = std::log10(20000.0f);
 
-    g.setFont(juce::FontOptions(9.5f));
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(9.5f)));
     for (float f : gridFreqs)
     {
         const float normX = (std::log10(f) - minLog) / (maxLog - minLog);

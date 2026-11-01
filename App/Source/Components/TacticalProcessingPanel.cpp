@@ -9,8 +9,8 @@ namespace dash::ui
 TacticalProcessingPanel::TacticalProcessingPanel()
 {
     // 1. Transient Suppressor
-    transientHeader_.setText("1. SUPRESOR DE DISPAROS (GUN CRACK REDUCTION)", juce::dontSendNotification);
-    transientHeader_.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
+    transientHeader_.setText(juce::String::fromUTF8(u8"1. SUPRESOR DE DISPAROS (GUN CRACK REDUCTION)"), juce::dontSendNotification);
+    transientHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle("Bold")));
     transientHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(transientHeader_);
 
@@ -19,14 +19,14 @@ TacticalProcessingPanel::TacticalProcessingPanel()
     transientBypass_.onClick = [this] { notifyChange(); };
     addAndMakeVisible(transientBypass_);
 
-    initKnob(gunReductionSlider_, gunReductionLabel_, "Ganancia Pico (Gun)", 0.0, 1.0, 0.45, "");
+    initKnob(gunReductionSlider_, gunReductionLabel_, juce::String::fromUTF8(u8"Reducción Disparos (Gun)"), 0.0, 1.0, 0.45, "");
     initKnob(gunCrossoverSlider_, gunCrossoverLabel_, "Crossover Linkwitz-Riley", 150.0, 1200.0, 280.0, " Hz");
-    initKnob(gunAttackSlider_, gunAttackLabel_, "Ataque Envolvente", 0.05, 10.0, 0.20, " ms");
-    initKnob(gunReleaseSlider_, gunReleaseLabel_, "Relajación", 5.0, 250.0, 45.0, " ms");
+    initKnob(gunAttackSlider_, gunAttackLabel_, juce::String::fromUTF8(u8"Ataque Envolvente"), 0.05, 10.0, 0.20, " ms");
+    initKnob(gunReleaseSlider_, gunReleaseLabel_, juce::String::fromUTF8(u8"Relajación"), 5.0, 250.0, 45.0, " ms");
 
     // 2. Ambience Guard
-    ambHeader_.setText("2. PROTECTOR AMBIENTAL MULTIBANDA (AMBIENCE GUARD)", juce::dontSendNotification);
-    ambHeader_.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
+    ambHeader_.setText(juce::String::fromUTF8(u8"2. PROTECTOR AMBIENTAL MULTIBANDA (AMBIENCE GUARD)"), juce::dontSendNotification);
+    ambHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle("Bold")));
     ambHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(ambHeader_);
 
@@ -35,13 +35,13 @@ TacticalProcessingPanel::TacticalProcessingPanel()
     ambBypass_.onClick = [this] { notifyChange(); };
     addAndMakeVisible(ambBypass_);
 
-    initKnob(ambReductionSlider_, ambReductionLabel_, "Protección (AmbGuar)", 0.0, 1.0, 1.0, "");
+    initKnob(ambReductionSlider_, ambReductionLabel_, juce::String::fromUTF8(u8"Protección (AmbGuar)"), 0.0, 1.0, 1.0, "");
     initKnob(ambLowCutSlider_, ambLowCutLabel_, "Corte Inferior", 100.0, 600.0, 350.0, " Hz");
     initKnob(ambHighCutSlider_, ambHighCutLabel_, "Corte Superior", 1200.0, 4500.0, 2500.0, " Hz");
 
     // 3. Limiter Processor
-    limHeader_.setText("3. LIMITADOR DE PICO ABSOLUTO (PEAK LIMITER)", juce::dontSendNotification);
-    limHeader_.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
+    limHeader_.setText(juce::String::fromUTF8(u8"3. LIMITADOR DE PICO ABSOLUTO (PEAK LIMITER)"), juce::dontSendNotification);
+    limHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle("Bold")));
     limHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(limHeader_);
 
@@ -50,8 +50,8 @@ TacticalProcessingPanel::TacticalProcessingPanel()
     limBypass_.onClick = [this] { notifyChange(); };
     addAndMakeVisible(limBypass_);
 
-    initKnob(limCeilingSlider_, limCeilingLabel_, "Techo Límite (Ceiling)", -6.0, 0.0, -0.5, " dBFS");
-    initKnob(limReleaseSlider_, limReleaseLabel_, "Tiempo Relajación", 5.0, 200.0, 50.0, " ms");
+    initKnob(limCeilingSlider_, limCeilingLabel_, juce::String::fromUTF8(u8"Techo Límite (Ceiling)"), -6.0, 0.0, -0.5, " dBFS");
+    initKnob(limReleaseSlider_, limReleaseLabel_, juce::String::fromUTF8(u8"Tiempo Relajación"), 5.0, 200.0, 50.0, " ms");
 }
 
 void TacticalProcessingPanel::initKnob(
@@ -68,7 +68,7 @@ void TacticalProcessingPanel::initKnob(
     addAndMakeVisible(s);
 
     l.setText(text, juce::dontSendNotification);
-    l.setFont(juce::FontOptions(11.0f));
+    l.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     l.setJustificationType(juce::Justification::centred);
     l.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(l);

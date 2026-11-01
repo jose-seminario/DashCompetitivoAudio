@@ -31,7 +31,7 @@ struct TransientProcessor::Impl
     float gainRelCoeff = 0.999f;
 
     std::atomic<float> activeSplitHz    { kDefaultSplitHz };
-    float maxAttenuationDb              = -6.93575f;
+    float maxAttenuationDb              = -21.6f;
     std::atomic<float> lastReductionDb  { 0.0f };
 
     std::atomic<bool> pendingUpdate { false };
@@ -43,7 +43,7 @@ struct TransientProcessor::Impl
     float stagingSlowRel          = 0.9995f;
     float stagingGainAtk          = 0.9f;
     float stagingGainRel          = 0.999f;
-    float stagingMaxAttenuationDb = -6.93575f;
+    float stagingMaxAttenuationDb = -21.6f;
     float appliedSplitHz          = -1.0f;
 
     [[nodiscard]] float calcOnePoleCoeff(float timeSeconds) const noexcept
@@ -65,7 +65,7 @@ struct TransientProcessor::Impl
             stagingSlowRel = calcOnePoleCoeff(0.240f);
             stagingGainAtk = calcOnePoleCoeff(juce::jmax(0.0001f, stagingParams.attackMs * 0.001f));
             stagingGainRel = calcOnePoleCoeff(juce::jmax(0.005f, stagingParams.releaseMs * 0.001f));
-            stagingMaxAttenuationDb = juce::jlimit(-30.0f, 0.0f, stagingParams.maxAttenuationDb);
+            stagingMaxAttenuationDb = juce::jlimit(-48.0f, 0.0f, stagingParams.maxAttenuationDb);
         }
         else
         {
@@ -80,8 +80,9 @@ struct TransientProcessor::Impl
             stagingGainAtk = calcOnePoleCoeff(0.00003f);
             stagingGainRel = calcOnePoleCoeff(relSec);
 
-            const float clampedGun = juce::jlimit(0.10f, 1.0f, stagingParams.gun);
-            stagingMaxAttenuationDb = juce::Decibels::gainToDecibels(clampedGun, -24.0f);
+            // Mapeo lineal: gun = 1.0 aplica reducción máxima de hasta -48 dB en el crack
+            const float clampedGun = juce::jlimit(0.0f, 1.0f, stagingParams.gun);
+            stagingMaxAttenuationDb = -48.0f * clampedGun;
         }
     }
 

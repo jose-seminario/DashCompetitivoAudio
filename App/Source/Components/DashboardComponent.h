@@ -35,7 +35,7 @@ public:
     std::function<void()> onDeactivateClicked;
     std::function<void()> onAutoConfigClicked;
     std::function<void(const juce::String& profileId)> onQuickProfileSelected;
-    std::function<void(float gun, float stepsDb, float ambGuard, bool spatialEnabled)> onQuickControlsChanged;
+    std::function<void(float gun, float stepsDb, float ambGuard, float makeupGainDb, bool spatialEnabled)> onQuickControlsChanged;
 
     void setEngineRunning(bool running);
     void setDeviceName(const juce::String& name);
@@ -46,8 +46,8 @@ public:
     void setTutorialVisible(bool visible);
     [[nodiscard]] bool isTutorialVisible() const noexcept { return showTutorial_; }
 
-    void updateQuickControls(float gunReductionDb, float footstepsDb, float ambienceReductionDb, bool spatialEnabled);
-    void getQuickControlsValues(float& outGunReductionDb, float& outFootstepsDb, float& outAmbienceReductionDb, bool& outSpatialEnabled) const;
+    void updateQuickControls(float gunReductionDb, float footstepsDb, float ambienceReductionDb, float makeupGainDb, bool spatialEnabled);
+    void getQuickControlsValues(float& outGunReductionDb, float& outFootstepsDb, float& outAmbienceReductionDb, float& outMakeupGainDb, bool& outSpatialEnabled) const;
 
     void setNodeBypassState(int nodeIndex, bool isBypassed);
 
@@ -99,6 +99,8 @@ private:
     juce::Label  stepsLabel_;
     juce::Slider ambSlider_;
     juce::Label  ambLabel_;
+    juce::Slider makeupSlider_;
+    juce::Label  makeupLabel_;
     juce::ToggleButton spatialToggle_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DashboardComponent)

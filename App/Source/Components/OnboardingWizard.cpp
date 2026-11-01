@@ -8,26 +8,26 @@ OnboardingWizard::OnboardingWizard()
     setOpaque(true);
 
     // 1. Encabezado de Bienvenida
-    badgeLabel_.setText(juce::String::fromUTF8("ASISTENTE DE CONFIGURACI\xc3\x93N INICIAL"), juce::dontSendNotification);
-    badgeLabel_.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
+    badgeLabel_.setText(juce::String::fromUTF8(u8"ASISTENTE DE CONFIGURACIÓN INICIAL"), juce::dontSendNotification);
+    badgeLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f).withStyle("Bold")));
     badgeLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(badgeLabel_);
 
-    titleLabel_.setText(juce::String::fromUTF8("\xc2\xa1""BIENVENIDO A DASH COMPETITIVO AUDIO!"), juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(22.0f).withStyle("Bold"));
+    titleLabel_.setText(juce::String::fromUTF8(u8"¡BIENVENIDO A DASH COMPETITIVO AUDIO!"), juce::dontSendNotification);
+    titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(22.0f).withStyle("Bold")));
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
     addAndMakeVisible(titleLabel_);
 
-    subtitleLabel_.setText(juce::String::fromUTF8("Para obtener audio t\xc3\xa1" "ctico de ultra baja latencia y pasos amplificados en Warzone,\n"
-                                                 "necesitamos verificar que tu sistema cuenta con los componentes necesarios."),
+    subtitleLabel_.setText(juce::String::fromUTF8(u8"Para obtener audio táctico de ultra baja latencia y pasos amplificados en Warzone,\n"
+                                                 u8"necesitamos verificar que tu sistema cuenta con los componentes necesarios."),
                            juce::dontSendNotification);
-    subtitleLabel_.setFont(juce::FontOptions(13.0f));
+    subtitleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f)));
     subtitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(subtitleLabel_);
 
     // 2. Tarjeta y editor de componentes faltantes
-    missingHeaderLabel_.setText(juce::String::fromUTF8("ESTADO DE COMPONENTES DEL SISTEMA"), juce::dontSendNotification);
-    missingHeaderLabel_.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
+    missingHeaderLabel_.setText(juce::String::fromUTF8(u8"ESTADO DE COMPONENTES DEL SISTEMA"), juce::dontSendNotification);
+    missingHeaderLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle("Bold")));
     missingHeaderLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentBlue);
     addAndMakeVisible(missingHeaderLabel_);
 
@@ -36,18 +36,18 @@ OnboardingWizard::OnboardingWizard()
     missingListEditor_.setColour(juce::TextEditor::backgroundColourId, DashLookAndFeel::kBgCardElevated);
     missingListEditor_.setColour(juce::TextEditor::textColourId, DashLookAndFeel::kTextMain);
     missingListEditor_.setColour(juce::TextEditor::outlineColourId, DashLookAndFeel::kBorderSubtle);
-    missingListEditor_.setFont(juce::FontOptions(12.5f));
+    missingListEditor_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(missingListEditor_);
 
     // 3. Advertencia de privilegios de Administrador
-    adminWarningLabel_.setText(juce::String::fromUTF8("\xe2\x9a\xa0\xef\xb8\x8f Se requieren permisos de administrador para instalar los drivers de audio de Windows."),
+    adminWarningLabel_.setText(juce::String::fromUTF8(u8"⚠️ Se requieren permisos de administrador para instalar los drivers de audio de Windows."),
                                juce::dontSendNotification);
-    adminWarningLabel_.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
+    adminWarningLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f).withStyle("Bold")));
     adminWarningLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kWarningAmber);
     addAndMakeVisible(adminWarningLabel_);
 
     // 4. Botón Principal: "Instalar Automáticamente"
-    autoInstallBtn_.setButtonText(juce::String::fromUTF8("INSTALAR AUTOM\xc3\x81" "TICAMENTE"));
+    autoInstallBtn_.setButtonText(juce::String::fromUTF8(u8"INSTALAR AUTOMÁTICAMENTE"));
     autoInstallBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kSuccessEmerald);
     autoInstallBtn_.onClick = [this] {
         if (onAutoInstallRequested)
@@ -56,7 +56,7 @@ OnboardingWizard::OnboardingWizard()
     addAndMakeVisible(autoInstallBtn_);
 
     // 5. Botón Secundario: "Descargar Manualmente (Abrir navegador)"
-    manualDownloadBtn_.setButtonText(juce::String::fromUTF8("Descargar Manualmente (Abrir navegador)"));
+    manualDownloadBtn_.setButtonText(juce::String::fromUTF8(u8"Descargar Manualmente (Abrir navegador)"));
     manualDownloadBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kBgCardElevated);
     manualDownloadBtn_.onClick = [this] {
         if (onManualDownloadRequested)
@@ -65,7 +65,7 @@ OnboardingWizard::OnboardingWizard()
     addAndMakeVisible(manualDownloadBtn_);
 
     // 6. Botones de Soporte: Comprobar y Omitir
-    recheckBtn_.setButtonText(juce::String::fromUTF8("Volver a Comprobar"));
+    recheckBtn_.setButtonText(juce::String::fromUTF8(u8"Volver a Comprobar"));
     recheckBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
     recheckBtn_.onClick = [this] {
         if (onRecheckRequested)
@@ -73,7 +73,7 @@ OnboardingWizard::OnboardingWizard()
     };
     addAndMakeVisible(recheckBtn_);
 
-    skipBtn_.setButtonText(juce::String::fromUTF8("Continuar a la Aplicaci\xc3\xb3n"));
+    skipBtn_.setButtonText(juce::String::fromUTF8(u8"Continuar a la Aplicación"));
     skipBtn_.setColour(juce::TextButton::buttonColourId, juce::Colours::transparentBlack);
     skipBtn_.setColour(juce::TextButton::textColourOffId, DashLookAndFeel::kTextMuted);
     skipBtn_.onClick = [this] {
@@ -83,7 +83,7 @@ OnboardingWizard::OnboardingWizard()
     addAndMakeVisible(skipBtn_);
 
     // 7. Etiqueta de progreso
-    progressLabel_.setFont(juce::FontOptions(12.5f));
+    progressLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     progressLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     progressLabel_.setJustificationType(juce::Justification::centred);
     progressLabel_.setVisible(false);
@@ -169,60 +169,60 @@ void OnboardingWizard::updateStatus(const dash::audio::DependencyStatus& status)
 
     if (!status.hasEqualizerApo)
     {
-        listText << juce::String::fromUTF8("\xe2\x80\xa2 [FALTA] Equalizer APO: No detectado\n"
-                                           "  Motor de procesamiento de efectos de audio para Windows (requerido para plugins t\xc3\xa1" "cticos).\n\n");
+        listText << juce::String::fromUTF8(u8"• [FALTA] Equalizer APO: No detectado\n"
+                                           u8"  Motor de procesamiento de efectos de audio para Windows (requerido para plugins tácticos).\n\n");
         missingCount++;
     }
     else
     {
-        listText << juce::String::fromUTF8("\xe2\x80\xa2 [OK] Equalizer APO: Instalado y detectado correctamente.\n\n");
+        listText << juce::String::fromUTF8(u8"• [OK] Equalizer APO: Instalado y detectado correctamente.\n\n");
     }
 
     if (!status.hasVbAudioCable)
     {
-        listText << juce::String::fromUTF8("\xe2\x80\xa2 [FALTA] VB-Cable: No detectado\n"
-                                           "  Driver de cable de audio virtual para enrutar sonido multicanal con latencia cero.\n\n");
+        listText << juce::String::fromUTF8(u8"• [FALTA] VB-Cable: No detectado\n"
+                                           u8"  Driver de cable de audio virtual para enrutar sonido multicanal con latencia cero.\n\n");
         missingCount++;
     }
     else
     {
-        listText << juce::String::fromUTF8("\xe2\x80\xa2 [OK] VB-Cable: Instalado (")
+        listText << juce::String::fromUTF8(u8"• [OK] VB-Cable: Instalado (")
                  << juce::String(status.detectedCableName.c_str())
-                 << juce::String::fromUTF8(").\n\n");
+                 << juce::String::fromUTF8(u8").\n\n");
     }
 
     if (!status.hasHeSuVi)
     {
-        listText << juce::String::fromUTF8("\xe2\x80\xa2 [OPCIONAL] HeSuVi 7.1 Virtualization: No detectado\n"
-                                           "  (Opcional: Se incluye soporte binaural anal\xc3\xad" "tico 3D nativo en la app).\n");
+        listText << juce::String::fromUTF8(u8"• [OPCIONAL] HeSuVi 7.1 Virtualization: No detectado\n"
+                                           u8"  (Opcional: Se incluye soporte binaural analítico 3D nativo en la app).\n");
     }
     else
     {
-        listText << juce::String::fromUTF8("\xe2\x80\xa2 [OK] HeSuVi 7.1 Virtualization: Presente.\n");
+        listText << juce::String::fromUTF8(u8"• [OK] HeSuVi 7.1 Virtualization: Presente.\n");
     }
 
     missingListEditor_.setText(listText);
 
     if (missingCount == 0)
     {
-        autoInstallBtn_.setButtonText(juce::String::fromUTF8("\xc2\xa1""TODO LISTO! ENTRAR A LA APLICACI\xc3\x93N"));
+        autoInstallBtn_.setButtonText(juce::String::fromUTF8(u8"¡TODO LISTO! ENTRAR A LA APLICACIÓN"));
         autoInstallBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
         autoInstallBtn_.onClick = [this] {
             if (onDismissWizard)
                 onDismissWizard();
         };
-        adminWarningLabel_.setText(juce::String::fromUTF8("\xe2\x9c\x93 Todas las dependencias cr\xc3\xad" "ticas est\xc3\xa1" "n instaladas en tu equipo."), juce::dontSendNotification);
+        adminWarningLabel_.setText(juce::String::fromUTF8(u8"✓ Todas las dependencias críticas están instaladas en tu equipo."), juce::dontSendNotification);
         adminWarningLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kSuccessEmerald);
     }
     else
     {
-        autoInstallBtn_.setButtonText(juce::String::fromUTF8("INSTALAR AUTOM\xc3\x81" "TICAMENTE"));
+        autoInstallBtn_.setButtonText(juce::String::fromUTF8(u8"INSTALAR AUTOMÁTICAMENTE"));
         autoInstallBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kSuccessEmerald);
         autoInstallBtn_.onClick = [this] {
             if (onAutoInstallRequested)
                 onAutoInstallRequested();
         };
-        adminWarningLabel_.setText(juce::String::fromUTF8("\xe2\x9a\xa0\xef\xb8\x8f Se requieren permisos de administrador para instalar los drivers de audio de Windows."), juce::dontSendNotification);
+        adminWarningLabel_.setText(juce::String::fromUTF8(u8"⚠️ Se requieren permisos de administrador para instalar los drivers de audio de Windows."), juce::dontSendNotification);
         adminWarningLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kWarningAmber);
     }
 }
@@ -238,8 +238,8 @@ void OnboardingWizard::setInstallingState(bool isInstalling, const juce::String&
 
     if (isInstalling)
     {
-        autoInstallBtn_.setButtonText(juce::String::fromUTF8("INSTALANDO COMPONENTES..."));
-        progressLabel_.setText(statusMessage.isNotEmpty() ? statusMessage : juce::String::fromUTF8("Descargando e iniciando instaladores oficiales..."), juce::dontSendNotification);
+        autoInstallBtn_.setButtonText(juce::String::fromUTF8(u8"INSTALANDO COMPONENTES..."));
+        progressLabel_.setText(statusMessage.isNotEmpty() ? statusMessage : juce::String::fromUTF8(u8"Descargando e iniciando instaladores oficiales..."), juce::dontSendNotification);
         progressLabel_.setVisible(true);
     }
     else

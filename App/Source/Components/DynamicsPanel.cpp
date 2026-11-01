@@ -6,8 +6,8 @@ namespace dash::ui
 
 DynamicsPanel::DynamicsPanel()
 {
-    titleLabel_.setText("COMPRESOR HÍBRIDO ITU-R BS.1770-4 (ASCENDENTE / DESCENDENTE)", juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
+    titleLabel_.setText(juce::String::fromUTF8(u8"COMPRESOR HÍBRIDO ITU-R BS.1770-4 (ASCENDENTE / DESCENDENTE)"), juce::dontSendNotification);
+    titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(titleLabel_);
 
@@ -20,12 +20,13 @@ DynamicsPanel::DynamicsPanel()
     };
     addAndMakeVisible(bypassToggle_);
 
-    initKnob(targetLufsSlider_, targetLufsLabel_, "Target Sonoridad", -30.0, -8.0, -16.0, " LUFS");
-    initKnob(ratioSlider_, ratioLabel_, "Ratio Compresión", 1.0, 10.0, 2.5, " : 1");
-    initKnob(attackSlider_, attackLabel_, "Tiempo de Ataque", 0.5, 100.0, 20.0, " ms");
-    initKnob(releaseSlider_, releaseLabel_, "Tiempo Relajación", 20.0, 500.0, 120.0, " ms");
-    initKnob(upwardSlider_, upwardLabel_, "Compresión Ascendente", 0.0, 1.0, 0.5, "");
-    initKnob(downwardSlider_, downwardLabel_, "Compresión Descendente", 0.0, 1.0, 0.5, "");
+    initKnob(targetLufsSlider_, targetLufsLabel_, juce::String::fromUTF8(u8"Target Sonoridad"), -30.0, -8.0, -16.0, " LUFS");
+    initKnob(ratioSlider_, ratioLabel_, juce::String::fromUTF8(u8"Ratio Compresión"), 1.0, 10.0, 2.5, " : 1");
+    initKnob(attackSlider_, attackLabel_, juce::String::fromUTF8(u8"Tiempo de Ataque"), 0.5, 100.0, 20.0, " ms");
+    initKnob(releaseSlider_, releaseLabel_, juce::String::fromUTF8(u8"Tiempo Relajación"), 20.0, 500.0, 120.0, " ms");
+    initKnob(upwardSlider_, upwardLabel_, juce::String::fromUTF8(u8"Compresión Ascendente"), 0.0, 1.0, 0.5, "");
+    initKnob(downwardSlider_, downwardLabel_, juce::String::fromUTF8(u8"Compresión Descendente"), 0.0, 1.0, 0.5, "");
+    initKnob(makeupGainSlider_, makeupGainLabel_, juce::String::fromUTF8(u8"Volumen General (Makeup)"), 0.0, 12.0, 6.0, " dB");
 }
 
 void DynamicsPanel::initKnob(
@@ -46,7 +47,7 @@ void DynamicsPanel::initKnob(
     addAndMakeVisible(s);
 
     l.setText(name, juce::dontSendNotification);
-    l.setFont(juce::FontOptions(11.5f));
+    l.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     l.setJustificationType(juce::Justification::centred);
     l.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(l);
@@ -72,8 +73,8 @@ void DynamicsPanel::paint(juce::Graphics& g)
 
     // Título de la curva
     g.setColour(DashLookAndFeel::kTextMain);
-    g.setFont(juce::FontOptions(12.5f).withStyle("Bold"));
-    g.drawText("CURVA ESTÁTICA DE TRANSFERENCIA (I/O dBFS)", 506, 56, (int)rightCard.getWidth() - 32, 20, juce::Justification::centredLeft);
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f).withStyle("Bold")));
+    g.drawText(juce::String::fromUTF8(u8"CURVA ESTÁTICA DE TRANSFERENCIA (I/O dBFS)"), 506, 56, (int)rightCard.getWidth() - 32, 20, juce::Justification::centredLeft);
 
     drawTransferCurve(g, rightCard.reduced(24.0f).withTrimmedTop(36.0f));
 }
@@ -103,6 +104,7 @@ void DynamicsPanel::drawTransferCurve(juce::Graphics& g, const juce::Rectangle<f
     // Curva de compresión real calculada
     const float targetLufs = (float)targetLufsSlider_.getValue();
     const float ratio = (float)ratioSlider_.getValue();
+    const float makeup = (float)makeupGainSlider_.getValue();
 
     juce::Path curve;
     bool started = false;
@@ -121,6 +123,9 @@ void DynamicsPanel::drawTransferCurve(juce::Graphics& g, const juce::Rectangle<f
             const float diff = targetLufs - inDb;
             outDb = inDb + diff * (float)upwardSlider_.getValue() * 0.35f;
         }
+
+        // Aplicar ganancia de maquillaje a la visualización de salida
+        outDb += makeup;
 
         const float normX = (inDb + 60.0f) / 60.0f;
         const float normY = (outDb + 60.0f) / 60.0f;
@@ -172,6 +177,11 @@ void DynamicsPanel::resized()
 
     downwardLabel_.setBounds(startX + 280, row2Y, knobW, 16);
     downwardSlider_.setBounds(startX + 280, row2Y + 18, knobW, knobH);
+
+    // Fila 3: Volumen General (Makeup Gain)
+    const int row3Y = 350;
+    makeupGainLabel_.setBounds(startX, row3Y, knobW + 20, 16);
+    makeupGainSlider_.setBounds(startX, row3Y + 18, knobW, knobH);
 }
 
 void DynamicsPanel::setParameters(const dash::core::DynamicsParameters& params)
@@ -183,6 +193,7 @@ void DynamicsPanel::setParameters(const dash::core::DynamicsParameters& params)
     releaseSlider_.setValue(params.releaseMs, juce::dontSendNotification);
     upwardSlider_.setValue(params.upwardAmount, juce::dontSendNotification);
     downwardSlider_.setValue(params.downwardAmount, juce::dontSendNotification);
+    makeupGainSlider_.setValue(params.makeupGainDb, juce::dontSendNotification);
     bypassToggle_.setToggleState(params.bypass, juce::dontSendNotification);
     repaint();
 }
@@ -196,6 +207,7 @@ dash::core::DynamicsParameters DynamicsPanel::getParameters() const
     p.releaseMs      = static_cast<float>(releaseSlider_.getValue());
     p.upwardAmount   = static_cast<float>(upwardSlider_.getValue());
     p.downwardAmount = static_cast<float>(downwardSlider_.getValue());
+    p.makeupGainDb   = static_cast<float>(makeupGainSlider_.getValue());
     p.bypass         = bypassToggle_.getToggleState();
     return p;
 }

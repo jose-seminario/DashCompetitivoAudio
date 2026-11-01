@@ -7,7 +7,7 @@ namespace dash::ui
 DashboardComponent::DashboardComponent()
 {
     // 1. Selector Easy Mode / Advanced Mode
-    easyModeBtn_.setButtonText("EASY MODE (JUGADOR)");
+    easyModeBtn_.setButtonText(juce::String::fromUTF8(u8"EASY MODE (JUGADOR)"));
     easyModeBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
     easyModeBtn_.onClick = [this] {
         currentMode_ = DisplayMode::Easy;
@@ -19,7 +19,7 @@ DashboardComponent::DashboardComponent()
     };
     addAndMakeVisible(easyModeBtn_);
 
-    advancedModeBtn_.setButtonText("ADVANCED MODE (INGENIERO)");
+    advancedModeBtn_.setButtonText(juce::String::fromUTF8(u8"ADVANCED MODE (INGENIERO)"));
     advancedModeBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kBgCardElevated);
     advancedModeBtn_.onClick = [this] {
         currentMode_ = DisplayMode::Advanced;
@@ -32,32 +32,32 @@ DashboardComponent::DashboardComponent()
     addAndMakeVisible(advancedModeBtn_);
 
     // 2. Tarjeta de Estado
-    engineCardTitle_.setText(juce::String::fromUTF8("ESTADO DEL MOTOR AC\xc3\x9a" "STICO"), juce::dontSendNotification);
-    engineCardTitle_.setFont(juce::FontOptions(13.5f).withStyle("Bold"));
+    engineCardTitle_.setText(juce::String::fromUTF8(u8"ESTADO DEL MOTOR ACÚSTICO"), juce::dontSendNotification);
+    engineCardTitle_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f).withStyle("Bold")));
     engineCardTitle_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(engineCardTitle_);
 
     backendLabel_.setText("Backend: WASAPI Full-Duplex (Direct C++ DSP Engine)", juce::dontSendNotification);
-    backendLabel_.setFont(juce::FontOptions(12.5f));
+    backendLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(backendLabel_);
 
-    deviceLabel_.setText("Dispositivo: Altavoces Predeterminados de Windows", juce::dontSendNotification);
-    deviceLabel_.setFont(juce::FontOptions(12.5f));
+    deviceLabel_.setText(juce::String::fromUTF8(u8"Dispositivo: Altavoces Predeterminados de Windows"), juce::dontSendNotification);
+    deviceLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(deviceLabel_);
 
     formatLabel_.setText("Formato: 48000 Hz | 7.1 Surround (8 canales)", juce::dontSendNotification);
-    formatLabel_.setFont(juce::FontOptions(12.5f));
+    formatLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(formatLabel_);
 
     latencyLabel_.setText("Latencia: --", juce::dontSendNotification);
-    latencyLabel_.setFont(juce::FontOptions(12.5f));
+    latencyLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(latencyLabel_);
 
     cpuLabel_.setText("Carga CPU DSP: --", juce::dontSendNotification);
-    cpuLabel_.setFont(juce::FontOptions(12.5f));
+    cpuLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f)));
     addAndMakeVisible(cpuLabel_);
 
-    activateBtn_.setButtonText(juce::String::fromUTF8("ACTIVAR MOTOR T\xc3\x81" "CTICO"));
+    activateBtn_.setButtonText(juce::String::fromUTF8(u8"ACTIVAR MOTOR TÁCTICO"));
     activateBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kSuccessEmerald);
     activateBtn_.onClick = [this] { if (onActivateClicked) onActivateClicked(); };
     addAndMakeVisible(activateBtn_);
@@ -68,17 +68,17 @@ DashboardComponent::DashboardComponent()
     addAndMakeVisible(deactivateBtn_);
 
     // 3. Tutorial de Primer Uso y Autoconfiguración
-    tutorialTitleLabel_.setText(juce::String::fromUTF8("GU\xc3\x8d""A R\xc3\x81""PIDA DE PRIMER USO"), juce::dontSendNotification);
-    tutorialTitleLabel_.setFont(juce::FontOptions(11.5f).withStyle("Bold"));
+    tutorialTitleLabel_.setText(juce::String::fromUTF8(u8"GUÍA RÁPIDA DE PRIMER USO"), juce::dontSendNotification);
+    tutorialTitleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f).withStyle("Bold")));
     tutorialTitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(tutorialTitleLabel_);
 
-    step1Label_.setText(juce::String::fromUTF8("Paso 1: Selecciona 'CABLE Input' como dispositivo de salida en Windows."), juce::dontSendNotification);
-    step1Label_.setFont(juce::FontOptions(12.0f));
+    step1Label_.setText(juce::String::fromUTF8(u8"Paso 1: Selecciona 'CABLE Input' como dispositivo de salida en Windows."), juce::dontSendNotification);
+    step1Label_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     step1Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
     addAndMakeVisible(step1Label_);
 
-    autoConfigBtn_.setButtonText(juce::String::fromUTF8("Autoconfigurar Audio (VB-Cable)"));
+    autoConfigBtn_.setButtonText(juce::String::fromUTF8(u8"Autoconfigurar Audio (VB-Cable)"));
     autoConfigBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
     autoConfigBtn_.onClick = [this] {
         if (onAutoConfigClicked)
@@ -86,17 +86,17 @@ DashboardComponent::DashboardComponent()
     };
     addAndMakeVisible(autoConfigBtn_);
 
-    step2Label_.setText(juce::String::fromUTF8("Paso 2: Haz clic en 'Activar Motor T\xc3\xa1" "ctico'."), juce::dontSendNotification);
-    step2Label_.setFont(juce::FontOptions(12.0f));
+    step2Label_.setText(juce::String::fromUTF8(u8"Paso 2: Haz clic en 'Activar Motor Táctico'."), juce::dontSendNotification);
+    step2Label_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     step2Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
     addAndMakeVisible(step2Label_);
 
-    step3Label_.setText(juce::String::fromUTF8("Paso 3: \xc2\xa1""A jugar!"), juce::dontSendNotification);
-    step3Label_.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
+    step3Label_.setText(juce::String::fromUTF8(u8"Paso 3: ¡A jugar!"), juce::dontSendNotification);
+    step3Label_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f).withStyle("Bold")));
     step3Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kSuccessEmerald);
     addAndMakeVisible(step3Label_);
 
-    dismissTutorialBtn_.setButtonText(juce::String::fromUTF8("Ocultar Gu\xc3\xad""a"));
+    dismissTutorialBtn_.setButtonText(juce::String::fromUTF8(u8"Ocultar Guía"));
     dismissTutorialBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kBgCardElevated);
     dismissTutorialBtn_.onClick = [this] { setTutorialVisible(false); };
     addAndMakeVisible(dismissTutorialBtn_);
@@ -115,8 +115,8 @@ DashboardComponent::DashboardComponent()
     };
 
     // 5. Controles Tácticos Rápidos
-    quickTitleLabel_.setText(juce::String::fromUTF8("PERSONALIZACI\xc3\x93N T\xc3\x81" "CTICA R\xc3\x81" "PIDA (EASY MODE)"), juce::dontSendNotification);
-    quickTitleLabel_.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
+    quickTitleLabel_.setText(juce::String::fromUTF8(u8"PERSONALIZACIÓN TÁCTICA RÁPIDA (EASY MODE)"), juce::dontSendNotification);
+    quickTitleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle("Bold")));
     quickTitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
     addAndMakeVisible(quickTitleLabel_);
 
@@ -131,24 +131,26 @@ DashboardComponent::DashboardComponent()
     };
     addAndMakeVisible(quickProfileSelector_);
 
-    initTacticalSlider(gunSlider_, gunLabel_, "Ganancia Pico (Gun)", 0.0, 1.0, 0.45, "");
-    initTacticalSlider(stepsSlider_, stepsLabel_, "Realce de Pasos", -3.0, 6.0, 2.0, " dB");
-    initTacticalSlider(ambSlider_, ambLabel_, juce::String::fromUTF8("Protecci\xc3\xb3n (AmbGuar)"), 0.0, 1.0, 1.0, "");
+    initTacticalSlider(gunSlider_, gunLabel_, juce::String::fromUTF8(u8"Reducción Disparos (Gun)"), 0.0, 1.0, 0.45, "");
+    initTacticalSlider(stepsSlider_, stepsLabel_, juce::String::fromUTF8(u8"Realce de Pasos"), -6.0, 12.0, 2.0, " dB");
+    initTacticalSlider(ambSlider_, ambLabel_, juce::String::fromUTF8(u8"Protección (AmbGuar)"), 0.0, 1.0, 1.0, "");
+    initTacticalSlider(makeupSlider_, makeupLabel_, juce::String::fromUTF8(u8"Volumen General (Makeup)"), 0.0, 12.0, 6.0, " dB");
 
     auto notifyQuickControls = [this] {
         if (onQuickControlsChanged)
         {
-            float gun, steps, amb;
+            float gun, steps, amb, makeup;
             bool spatial;
-            getQuickControlsValues(gun, steps, amb, spatial);
-            onQuickControlsChanged(gun, steps, amb, spatial);
+            getQuickControlsValues(gun, steps, amb, makeup, spatial);
+            onQuickControlsChanged(gun, steps, amb, makeup, spatial);
         }
     };
     gunSlider_.onValueChange = notifyQuickControls;
     stepsSlider_.onValueChange = notifyQuickControls;
     ambSlider_.onValueChange = notifyQuickControls;
+    makeupSlider_.onValueChange = notifyQuickControls;
 
-    spatialToggle_.setButtonText("Audio Espacial Inmersivo (HRTF 3D)");
+    spatialToggle_.setButtonText(juce::String::fromUTF8(u8"Audio Espacial Inmersivo (HRTF 3D)"));
     spatialToggle_.setToggleState(true, juce::dontSendNotification);
     spatialToggle_.setColour(juce::ToggleButton::textColourId, DashLookAndFeel::kTextMain);
     spatialToggle_.onClick = notifyQuickControls;
@@ -168,7 +170,7 @@ void DashboardComponent::initTacticalSlider(
     addAndMakeVisible(s);
 
     l.setText(text, juce::dontSendNotification);
-    l.setFont(juce::FontOptions(11.5f));
+    l.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f)));
     l.setJustificationType(juce::Justification::centred);
     l.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(l);
@@ -220,7 +222,7 @@ void DashboardComponent::paint(juce::Graphics& g)
     g.drawRoundedRectangle(chainArea, 8.0f, 1.2f);
 
     // Dibujar nodos de la cadena
-    g.setFont(juce::FontOptions(11.0f).withStyle("Bold"));
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.0f).withStyle("Bold")));
     for (size_t i = 0; i < chainNodes_.size(); ++i)
     {
         const auto& node = chainNodes_[i];
@@ -237,7 +239,7 @@ void DashboardComponent::paint(juce::Graphics& g)
         g.setColour(node.bypassed ? DashLookAndFeel::kTextMuted : DashLookAndFeel::kTextMain);
         g.drawText(node.name, (int)b.getX(), (int)b.getY() + 6, (int)b.getWidth(), 14, juce::Justification::centred);
 
-        g.setFont(juce::FontOptions(10.0f));
+        g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(10.0f)));
         g.setColour(node.bypassed ? DashLookAndFeel::kDangerCrimson : DashLookAndFeel::kAccentCyan);
         g.drawText(node.bypassed ? "BYPASS" : node.info, (int)b.getX(), (int)b.getY() + 24, (int)b.getWidth(), 14, juce::Justification::centred);
 
@@ -323,6 +325,8 @@ void DashboardComponent::resized()
     stepsLabel_.setVisible(isEasy);
     ambSlider_.setVisible(isEasy);
     ambLabel_.setVisible(isEasy);
+    makeupSlider_.setVisible(isEasy);
+    makeupLabel_.setVisible(isEasy);
     spatialToggle_.setVisible(isEasy);
 
     if (isEasy)
@@ -331,9 +335,9 @@ void DashboardComponent::resized()
         quickProfileSelector_.setBounds(getWidth() - 320, curY + 10, 288, 26);
 
         const int dialY = curY + 42;
-        const int dialW = 140;
+        const int dialW = 130;
         const int dialH = 100;
-        const int spacing = (getWidth() - 64 - dialW * 3) / 4;
+        const int spacing = (getWidth() - 64 - dialW * 4) / 5;
 
         gunLabel_.setBounds(32 + spacing, dialY, dialW, 16);
         gunSlider_.setBounds(32 + spacing, dialY + 16, dialW, dialH);
@@ -343,6 +347,9 @@ void DashboardComponent::resized()
 
         ambLabel_.setBounds(32 + spacing * 3 + dialW * 2, dialY, dialW, 16);
         ambSlider_.setBounds(32 + spacing * 3 + dialW * 2, dialY + 16, dialW, dialH);
+
+        makeupLabel_.setBounds(32 + spacing * 4 + dialW * 3, dialY, dialW, 16);
+        makeupSlider_.setBounds(32 + spacing * 4 + dialW * 3, dialY + 16, dialW, dialH);
 
         spatialToggle_.setBounds(getWidth() / 2 - 140, dialY + dialH + 24, 280, 24);
     }
@@ -403,19 +410,21 @@ void DashboardComponent::setCpuPercent(float cpuPercent)
         cpuLabel_.setText("Carga CPU DSP: " + juce::String(cpuPercent, 1) + " %", juce::dontSendNotification);
 }
 
-void DashboardComponent::updateQuickControls(float gunReductionDb, float footstepsDb, float ambienceReductionDb, bool spatialEnabled)
+void DashboardComponent::updateQuickControls(float gunReductionDb, float footstepsDb, float ambienceReductionDb, float makeupGainDb, bool spatialEnabled)
 {
     gunSlider_.setValue(gunReductionDb, juce::dontSendNotification);
     stepsSlider_.setValue(footstepsDb, juce::dontSendNotification);
     ambSlider_.setValue(ambienceReductionDb, juce::dontSendNotification);
+    makeupSlider_.setValue(makeupGainDb, juce::dontSendNotification);
     spatialToggle_.setToggleState(spatialEnabled, juce::dontSendNotification);
 }
 
-void DashboardComponent::getQuickControlsValues(float& outGunReductionDb, float& outFootstepsDb, float& outAmbienceReductionDb, bool& outSpatialEnabled) const
+void DashboardComponent::getQuickControlsValues(float& outGunReductionDb, float& outFootstepsDb, float& outAmbienceReductionDb, float& outMakeupGainDb, bool& outSpatialEnabled) const
 {
     outGunReductionDb      = static_cast<float>(gunSlider_.getValue());
     outFootstepsDb         = static_cast<float>(stepsSlider_.getValue());
     outAmbienceReductionDb = static_cast<float>(ambSlider_.getValue());
+    outMakeupGainDb        = static_cast<float>(makeupSlider_.getValue());
     outSpatialEnabled      = spatialToggle_.getToggleState();
 }
 

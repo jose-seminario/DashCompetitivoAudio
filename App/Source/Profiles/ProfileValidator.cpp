@@ -281,6 +281,10 @@ ProfileValidationResult ProfileValidator::validateProfile(const AudioProfile& pr
     {
         result.addError("dsp.dynamics.releaseMs", "Tiempo de relajación fuera de rango [5.0 .. 5000.0 ms].");
     }
+    if (!isSafeNumeric(dyn.makeupGainDb, -12.0f, 12.0f))
+    {
+        result.addError("dsp.dynamics.makeupGainDb", "Ganancia de maquillaje fuera de rango [-12.0 .. +12.0 dB].");
+    }
 
     // 6. Transitorios (Transient)
     const auto& trans = profile.dspParams.transient;
@@ -365,9 +369,9 @@ ProfileValidationResult ProfileValidator::validateProfile(const AudioProfile& pr
         {
             result.addError("spatial.apparentDistanceM", "Distancia acústica aparente fuera de rango [0.2 .. 10.0 m].");
         }
-        if (!isSafeNumeric(spat.frontBackSeparation, 0.0f, 2.0f))
+        if (!isSafeNumeric(spat.frontBackSeparation, 0.0f, 3.0f))
         {
-            result.addError("spatial.frontBackSeparation", "Separación frente/detrás fuera de rango [0.0 .. 2.0].");
+            result.addError("spatial.frontBackSeparation", "Separación frente/detrás fuera de rango [0.0 .. 3.0].");
         }
     }
 

@@ -9,7 +9,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # Optimizaciones estándar para MSVC compatibles con cualquier CPU x64 estándar
 if(MSVC)
     add_compile_options(/W4 /MP /permissive- /utf-8 /O2)
-    add_compile_options(/utf-8)
     set(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELEASE TRUE)
     add_compile_definitions(UNICODE _UNICODE NOMINMAX WIN32_LEAN_AND_MEAN)
 endif()

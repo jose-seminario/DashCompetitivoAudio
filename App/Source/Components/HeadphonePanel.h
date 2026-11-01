@@ -1,7 +1,9 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <DashAudioCore/ParametricEQProcessor.h>
 #include <functional>
+#include <vector>
 
 namespace dash::ui
 {
@@ -10,8 +12,7 @@ namespace dash::ui
  * Panel de Calibración Acústica por Auricular (HeadphonePanel).
  *
  * Muestra el estado de calibración verificada (AutoEq hacia curva Harman 2018)
- * y el estado explícito no calibrado para modelos sin medición oficial de laboratorio
- * (ej: Razer BlackShark V2 X).
+ * y transmite los filtros paramétricos de compensación al AudioGraph.
  */
 class HeadphonePanel final : public juce::Component
 {
@@ -23,6 +24,12 @@ public:
     void resized() override;
 
     std::function<void(const juce::String& headphoneModelId)> onHeadphoneModelChanged;
+    std::function<void(bool applyCompensation, const std::vector<dash::core::ParametricBandParameters>& bands)> onCompensationChanged;
+
+    [[nodiscard]] bool isCompensationEnabled() const noexcept { return enableCompensationToggle_.getToggleState(); }
+    [[nodiscard]] std::vector<dash::core::ParametricBandParameters> getSelectedHeadphoneBands() const;
+    void setSelectedModelId(const juce::String& modelId);
+    void setCompensationEnabled(bool enabled);
 
 private:
     struct HeadphoneProfileItem
@@ -37,6 +44,7 @@ private:
         juce::String license;
         juce::String description;
         bool isCalibrated = false;
+        std::vector<dash::core::ParametricBandParameters> bands;
     };
 
     void scanHeadphoneProfiles();

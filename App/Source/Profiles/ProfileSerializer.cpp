@@ -89,6 +89,7 @@ std::string ProfileSerializer::serializeToJson(const AudioProfile& profile, bool
     dynObj->setProperty("releaseMs",      profile.dspParams.dynamics.releaseMs);
     dynObj->setProperty("upwardAmount",   profile.dspParams.dynamics.upwardAmount);
     dynObj->setProperty("downwardAmount", profile.dspParams.dynamics.downwardAmount);
+    dynObj->setProperty("makeupGainDb",   profile.dspParams.dynamics.makeupGainDb);
     dynObj->setProperty("bypass",         profile.dspParams.dynamics.bypass);
     procObj->setProperty("dynamics", juce::var(dynObj));
 
@@ -280,6 +281,7 @@ bool ProfileSerializer::deserializeFromJson(const std::string& jsonText, AudioPr
             p.dspParams.dynamics.releaseMs      = static_cast<float>(d.getProperty("releaseMs", 120.0));
             p.dspParams.dynamics.upwardAmount   = static_cast<float>(d.getProperty("upwardAmount", 0.5));
             p.dspParams.dynamics.downwardAmount = static_cast<float>(d.getProperty("downwardAmount", 0.5));
+            p.dspParams.dynamics.makeupGainDb   = static_cast<float>(d.getProperty("makeupGainDb", 6.0));
             p.dspParams.dynamics.bypass         = static_cast<bool>(d.getProperty("bypass", false));
         }
 

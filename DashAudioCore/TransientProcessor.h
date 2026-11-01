@@ -24,7 +24,7 @@ enum class TransientChannelMode
 struct TransientParameters
 {
     // Parámetros tácticos canónicos (compatibilidad hacia atrás)
-    float gun     = 0.45f; // [0.0 .. 1.0] Ganancia objetivo del pico (0.45 => ~ -7 dB)
+    float gun     = 0.45f; // [0.0 .. 1.0] Reducción de pico (1.0 => -48 dB)
     float steps   = 0.0f;  // [0.0 .. 1.0] Factor de preservación de micro-transitorios
     bool  front   = true;  // [0 / 1] Aislar canal central (o Mid en 2.0)
     float restore = 0.0f;  // [0.0 .. 1.0] Compensación de cuerpo post-transitorio
@@ -36,7 +36,7 @@ struct TransientParameters
     float sensitivity          = 0.50f;  // [0.0 .. 1.0] Sensibilidad de detección de cresta
     float attackMs             = 0.20f;  // [0.05 .. 10.0 ms] Tiempo de ataque de atenuación
     float releaseMs            = 45.0f;  // [5.0 .. 250.0 ms] Tiempo de relajación de atenuación
-    float maxAttenuationDb     = -6.94f; // [-24.0 .. 0.0 dB] Atenuación máxima para transitorios severos
+    float maxAttenuationDb     = -21.6f; // [-48.0 .. 0.0 dB] Atenuación máxima para transitorios severos
     bool  stereoLinking        = true;   // true = vincular atenuación L/R para preservar panorama estéreo
     TransientChannelMode channelMode = TransientChannelMode::CenterOrMidOnly;
     bool  useAdvancedMode      = false;  // true = usar parámetros acústicos; false = compatibilidad canónica

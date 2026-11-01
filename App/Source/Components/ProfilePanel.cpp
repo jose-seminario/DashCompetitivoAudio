@@ -18,24 +18,24 @@ void ProfilePanel::ProfileListModel::paintListBoxItem(int rowNumber, juce::Graph
     }
 
     g.setColour(rowIsSelected ? juce::Colours::white : DashLookAndFeel::kTextMain);
-    g.setFont(juce::FontOptions(12.5f).withStyle(item.verified ? "Bold" : "Regular"));
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f).withStyle(item.verified ? "Bold" : "Regular")));
     g.drawText(item.name, 12, 4, width - 100, 16, juce::Justification::centredLeft);
 
-    g.setFont(juce::FontOptions(10.5f));
+    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(10.5f)));
     g.setColour(rowIsSelected ? juce::Colours::white.withAlpha(0.8f) : DashLookAndFeel::kTextMuted);
     g.drawText(item.headphoneModel, 12, 22, width - 100, 14, juce::Justification::centredLeft);
 
     if (item.verified)
     {
         g.setColour(rowIsSelected ? juce::Colours::white : DashLookAndFeel::kSuccessEmerald);
-        g.drawText("[VERIFICADO]", width - 90, 8, 80, 20, juce::Justification::centredRight);
+        g.drawText(juce::String::fromUTF8(u8"[VERIFICADO]"), width - 90, 8, 80, 20, juce::Justification::centredRight);
     }
 }
 
 ProfilePanel::ProfilePanel()
 {
-    titleLabel_.setText("CATÁLOGO Y GESTIÓN DE PERFILES (DASHAUDIODB / LOCAL)", juce::dontSendNotification);
-    titleLabel_.setFont(juce::FontOptions(14.0f).withStyle("Bold"));
+    titleLabel_.setText(juce::String::fromUTF8(u8"CATÁLOGO Y GESTIÓN DE PERFILES (DASHAUDIODB / LOCAL)"), juce::dontSendNotification);
+    titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(titleLabel_);
 
@@ -45,7 +45,7 @@ ProfilePanel::ProfilePanel()
     profileListBox_.setColour(juce::ListBox::outlineColourId, DashLookAndFeel::kBorderSubtle);
     addAndMakeVisible(profileListBox_);
 
-    loadBtn_.setButtonText("CARGAR SELECCIONADO");
+    loadBtn_.setButtonText(juce::String::fromUTF8(u8"CARGAR SELECCIONADO"));
     loadBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
     loadBtn_.onClick = [this] {
         const int selected = profileListBox_.getSelectedRow();
@@ -62,33 +62,34 @@ ProfilePanel::ProfilePanel()
     };
     addAndMakeVisible(loadBtn_);
 
-    saveBtn_.setButtonText("GUARDAR CAMBIOS");
+    saveBtn_.setButtonText(juce::String::fromUTF8(u8"GUARDAR CAMBIOS"));
     saveBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kSuccessEmerald);
     saveBtn_.onClick = [this] { saveCurrentProfile(); };
     addAndMakeVisible(saveBtn_);
 
-    importBtn_.setButtonText("IMPORTAR ARCHIVO...");
+    importBtn_.setButtonText(juce::String::fromUTF8(u8"IMPORTAR ARCHIVO..."));
     importBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kBgCardElevated);
     importBtn_.onClick = [this] { importProfileFile(); };
     addAndMakeVisible(importBtn_);
 
-    exportBtn_.setButtonText("EXPORTAR ARCHIVO...");
+    exportBtn_.setButtonText(juce::String::fromUTF8(u8"EXPORTAR ARCHIVO..."));
     exportBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kBgCardElevated);
     exportBtn_.onClick = [this] { exportProfileFile(); };
     addAndMakeVisible(exportBtn_);
 
-    deleteBtn_.setButtonText("ELIMINAR");
+    deleteBtn_.setButtonText(juce::String::fromUTF8(u8"ELIMINAR"));
     deleteBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kDangerCrimson.withAlpha(0.6f));
     deleteBtn_.onClick = [this] { deleteSelectedProfile(); };
     addAndMakeVisible(deleteBtn_);
 
     // Inicializar campos de metadatos
     idLabel_.setText("ID: warzone-competitive-default", juce::dontSendNotification);
-    idLabel_.setFont(juce::FontOptions(11.5f));
+    idLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     idLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(idLabel_);
 
     nameEditor_.setText("Warzone Competitive Default");
+    nameEditor_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f)));
     nameEditor_.setColour(juce::TextEditor::backgroundColourId, DashLookAndFeel::kBgCardElevated);
     nameEditor_.setColour(juce::TextEditor::textColourId, DashLookAndFeel::kTextMain);
     nameEditor_.setColour(juce::TextEditor::outlineColourId, DashLookAndFeel::kBorderSubtle);
@@ -96,30 +97,31 @@ ProfilePanel::ProfilePanel()
 
     descEditor_.setMultiLine(true);
     descEditor_.setReturnKeyStartsNewLine(true);
-    descEditor_.setText("Perfil balanceado de alta precisión.");
+    descEditor_.setText(juce::String::fromUTF8(u8"Perfil balanceado de alta precisión."));
+    descEditor_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     descEditor_.setColour(juce::TextEditor::backgroundColourId, DashLookAndFeel::kBgCardElevated);
     descEditor_.setColour(juce::TextEditor::textColourId, DashLookAndFeel::kTextMain);
     descEditor_.setColour(juce::TextEditor::outlineColourId, DashLookAndFeel::kBorderSubtle);
     addAndMakeVisible(descEditor_);
 
     gameLabel_.setText("Juego: Call of Duty: Warzone", juce::dontSendNotification);
-    gameLabel_.setFont(juce::FontOptions(12.0f));
+    gameLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     addAndMakeVisible(gameLabel_);
 
     headphoneLabel_.setText("Auricular: Generic Tactical Headset", juce::dontSendNotification);
-    headphoneLabel_.setFont(juce::FontOptions(12.0f));
+    headphoneLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     addAndMakeVisible(headphoneLabel_);
 
     authorLabel_.setText("Autor: DashAudio Engineering", juce::dontSendNotification);
-    authorLabel_.setFont(juce::FontOptions(12.0f));
+    authorLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     addAndMakeVisible(authorLabel_);
 
     licenseLabel_.setText("Licencia: CC-BY-4.0", juce::dontSendNotification);
-    licenseLabel_.setFont(juce::FontOptions(12.0f));
+    licenseLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
     addAndMakeVisible(licenseLabel_);
 
-    verifiedBadge_.setText("ESTADO: VERIFICADO", juce::dontSendNotification);
-    verifiedBadge_.setFont(juce::FontOptions(11.5f).withStyle("Bold"));
+    verifiedBadge_.setText(juce::String::fromUTF8(u8"ESTADO: VERIFICADO"), juce::dontSendNotification);
+    verifiedBadge_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f).withStyle("Bold")));
     verifiedBadge_.setColour(juce::Label::textColourId, DashLookAndFeel::kSuccessEmerald);
     addAndMakeVisible(verifiedBadge_);
 
@@ -196,7 +198,7 @@ void ProfilePanel::setLoadedProfile(const dash::profile::AudioProfile& profile)
     authorLabel_.setText("Autor: " + juce::String(profile.metadata.author), juce::dontSendNotification);
     licenseLabel_.setText("Licencia: " + juce::String(profile.metadata.license), juce::dontSendNotification);
 
-    verifiedBadge_.setText(profile.metadata.verified ? "ESTADO: VERIFICADO" : "ESTADO: COMUNITARIO / EXPERIMENTAL", juce::dontSendNotification);
+    verifiedBadge_.setText(profile.metadata.verified ? juce::String::fromUTF8(u8"ESTADO: VERIFICADO") : juce::String::fromUTF8(u8"ESTADO: COMUNITARIO / EXPERIMENTAL"), juce::dontSendNotification);
     verifiedBadge_.setColour(juce::Label::textColourId,
                              profile.metadata.verified ? DashLookAndFeel::kSuccessEmerald : DashLookAndFeel::kWarningAmber);
 }
@@ -218,7 +220,7 @@ void ProfilePanel::saveCurrentProfile()
 void ProfilePanel::importProfileFile()
 {
     fileChooser_ = std::make_unique<juce::FileChooser>(
-        "Importar Perfil de Audio Táctico",
+        juce::String::fromUTF8(u8"Importar Perfil de Audio Táctico"),
         juce::File::getSpecialLocation(juce::File::userDocumentsDirectory),
         "*.json");
 
@@ -252,7 +254,7 @@ void ProfilePanel::exportProfileFile()
 
     const auto& item = listModel_.items[static_cast<size_t>(selected)];
     fileChooser_ = std::make_unique<juce::FileChooser>(
-        "Exportar Perfil de Audio Táctico",
+        juce::String::fromUTF8(u8"Exportar Perfil de Audio Táctico"),
         juce::File::getSpecialLocation(juce::File::userDocumentsDirectory).getChildFile(juce::String(item.profileId) + ".json"),
         "*.json");
 

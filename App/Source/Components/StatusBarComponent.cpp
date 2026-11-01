@@ -6,23 +6,23 @@ namespace dash::ui
 
 StatusBarComponent::StatusBarComponent()
 {
-    engineStatusLabel_.setText("MOTOR: DETENIDO", juce::dontSendNotification);
-    engineStatusLabel_.setFont(juce::FontOptions(11.5f).withStyle("Bold"));
+    engineStatusLabel_.setText(juce::String::fromUTF8(u8"MOTOR: DETENIDO"), juce::dontSendNotification);
+    engineStatusLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f).withStyle("Bold")));
     engineStatusLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(engineStatusLabel_);
 
-    activeProfileLabel_.setText("PERFIL: NINGUNO", juce::dontSendNotification);
-    activeProfileLabel_.setFont(juce::FontOptions(11.5f));
+    activeProfileLabel_.setText(juce::String::fromUTF8(u8"PERFIL: NINGUNO"), juce::dontSendNotification);
+    activeProfileLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     activeProfileLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
     addAndMakeVisible(activeProfileLabel_);
 
-    formatInfoLabel_.setText("48.0 kHz | 7.1 Surround", juce::dontSendNotification);
-    formatInfoLabel_.setFont(juce::FontOptions(11.5f));
+    formatInfoLabel_.setText(juce::String::fromUTF8(u8"48.0 kHz | 7.1 Surround"), juce::dontSendNotification);
+    formatInfoLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     formatInfoLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(formatInfoLabel_);
 
-    statusMessageLabel_.setText(juce::String::fromUTF8("Sistema en espera. Verifica dependencias."), juce::dontSendNotification);
-    statusMessageLabel_.setFont(juce::FontOptions(11.5f));
+    statusMessageLabel_.setText(juce::String::fromUTF8(u8"Sistema en espera. Verifica dependencias."), juce::dontSendNotification);
+    statusMessageLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
     statusMessageLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(statusMessageLabel_);
 }
@@ -45,7 +45,7 @@ void StatusBarComponent::paint(juce::Graphics& g)
         g.setColour(DashLookAndFeel::kDangerCrimson);
         g.fillRoundedRectangle((float)clipX, (float)ledY - 2, 70.0f, 14.0f, 3.0f);
         g.setColour(juce::Colours::white);
-        g.setFont(juce::FontOptions(10.0f).withStyle("Bold"));
+        g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(10.0f).withStyle("Bold")));
         g.drawText("CLIP 0dBFS", clipX, ledY - 2, 70, 14, juce::Justification::centred);
     }
 }

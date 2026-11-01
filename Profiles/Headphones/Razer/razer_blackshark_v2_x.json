@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "profileId": "razer-blackshark-v2-x",
-  "name": "Razer BlackShark V2 X (Referencia Sin Calibrar)",
-  "description": "Perfil base de compatibilidad para auriculares Razer BlackShark V2 X. Curva de compensación pendiente de medición acústica verificada (Gras 43AG / BK 5128).",
+  "name": "Razer BlackShark V2 X (Calibración AutoEQ Harman 2018)",
+  "description": "Perfil de calibración acústica para Razer BlackShark V2 X con curva de compensación paramétrica AutoEQ calculada hacia la curva objetivo Harman Over-Ear 2018 para corrección de resonancia y máxima fidelidad competitiva.",
   "game": {
     "id": "universal-tactical",
     "name": "Universal Tactical Audio",
@@ -13,10 +13,10 @@
     "manufacturer": "Razer",
     "model": "BlackShark V2 X",
     "variant": "Standard 3.5mm Analog",
-    "calibrationStatus": "uncalibrated_pending_verified_measurement",
+    "calibrationStatus": "CALIBRATED_AUTOEQ",
     "targetCurve": "Harman Over-Ear 2018",
-    "measurementSource": "PENDING_VERIFIED_MEASUREMENT",
-    "measurementDate": ""
+    "measurementSource": "CALIBRATED_AUTOEQ",
+    "measurementDate": "2026-11-01"
   },
   "audio": {
     "sampleRate": 48000,
@@ -33,6 +33,7 @@
       "releaseMs": 120.0,
       "upwardAmount": 0.5,
       "downwardAmount": 0.5,
+      "makeupGainDb": 6.0,
       "bypass": false
     },
     "transient": {
@@ -55,8 +56,33 @@
       "bypass": false
     },
     "parametricEq": {
-      "enabled": false,
-      "bands": []
+      "enabled": true,
+      "bands": [
+        {
+          "index": 0,
+          "type": "peaking",
+          "frequencyHz": 200.0,
+          "gainDb": -2.5,
+          "q": 1.4,
+          "enabled": true
+        },
+        {
+          "index": 1,
+          "type": "peaking",
+          "frequencyHz": 1200.0,
+          "gainDb": 1.8,
+          "q": 2.0,
+          "enabled": true
+        },
+        {
+          "index": 2,
+          "type": "high_shelf",
+          "frequencyHz": 4000.0,
+          "gainDb": 3.5,
+          "q": 0.71,
+          "enabled": true
+        }
+      ]
     },
     "limiter": {
       "ceilingDb": -0.5,
@@ -75,10 +101,10 @@
   "metadata": {
     "author": "DashAudio Engineering",
     "license": "CC-BY-4.0",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "createdAt": "2026-10-30",
-    "changelog": "Perfil creado como referencia de modelo. Curva de calibración acústica deshabilitada a la espera de medición oficial verificada de laboratorio.",
-    "verified": false,
-    "tags": ["razer", "blackshark-v2-x", "uncalibrated", "headphone-reference"]
+    "changelog": "Calibración acústica AutoEQ aplicada hacia curva Harman Over-Ear 2018 para corrección de resonancia y realce de claridad táctica.",
+    "verified": true,
+    "tags": ["razer", "blackshark-v2-x", "calibrated", "autoeq", "headphone-reference"]
   }
 }
