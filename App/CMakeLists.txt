@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.22)
 
+# Forzar codificación UTF-8 en MSVC antes de cualquier target
+if(MSVC)
+    add_compile_options(/utf-8)
+endif()
+
 juce_add_gui_app(DashCompetitivoAudio
     PRODUCT_NAME "Dash Competitivo Audio"
     COMPANY_NAME "DashAudio"

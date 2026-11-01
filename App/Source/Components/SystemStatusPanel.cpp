@@ -26,7 +26,7 @@ SystemStatusPanel::SystemStatusPanel()
     recheckBtn_.onClick = [this] { refreshStatus(); };
     addAndMakeVisible(recheckBtn_);
 
-    runAsAdminBtn_.setButtonText("ELEVACIÓN UAC (ADMINISTRADOR)");
+    runAsAdminBtn_.setButtonText(juce::String::fromUTF8("ELEVACI\xc3\x93N UAC (ADMINISTRADOR)"));
     runAsAdminBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kWarningAmber);
     runAsAdminBtn_.onClick = [] {
 #ifdef _WIN32
@@ -112,7 +112,7 @@ void SystemStatusPanel::refreshStatus()
     detailsEditor_.setText(report);
 
     const bool allOk = status_.hasEqualizerApo && status_.isRunningAsAdmin;
-    overallStatusLabel_.setText(allOk ? "ESTADO GENERAL: LISTO PARA PROCESAMIENTO" : "ESTADO GENERAL: ACCIÓN REQUERIDA", juce::dontSendNotification);
+    overallStatusLabel_.setText(allOk ? juce::String::fromUTF8("ESTADO GENERAL: LISTO PARA PROCESAMIENTO") : juce::String::fromUTF8("ESTADO GENERAL: ACCI\xc3\x93N REQUERIDA"), juce::dontSendNotification);
     overallStatusLabel_.setColour(juce::Label::textColourId, allOk ? DashLookAndFeel::kSuccessEmerald : DashLookAndFeel::kWarningAmber);
 
     runAsAdminBtn_.setVisible(!status_.isRunningAsAdmin);

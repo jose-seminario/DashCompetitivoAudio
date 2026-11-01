@@ -36,7 +36,7 @@ MainComponent::MainComponent()
     benchmarkPanel_     = std::make_unique<BenchmarkPanel>();
     systemStatusPanel_  = std::make_unique<SystemStatusPanel>();
 
-    // 3. Configuración de pestañas de navegación
+    // 3. Configuración de pestañas de navegación (Codificación UTF-8 forzada y nombres compactos)
     tabs_.setTabBarDepth(34);
     tabs_.setColour(juce::TabbedComponent::backgroundColourId, DashLookAndFeel::kBgDark);
     tabs_.setColour(juce::TabbedComponent::outlineColourId, juce::Colours::transparentBlack);
@@ -45,8 +45,8 @@ MainComponent::MainComponent()
     tabs_.addTab("INICIO", tabBg, dashboardPanel_.get(), false);
     tabs_.addTab("PERFIL", tabBg, profilePanel_.get(), false);
     tabs_.addTab("MOTOR", tabBg, audioEnginePanel_.get(), false);
-    tabs_.addTab("DINÁMICA", tabBg, dynamicsPanel_.get(), false);
-    tabs_.addTab("TÁCTICO", tabBg, tacticalPanel_.get(), false);
+    tabs_.addTab(juce::String::fromUTF8("DIN\xc3\x81MICA"), tabBg, dynamicsPanel_.get(), false);
+    tabs_.addTab(juce::String::fromUTF8("T\xc3\x81" "CTICO"), tabBg, tacticalPanel_.get(), false);
     tabs_.addTab("EQ", tabBg, equalizerPanel_.get(), false);
     tabs_.addTab("3D", tabBg, spatialPanel_.get(), false);
     tabs_.addTab("AURIS", tabBg, headphonePanel_.get(), false);
@@ -117,7 +117,7 @@ MainComponent::MainComponent()
             if (ep.id == endpointId)
             {
                 dashboardPanel_->setDeviceName(juce::String(ep.friendlyName.c_str()));
-                statusBar_.setStatusMessage("Endpoint activo: " + juce::String(ep.friendlyName.c_str()));
+                statusBar_.setStatusMessage(juce::String::fromUTF8("Endpoint activo: ") + juce::String(ep.friendlyName.c_str()));
                 break;
             }
         }
@@ -125,14 +125,14 @@ MainComponent::MainComponent()
 
     headphonePanel_->onHeadphoneModelChanged = [this](const juce::String& model) {
         currentProfile_.headphone.model = model.toStdString();
-        statusBar_.setStatusMessage("Auricular seleccionado: " + model);
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Auricular seleccionado: ") + model);
         scheduleDebouncedInjection();
     };
 
     audioEnginePanel_->onFormatConfigChanged = [this](double sampleRate, int /*bufferSize*/, int numChannels) {
         currentProfile_.audio.sampleRate = sampleRate;
-        juce::String layoutStr = juce::String(numChannels) + " canales";
-        if (numChannels == 2) { layoutStr = "2.0 Estéreo (2 canales)"; currentProfile_.audio.channelLayout = "stereo"; }
+        juce::String layoutStr = juce::String(numChannels) + juce::String::fromUTF8(" canales");
+        if (numChannels == 2) { layoutStr = juce::String::fromUTF8("2.0 Est\xc3\xa9reo (2 canales)"); currentProfile_.audio.channelLayout = "stereo"; }
         else if (numChannels == 6) { layoutStr = "5.1 Surround (6 canales)"; currentProfile_.audio.channelLayout = "5.1"; }
         else if (numChannels == 8) { layoutStr = "7.1 Surround (8 canales)"; currentProfile_.audio.channelLayout = "7.1"; }
         else if (numChannels == 12) { layoutStr = "7.1.4 Inmersivo (12 canales)"; currentProfile_.audio.channelLayout = "7.1.4"; }
@@ -148,7 +148,7 @@ MainComponent::MainComponent()
     profilePanel_->onProfileSaved = [this](const dash::profile::AudioProfile& p) {
         currentProfile_ = p;
         scheduleDebouncedInjection();
-        statusBar_.setStatusMessage("Perfil '" + juce::String(p.name) + "' guardado correctamente.");
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Perfil '") + juce::String(p.name) + juce::String::fromUTF8("' guardado correctamente."));
     };
 
     dynamicsPanel_->onParametersChanged = [this](const dash::core::DynamicsParameters& p) {
@@ -184,7 +184,7 @@ MainComponent::MainComponent()
     // 7. Cargar perfil inicial por defecto
     loadProfile("warzone-competitive-default");
 
-    // 8. Verificación de dependencias del sistema y asistente de primera vez
+    // 8. Verificación estricta de dependencias y bloqueo absoluto si falta algo
     checkDependenciesAndSetupWizard();
 
     // Iniciar temporizador de telemetría a 30 Hz
@@ -285,7 +285,7 @@ void MainComponent::loadProfile(const std::string& profileId)
     {
         syncAllPanelsWithProfile();
         statusBar_.setActiveProfileName(juce::String(currentProfile_.name));
-        statusBar_.setStatusMessage("Perfil '" + juce::String(currentProfile_.name) + "' cargado.");
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Perfil '") + juce::String(currentProfile_.name) + juce::String::fromUTF8("' cargado."));
         scheduleDebouncedInjection();
     }
     else
@@ -391,16 +391,28 @@ void MainComponent::executeConfigInjection()
     const std::string directives = dash::audio::ApoConfigInjector::buildConfigContent(config, apoConfigPath);
     if (dash::audio::ApoConfigManager::injectManagedSection(apoConfigPath, directives, &err) == dash::audio::ApoConfigResult::Success)
     {
-        statusBar_.setStatusMessage("Configuración Equalizer APO sincronizada.");
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Configuraci\xc3\xb3n Equalizer APO sincronizada."));
     }
     else
     {
-        statusBar_.setStatusMessage("Aviso APO: " + juce::String(err), true);
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Aviso APO: ") + juce::String(err), true);
     }
 }
 
 void MainComponent::activateTacticalMode()
 {
+    // Verificación de seguridad: no permitir activación si faltan dependencias críticas
+    const auto depStatus = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+    if (!depStatus.hasEqualizerApo || !depStatus.hasVbAudioCable)
+    {
+        statusBar_.setStatusMessage(
+            juce::String::fromUTF8("\xe2\x9a\xa0\xef\xb8\x8f ACCI\xc3\x93N REQUERIDA: Faltan dependencias para iniciar"),
+            true
+        );
+        checkDependenciesAndSetupWizard();
+        return;
+    }
+
     // Guardar dispositivo actual antes de conmutar
     auto activeDevices = policyManager_.enumerateActiveRenderEndpoints();
     for (const auto& dev : activeDevices)
@@ -455,10 +467,10 @@ void MainComponent::activateTacticalMode()
                         isProfileActive_ = false;
                         dashboardPanel_->setEngineRunning(false);
                         statusBar_.setEngineStatus(state == dash::audio::AudioBackendState::DeviceDisconnected
-                                                       ? "MOTOR: DISPOSITIVO DESCONECTADO"
-                                                       : "MOTOR: ERROR",
+                                                       ? juce::String::fromUTF8("MOTOR: DISPOSITIVO DESCONECTADO")
+                                                       : juce::String::fromUTF8("MOTOR: ERROR"),
                                                    false);
-                        statusBar_.setStatusMessage("Aviso WASAPI: " + juce::String(msg), true);
+                        statusBar_.setStatusMessage(juce::String::fromUTF8("Aviso WASAPI: ") + juce::String(msg), true);
                     });
                 }
             },
@@ -468,25 +480,25 @@ void MainComponent::activateTacticalMode()
         {
             isProfileActive_ = false;
             dashboardPanel_->setEngineRunning(false);
-            statusBar_.setEngineStatus("MOTOR: ERROR DE INICIALIZACIÓN", false);
-            statusBar_.setStatusMessage("Fallo al iniciar WASAPI: " + juce::String(startErr), true);
+            statusBar_.setEngineStatus(juce::String::fromUTF8("MOTOR: ERROR DE INICIALIZACI\xc3\x93N"), false);
+            statusBar_.setStatusMessage(juce::String::fromUTF8("Fallo al iniciar WASAPI: ") + juce::String(startErr), true);
             return;
         }
     }
 
     isProfileActive_ = true;
     dashboardPanel_->setEngineRunning(true);
-    statusBar_.setEngineStatus("MOTOR: ACTIVO [WASAPI / C++ DSP]", true);
+    statusBar_.setEngineStatus(juce::String::fromUTF8("MOTOR: ACTIVO [WASAPI / C++ DSP]"), true);
 
     executeConfigInjection();
-    statusBar_.setStatusMessage("Modo Táctico activado con éxito.");
+    statusBar_.setStatusMessage(juce::String::fromUTF8("Modo T\xc3\xa1" "ctico activado con \xc3\xa9" "xito."));
 }
 
 void MainComponent::deactivateAndRestoreAudio()
 {
     isProfileActive_ = false;
     dashboardPanel_->setEngineRunning(false);
-    statusBar_.setEngineStatus("MOTOR: DETENIDO", false);
+    statusBar_.setEngineStatus(juce::String::fromUTF8("MOTOR: DETENIDO"), false);
 
     if (audioBackend_)
     {
@@ -504,11 +516,11 @@ void MainComponent::deactivateAndRestoreAudio()
 
     if (remRes == dash::audio::ApoConfigResult::Success || remRes == dash::audio::ApoConfigResult::FileNotFound)
     {
-        statusBar_.setStatusMessage("Audio original de Windows restaurado.");
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Audio original de Windows restaurado."));
     }
     else
     {
-        statusBar_.setStatusMessage("Aviso al restaurar APO: " + juce::String(err), true);
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Aviso al restaurar APO: ") + juce::String(err), true);
     }
 }
 
@@ -519,6 +531,10 @@ void MainComponent::checkDependenciesAndSetupWizard()
 
     if (missingCritical)
     {
+        // 1. Bloqueo Absoluto: Deshabilitar paneles, pestañas y perillas
+        tabs_.setEnabled(false);
+
+        // 2. Instanciar y posicionar Asistente a pantalla completa por encima de todo
         if (!onboardingWizard_)
             onboardingWizard_ = std::make_unique<OnboardingWizard>();
 
@@ -541,11 +557,19 @@ void MainComponent::checkDependenciesAndSetupWizard()
         };
 
         addAndMakeVisible(onboardingWizard_.get());
+        onboardingWizard_->setBounds(getLocalBounds());
         onboardingWizard_->toFront(true);
         dashboardPanel_->setTutorialVisible(false);
+
+        // 3. Barra de estado inferior en color rojo con advertencia crítica
+        statusBar_.setStatusMessage(
+            juce::String::fromUTF8("\xe2\x9a\xa0\xef\xb8\x8f ACCI\xc3\x93N REQUERIDA: Faltan dependencias para iniciar"),
+            true
+        );
     }
     else
     {
+        tabs_.setEnabled(true);
         dismissWizard();
         dashboardPanel_->setTutorialVisible(true);
     }
@@ -553,30 +577,65 @@ void MainComponent::checkDependenciesAndSetupWizard()
 
 void MainComponent::dismissWizard()
 {
-    if (onboardingWizard_)
+    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+    const bool isReady = status.hasEqualizerApo && status.hasVbAudioCable;
+
+    if (isReady)
     {
-        removeChildComponent(onboardingWizard_.get());
-        onboardingWizard_.reset();
+        if (onboardingWizard_)
+        {
+            removeChildComponent(onboardingWizard_.get());
+            onboardingWizard_.reset();
+        }
+        tabs_.setEnabled(true);
+        dashboardPanel_->setTutorialVisible(true);
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Sistema preparado para procesamiento t\xc3\xa1" "ctico."), false);
     }
-    dashboardPanel_->setTutorialVisible(true);
+    else
+    {
+        // Si faltan dependencias críticas, se mantiene el bloqueo de la interfaz
+        if (onboardingWizard_)
+        {
+            onboardingWizard_->toFront(true);
+        }
+        tabs_.setEnabled(false);
+        dashboardPanel_->setTutorialVisible(false);
+        statusBar_.setStatusMessage(
+            juce::String::fromUTF8("\xe2\x9a\xa0\xef\xb8\x8f ACCI\xc3\x93N REQUERIDA: Faltan dependencias para iniciar"),
+            true
+        );
+    }
     resized();
 }
 
 void MainComponent::recheckDependencies()
 {
     const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
+    const bool isReady = status.hasEqualizerApo && status.hasVbAudioCable;
+
     if (onboardingWizard_)
     {
         onboardingWizard_->updateStatus(status);
     }
 
-    if (status.hasEqualizerApo && status.hasVbAudioCable)
+    if (isReady)
     {
-        statusBar_.setStatusMessage("Dependencias verificadas correctamente.");
+        tabs_.setEnabled(true);
+        dismissWizard();
+        statusBar_.setStatusMessage(juce::String::fromUTF8("Dependencias verificadas correctamente."), false);
     }
     else
     {
-        statusBar_.setStatusMessage("Aún faltan componentes requeridos en el sistema.", true);
+        tabs_.setEnabled(false);
+        if (onboardingWizard_)
+        {
+            onboardingWizard_->setBounds(getLocalBounds());
+            onboardingWizard_->toFront(true);
+        }
+        statusBar_.setStatusMessage(
+            juce::String::fromUTF8("\xe2\x9a\xa0\xef\xb8\x8f ACCI\xc3\x93N REQUERIDA: Faltan dependencias para iniciar"),
+            true
+        );
     }
 }
 
@@ -584,7 +643,7 @@ void MainComponent::startAutoInstall()
 {
     if (onboardingWizard_)
     {
-        onboardingWizard_->setInstallingState(true, "Descargando instaladores oficiales a %TEMP%...");
+        onboardingWizard_->setInstallingState(true, juce::String::fromUTF8("Descargando instaladores oficiales a %TEMP%..."));
     }
 
     const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
@@ -612,7 +671,7 @@ void MainComponent::startAutoInstall()
 
             juce::AlertWindow::showMessageBoxAsync(
                 juce::AlertWindow::InfoIcon,
-                "Instalación de Drivers",
+                "Instalaci\xc3\xb3n de Drivers",
                 juce::String(finalMessage.c_str()),
                 "Entendido");
         });
@@ -646,7 +705,7 @@ void MainComponent::autoConfigureAudio()
         std::string err;
         if (policyManager_.setDefaultEndpoint(cableEndpointId, &err))
         {
-            statusBar_.setStatusMessage("Audio redirigido a VB-Cable exitosamente.");
+            statusBar_.setStatusMessage(juce::String::fromUTF8("Audio redirigido a VB-Cable exitosamente."));
 
             // Actualizar el nombre mostrado en el dashboard
             const auto endpoints = policyManager_.enumerateActiveRenderEndpoints();
@@ -661,12 +720,12 @@ void MainComponent::autoConfigureAudio()
         }
         else
         {
-            statusBar_.setStatusMessage("Fallo al cambiar endpoint: " + juce::String(err), true);
+            statusBar_.setStatusMessage(juce::String::fromUTF8("Fallo al cambiar endpoint: ") + juce::String(err), true);
         }
     }
     else
     {
-        statusBar_.setStatusMessage("No se encontró 'CABLE Input'. Por favor instala VB-Cable primero.", true);
+        statusBar_.setStatusMessage(juce::String::fromUTF8("No se encontr\xc3\xb3 'CABLE Input'. Por favor instala VB-Cable primero."), true);
     }
 }
 

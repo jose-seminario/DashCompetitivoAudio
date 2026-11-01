@@ -21,7 +21,7 @@ StatusBarComponent::StatusBarComponent()
     formatInfoLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(formatInfoLabel_);
 
-    statusMessageLabel_.setText("Listo. Sistema preparado.", juce::dontSendNotification);
+    statusMessageLabel_.setText(juce::String::fromUTF8("Sistema en espera. Verifica dependencias."), juce::dontSendNotification);
     statusMessageLabel_.setFont(juce::FontOptions(11.5f));
     statusMessageLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
     addAndMakeVisible(statusMessageLabel_);
@@ -99,7 +99,7 @@ void StatusBarComponent::setStatusMessage(const juce::String& message, bool isEr
 {
     statusMessageLabel_.setText(message, juce::dontSendNotification);
     statusMessageLabel_.setColour(juce::Label::textColourId,
-                                 isError ? DashLookAndFeel::kDangerCrimson : DashLookAndFeel::kTextMuted);
+                                  isError ? DashLookAndFeel::kDangerCrimson : DashLookAndFeel::kTextMuted);
 }
 
 } // namespace dash::ui

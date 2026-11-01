@@ -32,7 +32,7 @@ DashboardComponent::DashboardComponent()
     addAndMakeVisible(advancedModeBtn_);
 
     // 2. Tarjeta de Estado
-    engineCardTitle_.setText("ESTADO DEL MOTOR ACÚSTICO", juce::dontSendNotification);
+    engineCardTitle_.setText(juce::String::fromUTF8("ESTADO DEL MOTOR AC\xc3\x9a" "STICO"), juce::dontSendNotification);
     engineCardTitle_.setFont(juce::FontOptions(13.5f).withStyle("Bold"));
     engineCardTitle_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(engineCardTitle_);
@@ -57,7 +57,7 @@ DashboardComponent::DashboardComponent()
     cpuLabel_.setFont(juce::FontOptions(12.5f));
     addAndMakeVisible(cpuLabel_);
 
-    activateBtn_.setButtonText("ACTIVAR MOTOR TÁCTICO");
+    activateBtn_.setButtonText(juce::String::fromUTF8("ACTIVAR MOTOR T\xc3\x81" "CTICO"));
     activateBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kSuccessEmerald);
     activateBtn_.onClick = [this] { if (onActivateClicked) onActivateClicked(); };
     addAndMakeVisible(activateBtn_);
@@ -68,17 +68,17 @@ DashboardComponent::DashboardComponent()
     addAndMakeVisible(deactivateBtn_);
 
     // 3. Tutorial de Primer Uso y Autoconfiguración
-    tutorialTitleLabel_.setText("GUÍA RÁPIDA DE PRIMER USO", juce::dontSendNotification);
+    tutorialTitleLabel_.setText(juce::String::fromUTF8("GU\xc3\x8d""A R\xc3\x81""PIDA DE PRIMER USO"), juce::dontSendNotification);
     tutorialTitleLabel_.setFont(juce::FontOptions(11.5f).withStyle("Bold"));
     tutorialTitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(tutorialTitleLabel_);
 
-    step1Label_.setText("Paso 1: Selecciona 'CABLE Input' como dispositivo de salida en Windows.", juce::dontSendNotification);
+    step1Label_.setText(juce::String::fromUTF8("Paso 1: Selecciona 'CABLE Input' como dispositivo de salida en Windows."), juce::dontSendNotification);
     step1Label_.setFont(juce::FontOptions(12.0f));
     step1Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
     addAndMakeVisible(step1Label_);
 
-    autoConfigBtn_.setButtonText("Autoconfigurar Audio (VB-Cable)");
+    autoConfigBtn_.setButtonText(juce::String::fromUTF8("Autoconfigurar Audio (VB-Cable)"));
     autoConfigBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kAccentBlue);
     autoConfigBtn_.onClick = [this] {
         if (onAutoConfigClicked)
@@ -86,17 +86,17 @@ DashboardComponent::DashboardComponent()
     };
     addAndMakeVisible(autoConfigBtn_);
 
-    step2Label_.setText("Paso 2: Haz clic en 'Activar Motor Táctico'.", juce::dontSendNotification);
+    step2Label_.setText(juce::String::fromUTF8("Paso 2: Haz clic en 'Activar Motor T\xc3\xa1" "ctico'."), juce::dontSendNotification);
     step2Label_.setFont(juce::FontOptions(12.0f));
     step2Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
     addAndMakeVisible(step2Label_);
 
-    step3Label_.setText("Paso 3: ¡A jugar!", juce::dontSendNotification);
+    step3Label_.setText(juce::String::fromUTF8("Paso 3: \xc2\xa1""A jugar!"), juce::dontSendNotification);
     step3Label_.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
     step3Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kSuccessEmerald);
     addAndMakeVisible(step3Label_);
 
-    dismissTutorialBtn_.setButtonText("Ocultar Guía");
+    dismissTutorialBtn_.setButtonText(juce::String::fromUTF8("Ocultar Gu\xc3\xad""a"));
     dismissTutorialBtn_.setColour(juce::TextButton::buttonColourId, DashLookAndFeel::kBgCardElevated);
     dismissTutorialBtn_.onClick = [this] { setTutorialVisible(false); };
     addAndMakeVisible(dismissTutorialBtn_);
@@ -115,7 +115,7 @@ DashboardComponent::DashboardComponent()
     };
 
     // 5. Controles Tácticos Rápidos
-    quickTitleLabel_.setText("PERSONALIZACIÓN TÁCTICA RÁPIDA (EASY MODE)", juce::dontSendNotification);
+    quickTitleLabel_.setText(juce::String::fromUTF8("PERSONALIZACI\xc3\x93N T\xc3\x81" "CTICA R\xc3\x81" "PIDA (EASY MODE)"), juce::dontSendNotification);
     quickTitleLabel_.setFont(juce::FontOptions(13.0f).withStyle("Bold"));
     quickTitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
     addAndMakeVisible(quickTitleLabel_);
@@ -133,7 +133,7 @@ DashboardComponent::DashboardComponent()
 
     initTacticalSlider(gunSlider_, gunLabel_, "Ganancia Pico (Gun)", 0.0, 1.0, 0.45, "");
     initTacticalSlider(stepsSlider_, stepsLabel_, "Realce de Pasos", -3.0, 6.0, 2.0, " dB");
-    initTacticalSlider(ambSlider_, ambLabel_, "Protección (AmbGuar)", 0.0, 1.0, 1.0, "");
+    initTacticalSlider(ambSlider_, ambLabel_, juce::String::fromUTF8("Protecci\xc3\xb3n (AmbGuar)"), 0.0, 1.0, 1.0, "");
 
     auto notifyQuickControls = [this] {
         if (onQuickControlsChanged)

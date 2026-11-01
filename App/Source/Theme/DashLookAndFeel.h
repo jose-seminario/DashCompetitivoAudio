@@ -10,6 +10,7 @@ namespace dash::ui
  *
  * Proporciona una paleta oscura moderna (#121214, #1A1A1E), controles rotativos
  * vectorizados de precisión, botones planos tácticos y menús con estilo visual uniforme.
+ * Tipografía minimalista y moderna basada en Segoe UI.
  */
 class DashLookAndFeel : public juce::LookAndFeel_V4
 {
@@ -67,7 +68,11 @@ public:
         const juce::Drawable* icon,
         const juce::Colour* textColour) override;
 
+    juce::Font getTextButtonFont(juce::TextButton& button, int buttonHeight) override;
+    juce::Font getTabButtonFont(juce::TabBarButton& button, float height) override;
     juce::Font getLabelFont(juce::Label& label) override;
+    juce::Font getComboBoxFont(juce::ComboBox& box) override;
+    juce::Font getPopupMenuFont() override;
 };
 
 } // namespace dash::ui
