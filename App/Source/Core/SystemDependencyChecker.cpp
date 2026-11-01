@@ -149,7 +149,7 @@ void SystemDependencyChecker::openOfficialDownloadLinks(bool openApo, bool openV
     if (openVbCable)
         ::ShellExecuteW(nullptr, L"open", kVbCableUrl, nullptr, nullptr, SW_SHOWNORMAL);
     if (openHeSuViPage)
-        ::ShellExecuteW(nullptr, L"open", kHeSuViUrl, nullptr, nullptr, SW_SHNORMAL);
+        ::ShellExecuteW(nullptr, L"open", kHeSuViUrl, nullptr, nullptr, SW_SHOWNORMAL);
 #else
     (void)openApo;
     (void)openVbCable;
