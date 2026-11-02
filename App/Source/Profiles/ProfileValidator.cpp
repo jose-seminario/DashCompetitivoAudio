@@ -373,6 +373,10 @@ ProfileValidationResult ProfileValidator::validateProfile(const AudioProfile& pr
         {
             result.addError("spatial.frontBackSeparation", "Separación frente/detrás fuera de rango [0.0 .. 3.0].");
         }
+        if (!isSafeNumeric(spat.spatialMix, 0.0f, 1.0f))
+        {
+            result.addError("spatial.spatialMix", "Mezcla espacial (spatialMix) fuera de rango [0.0 .. 1.0].");
+        }
     }
 
     return result;

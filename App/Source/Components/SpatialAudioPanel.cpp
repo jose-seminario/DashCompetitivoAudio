@@ -13,7 +13,7 @@ SpatialAudioPanel::SpatialAudioPanel()
     titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
     addAndMakeVisible(titleLabel_);
 
-    bypassToggle_.setButtonText("Bypass Espacial");
+    bypassToggle_.setButtonText(juce::String::fromUTF8(u8"Bypass Espacial"));
     bypassToggle_.setColour(juce::ToggleButton::textColourId, DashLookAndFeel::kTextMain);
     bypassToggle_.onClick = [this] {
         params_.bypass = bypassToggle_.getToggleState();
@@ -36,6 +36,36 @@ SpatialAudioPanel::SpatialAudioPanel()
     initKnob(distanceSlider_, distanceLabel_, juce::String::fromUTF8(u8"Distancia Acústica"), 0.5, 4.0, 1.4, " m");
     initKnob(frontBackSlider_, frontBackLabel_, juce::String::fromUTF8(u8"Separación Frente/Atrás"), 0.0, 3.0, 1.0, "x");
     initKnob(elevationSlider_, elevationLabel_, juce::String::fromUTF8(u8"Énfasis Altura (Techo)"), -6.0, 6.0, 0.0, " dB");
+
+    // Control Deslizante de Mezcla Espacial (HRTF vs Estéreo)
+    spatialMixLabel_.setText(juce::String::fromUTF8(u8"Mezcla Espacial (HRTF vs Estéreo):"), juce::dontSendNotification);
+    spatialMixLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f).withStyle("Bold")));
+    spatialMixLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+    addAndMakeVisible(spatialMixLabel_);
+
+    spatialMixSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    spatialMixSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 55, 18);
+    spatialMixSlider_.setRange(0.0, 1.0, 0.01);
+    spatialMixSlider_.setValue(0.2, juce::dontSendNotification);
+    spatialMixSlider_.setColour(juce::Slider::trackColourId, DashLookAndFeel::kAccentCyan);
+    spatialMixSlider_.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+    spatialMixSlider_.onValueChange = [this] {
+        params_ = getParameters();
+        if (onParametersChanged) onParametersChanged(params_);
+        repaint();
+    };
+    addAndMakeVisible(spatialMixSlider_);
+
+    spatialMixHrtfHintLabel_.setText(juce::String::fromUTF8(u8"100% HRTF (Más 3D)"), juce::dontSendNotification);
+    spatialMixHrtfHintLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(10.5f)));
+    spatialMixHrtfHintLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    addAndMakeVisible(spatialMixHrtfHintLabel_);
+
+    spatialMixStereoHintLabel_.setText(juce::String::fromUTF8(u8"100% Estéreo (Más Cuerpo)"), juce::dontSendNotification);
+    spatialMixStereoHintLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(10.5f)));
+    spatialMixStereoHintLabel_.setJustificationType(juce::Justification::topRight);
+    spatialMixStereoHintLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
+    addAndMakeVisible(spatialMixStereoHintLabel_);
 
     lfeBypassNoteLabel_.setText(juce::String::fromUTF8(u8"Arquitectura de Fase: El canal LFE (subgraves < 120 Hz) elude automáticamente la convolución HRTF para erradicar cancelaciones destructivas (comb-filtering) en auriculares."), juce::dontSendNotification);
     lfeBypassNoteLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
@@ -162,7 +192,7 @@ void SpatialAudioPanel::resized()
     const int knobH = 96;
 
     // Fila 1 de Perillas
-    const int row1Y = 135;
+    const int row1Y = 130;
     widthLabel_.setBounds(startX, row1Y, knobW, 16);
     widthSlider_.setBounds(startX, row1Y + 16, knobW, knobH);
 
@@ -170,12 +200,19 @@ void SpatialAudioPanel::resized()
     distanceSlider_.setBounds(startX + 140, row1Y + 16, knobW, knobH);
 
     // Fila 2 de Perillas
-    const int row2Y = 255;
+    const int row2Y = 245;
     frontBackLabel_.setBounds(startX, row2Y, knobW, 16);
     frontBackSlider_.setBounds(startX, row2Y + 16, knobW, knobH);
 
     elevationLabel_.setBounds(startX + 140, row2Y, knobW, 16);
     elevationSlider_.setBounds(startX + 140, row2Y + 16, knobW, knobH);
+
+    // Fila 3: Control Deslizante de Mezcla Espacial
+    const int row3Y = 360;
+    spatialMixLabel_.setBounds(startX, row3Y, 420, 20);
+    spatialMixSlider_.setBounds(startX, row3Y + 22, 420, 26);
+    spatialMixHrtfHintLabel_.setBounds(startX, row3Y + 50, 190, 16);
+    spatialMixStereoHintLabel_.setBounds(startX + 230, row3Y + 50, 190, 16);
 
     lfeBypassNoteLabel_.setBounds(startX, getHeight() - 85, 430, 60);
 }
@@ -187,6 +224,7 @@ void SpatialAudioPanel::setParameters(const dash::spatial::SpatialProcessorParam
     distanceSlider_.setValue(params.apparentDistanceM, juce::dontSendNotification);
     frontBackSlider_.setValue(params.frontBackSeparation, juce::dontSendNotification);
     elevationSlider_.setValue(params.elevationEmphasis, juce::dontSendNotification);
+    spatialMixSlider_.setValue(params.spatialMix, juce::dontSendNotification);
     bypassToggle_.setToggleState(params.bypass, juce::dontSendNotification);
     repaint();
 }
@@ -198,6 +236,7 @@ dash::spatial::SpatialProcessorParameters SpatialAudioPanel::getParameters() con
     p.apparentDistanceM   = static_cast<float>(distanceSlider_.getValue());
     p.frontBackSeparation = static_cast<float>(frontBackSlider_.getValue());
     p.elevationEmphasis   = static_cast<float>(elevationSlider_.getValue());
+    p.spatialMix          = static_cast<float>(spatialMixSlider_.getValue());
     p.bypass              = bypassToggle_.getToggleState();
     return p;
 }

@@ -33,6 +33,7 @@ void AudioProfile::resetToDefaults()
     spatialParams.soundstageWidth     = 1.0f;
     spatialParams.apparentDistanceM   = 1.4f;
     spatialParams.frontBackSeparation = 1.0f;
+    spatialParams.spatialMix          = 0.2f;
     enableSpatial                     = false;
 }
 

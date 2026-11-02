@@ -5,8 +5,9 @@
  *  1. Negociación de Layouts (5.1, 7.1, 7.1.4, 9.1.6): Transición limpia y sin cuelgues.
  *  2. Modulación de Anchura de Escenario: Escalamiento simétrico de canales laterales.
  *  3. Separación Frontal/Trasera: Control de discriminación acústica de cuadrante posterior.
- *  4. Ejecución en Tiempo Real: Cero asignaciones dentro del bucle de procesamiento.
- *  5. Comprobación de Finitud: Cero NaN o Infinity ante impulsos y barridos.
+ *  4. Mezcla Dry/Wet (HRTF vs Estéreo): Mezcla con latencia cero de señal 3D y estéreo nativo.
+ *  5. Ejecución en Tiempo Real: Cero asignaciones dentro del bucle de procesamiento.
+ *  6. Comprobación de Finitud: Cero NaN o Infinity ante impulsos y barridos.
  *
  * NOTA: Archivo de solo lectura/preparación; no se ejecuta en la terminal.
  */
@@ -73,6 +74,43 @@ void testSpatialProcessorSoundstageWidth()
     processor.updateParameters(params);
 
     assert(std::abs(processor.getParameters().soundstageWidth - 1.5f) < 1.0e-5f);
+}
+
+void testSpatialProcessorSpatialMix()
+{
+    using namespace dash::spatial;
+
+    SpatialProcessor processor;
+    processor.prepare(48000.0, 256);
+    processor.configureLayout(ChannelLayout::stereo());
+
+    std::vector<float> chL(128, 0.42f);
+    std::vector<float> chR(128, -0.37f);
+    const float* inPointers[2] = { chL.data(), chR.data() };
+
+    std::vector<float> outL(128, 0.0f);
+    std::vector<float> outR(128, 0.0f);
+
+    // 1. Con spatialMix = 1.0 (100% Estéreo Nativo / Dry puro), la salida debe ser exactamente igual a la entrada
+    SpatialProcessorParameters params;
+    params.spatialMix = 1.0f;
+    processor.updateParameters(params);
+
+    processor.processBinaural(inPointers, 2, outL.data(), outR.data(), 128);
+
+    for (size_t i = 0; i < 128; ++i)
+    {
+        assert(std::abs(outL[i] - chL[i]) < 1.0e-5f);
+        assert(std::abs(outR[i] - chR[i]) < 1.0e-5f);
+    }
+
+    // 2. Con spatialMix = 0.2 (80% HRTF, 20% Estéreo), la salida debe ser finita y ponderada
+    params.spatialMix = 0.2f;
+    processor.updateParameters(params);
+    processor.processBinaural(inPointers, 2, outL.data(), outR.data(), 128);
+
+    assert(isFinite(outL.data(), 128));
+    assert(isFinite(outR.data(), 128));
 }
 
 void testSpatialProcessorImmersive16Channels()

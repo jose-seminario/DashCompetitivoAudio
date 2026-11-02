@@ -156,13 +156,39 @@ void SpatialProcessor::processBinaural(
             }
         }
 
-        // Renderizar la mezcla binaural estéreo de alta fidelidad
+        // Renderizar la mezcla binaural estéreo de alta fidelidad (Wet)
         renderer_.render(
             impl_->mappedPointers.data(),
             activeCh,
             outputLeft + samplesProcessed,
             outputRight + samplesProcessed,
             chunkSize);
+
+        // Mezcla Dry/Wet (Latencia Cero) entre señal HRTF procesada (Wet) y señal estéreo nativa (Dry)
+        const float spatialMix = std::clamp(impl_->params.spatialMix, 0.0f, 1.0f);
+        if (spatialMix > 1.0e-5f)
+        {
+            const float dryGain = spatialMix;
+            const float wetGain = 1.0f - spatialMix;
+
+            float* outL = outputLeft + samplesProcessed;
+            float* outR = outputRight + samplesProcessed;
+
+            const float* inL = (numChannels > 0 && inputChannels[0] != nullptr) ? (inputChannels[0] + samplesProcessed) : nullptr;
+            const float* inR = (numChannels > 1 && inputChannels[1] != nullptr) ? (inputChannels[1] + samplesProcessed) : inL;
+
+            for (int i = 0; i < chunkSize; ++i)
+            {
+                const float outL_wet = outL[i];
+                const float outR_wet = outR[i];
+
+                const float outL_dry = (inL != nullptr) ? inL[i] : 0.0f;
+                const float outR_dry = (inR != nullptr) ? inR[i] : 0.0f;
+
+                outL[i] = (outL_wet * wetGain) + (outL_dry * dryGain);
+                outR[i] = (outR_wet * wetGain) + (outR_dry * dryGain);
+            }
+        }
 
         samplesProcessed += chunkSize;
     }

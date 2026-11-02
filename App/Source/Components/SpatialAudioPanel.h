@@ -10,7 +10,7 @@ namespace dash::ui
  * Panel de Control Espacial Tridimensional y HRTF/HRIR (SpatialAudioPanel).
  *
  * Configura la apertura estéreo, distancia acústica aparente, discriminación
- * frente/detrás, elevación y modelo de difracción binaural para auriculares.
+ * frente/detrás, elevación, modelo de difracción binaural y mezcla Dry/Wet (HRTF vs Estéreo).
  */
 class SpatialAudioPanel final : public juce::Component
 {
@@ -49,6 +49,11 @@ private:
 
     juce::Slider elevationSlider_;
     juce::Label  elevationLabel_;
+
+    juce::Slider spatialMixSlider_;
+    juce::Label  spatialMixLabel_;
+    juce::Label  spatialMixHrtfHintLabel_;
+    juce::Label  spatialMixStereoHintLabel_;
 
     juce::Label lfeBypassNoteLabel_;
 

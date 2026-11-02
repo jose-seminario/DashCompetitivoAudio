@@ -14,10 +14,11 @@ namespace dash::spatial
 
 struct SpatialProcessorParameters
 {
-    float soundstageWidth       = 1.0f;   // [0.5 .. 2.0] Factor de apertura y anchura estéreo espacial
+    float soundstageWidth       = 1.0f;   // [0.5 .. 3.0] Factor de apertura y anchura estéreo espacial
     float apparentDistanceM     = 1.4f;   // [0.5 .. 5.0 m] Distancia acústica aparente
-    float frontBackSeparation   = 1.0f;   // [0.0 .. 1.5] Claridad en la discriminación frente/detrás
+    float frontBackSeparation   = 1.0f;   // [0.0 .. 3.0] Claridad en la discriminación frente/detrás
     float elevationEmphasis     = 0.0f;   // [-6.0 .. +6.0 dB] Énfasis acústico en altavoces de techo
+    float spatialMix            = 0.2f;   // [0.0 .. 1.0] Mezcla Dry/Wet: 0.0 = 100% HRTF (3D), 1.0 = 100% Estéreo Nativo
     BinauralRendererParameters rendererParams {};
     bool  bypass                = false;
 };

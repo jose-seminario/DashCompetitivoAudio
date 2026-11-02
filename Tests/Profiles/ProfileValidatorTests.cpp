@@ -5,7 +5,7 @@
  *  1. Detección de código malicioso/ejecutable en JSON (.exe, .dll, powershell, cmd.exe).
  *  2. Prevención de Path Traversal (rechazo de slugs con '..', '/', '\', o nombres reservados DOS).
  *  3. Límite de tamaño de archivo (1 MB máximo).
- *  4. Validación de rangos numéricos DSP (frecuencias audibles, ganancias, factores Q).
+ *  4. Validación de rangos numéricos DSP (frecuencias audibles, ganancias, factores Q, mezcla espacial).
  *
  * NOTA: Archivo de solo lectura/preparación; no se ejecuta en la terminal.
  */
@@ -107,6 +107,18 @@ void testProfileValidatorNumericRanges()
     profile.resetToDefaults();
     profile.audio.sampleRate = std::numeric_limits<double>::quiet_NaN();
     assert(ProfileValidator::validateProfile(profile).hasErrors());
+
+    // 6. Validación de mezcla espacial (spatialMix en [0.0 .. 1.0])
+    profile.resetToDefaults();
+    profile.enableSpatial = true;
+    profile.spatialParams.spatialMix = 1.5f; // Inválido (> 1.0)
+    assert(ProfileValidator::validateProfile(profile).hasErrors());
+
+    profile.spatialParams.spatialMix = -0.1f; // Inválido (< 0.0)
+    assert(ProfileValidator::validateProfile(profile).hasErrors());
+
+    profile.spatialParams.spatialMix = 0.2f; // Válido
+    assert(ProfileValidator::validateProfile(profile).valid);
 
     profile.resetToDefaults();
     assert(ProfileValidator::validateProfile(profile).valid);

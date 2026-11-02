@@ -203,6 +203,10 @@ MainComponent::MainComponent()
 
     spatialPanel_->onParametersChanged = [this](const dash::spatial::SpatialProcessorParameters& s) {
         currentProfile_.spatialParams = s;
+        currentProfile_.dspParams.spatial = s;
+        currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || s.bypass;
+        if (audioGraph_)
+            audioGraph_->updateParameters(currentProfile_.dspParams);
         scheduleDebouncedInjection();
     };
 

@@ -156,6 +156,7 @@
         "apparentDistanceM": { "type": "number", "minimum": 0.2, "maximum": 10.0 },
         "frontBackSeparation": { "type": "number", "minimum": 0.0, "maximum": 3.0 },
         "elevationEmphasis": { "type": "number", "minimum": -6.0, "maximum": 6.0 },
+        "spatialMix": { "type": "number", "minimum": 0.0, "maximum": 1.0 },
         "bypass": { "type": "boolean" }
       }
     },
