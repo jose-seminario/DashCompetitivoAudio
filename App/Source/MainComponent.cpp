@@ -202,6 +202,7 @@ MainComponent::MainComponent()
     };
 
     spatialPanel_->onParametersChanged = [this](const dash::spatial::SpatialProcessorParameters& s) {
+        DBG(juce::String::fromUTF8(u8"[MainComponent] Sincronizando AudioGraph con spatialMix = ") + juce::String(s.spatialMix, 2));
         currentProfile_.spatialParams = s;
         currentProfile_.dspParams.spatial = s;
         currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || s.bypass;

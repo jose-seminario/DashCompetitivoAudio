@@ -117,7 +117,7 @@ void testProfileValidatorNumericRanges()
     profile.spatialParams.spatialMix = -0.1f; // Inválido (< 0.0)
     assert(ProfileValidator::validateProfile(profile).hasErrors());
 
-    profile.spatialParams.spatialMix = 0.2f; // Válido
+    profile.spatialParams.spatialMix = 0.3f; // Válido
     assert(ProfileValidator::validateProfile(profile).valid);
 
     profile.resetToDefaults();

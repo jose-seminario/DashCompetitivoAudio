@@ -412,7 +412,7 @@ bool ProfileSerializer::deserializeFromJson(const std::string& jsonText, AudioPr
         p.spatialParams.apparentDistanceM   = static_cast<float>(spat.getProperty("apparentDistanceM", 1.4));
         p.spatialParams.frontBackSeparation = static_cast<float>(spat.getProperty("frontBackSeparation", 1.0));
         p.spatialParams.elevationEmphasis   = static_cast<float>(spat.getProperty("elevationEmphasis", 0.0));
-        p.spatialParams.spatialMix          = static_cast<float>(spat.getProperty("spatialMix", 0.2));
+        p.spatialParams.spatialMix          = static_cast<float>(spat.getProperty("spatialMix", 0.3));
         p.spatialParams.bypass              = static_cast<bool>(spat.getProperty("bypass", false));
     }
 

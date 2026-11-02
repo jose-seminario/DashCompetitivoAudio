@@ -104,13 +104,47 @@ void testSpatialProcessorSpatialMix()
         assert(std::abs(outR[i] - chR[i]) < 1.0e-5f);
     }
 
-    // 2. Con spatialMix = 0.2 (80% HRTF, 20% Estéreo), la salida debe ser finita y ponderada
-    params.spatialMix = 0.2f;
+    // 2. Con spatialMix = 0.3 (70% HRTF, 30% Estéreo), la salida debe ser finita y ponderada
+    params.spatialMix = 0.3f;
     processor.updateParameters(params);
     processor.processBinaural(inPointers, 2, outL.data(), outR.data(), 128);
 
     assert(isFinite(outL.data(), 128));
     assert(isFinite(outR.data(), 128));
+}
+
+void testSpatialProcessorIldLimiterAndRearProtection()
+{
+    using namespace dash::spatial;
+
+    SpatialProcessor processor;
+    processor.prepare(48000.0, 256);
+    processor.configureLayout(ChannelLayout::surround7_1());
+
+    // Disparo proveniente del cuadrante trasero izquierdo (Back Left, canal 4 en 7.1)
+    std::vector<std::vector<float>> channels(8, std::vector<float>(128, 0.0f));
+    std::fill(channels[4].begin(), channels[4].end(), 0.8f);
+
+    std::vector<const float*> inPointers(8);
+    for (size_t i = 0; i < 8; ++i)
+        inPointers[i] = channels[i].data();
+
+    std::vector<float> outL(128, 0.0f);
+    std::vector<float> outR(128, 0.0f);
+
+    SpatialProcessorParameters params;
+    params.spatialMix = 0.3f;
+    processor.updateParameters(params);
+
+    processor.processBinaural(inPointers.data(), 8, outL.data(), outR.data(), 128);
+
+    assert(isFinite(outL.data(), 128));
+    assert(isFinite(outR.data(), 128));
+
+    // El oído izquierdo debe recibir la señal del disparo trasero (> 0.1f)
+    assert(std::abs(outL[50]) > 0.1f);
+    // El oído derecho opuesto NO debe quedar en silencio absoluto gracias al ILD Limiter (mínimo 50%)
+    assert(std::abs(outR[50]) >= 0.50f * std::abs(outL[50]) - 1.0e-4f);
 }
 
 void testSpatialProcessorImmersive16Channels()

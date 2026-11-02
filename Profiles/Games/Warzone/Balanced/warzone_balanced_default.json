@@ -70,7 +70,7 @@
     "apparentDistanceM": 1.4,
     "frontBackSeparation": 1.1,
     "elevationEmphasis": 0.0,
-    "spatialMix": 0.2,
+    "spatialMix": 0.3,
     "bypass": false
   },
   "metadata": {

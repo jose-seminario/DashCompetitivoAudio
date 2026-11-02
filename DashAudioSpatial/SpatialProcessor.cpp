@@ -164,30 +164,92 @@ void SpatialProcessor::processBinaural(
             outputRight + samplesProcessed,
             chunkSize);
 
-        // Mezcla Dry/Wet (Latencia Cero) entre señal HRTF procesada (Wet) y señal estéreo nativa (Dry)
-        const float spatialMix = std::clamp(impl_->params.spatialMix, 0.0f, 1.0f);
-        if (spatialMix > 1.0e-5f)
+        // Flujo de Procesamiento Binaural, Mezcla Dry/Wet e ILD Limiter (Cero Latencia)
+        float* outL = outputLeft + samplesProcessed;
+        float* outR = outputRight + samplesProcessed;
+
+        // Punteros a los canales de entrada para el downmix estéreo nativo (Dry)
+        auto getChannelPtr = [&](ChannelRole role, int fallbackIdx) -> const float* {
+            const int idx = inputLayout_.getChannelIndex(role);
+            const int ch = (idx >= 0) ? idx : fallbackIdx;
+            if (ch >= 0 && ch < numChannels && inputChannels[ch] != nullptr)
+                return inputChannels[ch] + samplesProcessed;
+            return nullptr;
+        };
+
+        const float* ptrFL = getChannelPtr(ChannelRole::FrontLeft, 0);
+        const float* ptrFR = getChannelPtr(ChannelRole::FrontRight, (numChannels > 1 ? 1 : 0));
+        const float* ptrFC = getChannelPtr(ChannelRole::FrontCenter, (numChannels > 2 ? 2 : -1));
+        const float* ptrBL = getChannelPtr(ChannelRole::BackLeft, (numChannels > 4 ? 4 : -1));
+        const float* ptrBR = getChannelPtr(ChannelRole::BackRight, (numChannels > 5 ? 5 : -1));
+        const float* ptrSL = getChannelPtr(ChannelRole::SideLeft, (numChannels > 6 ? 6 : -1));
+        const float* ptrSR = getChannelPtr(ChannelRole::SideRight, (numChannels > 7 ? 7 : -1));
+
+        const float mix = std::clamp(impl_->params.spatialMix, 0.0f, 1.0f);
+        constexpr float kDownmixAtten = 0.7071f;
+
+        for (int i = 0; i < chunkSize; ++i)
         {
-            const float dryGain = spatialMix;
-            const float wetGain = 1.0f - spatialMix;
+            // Paso A (Wet/HRTF): Obtén la salida del motor 3D
+            const float wetL = outL[i];
+            const float wetR = outR[i];
 
-            float* outL = outputLeft + samplesProcessed;
-            float* outR = outputRight + samplesProcessed;
+            // Paso B (Dry/Nativo): Calcula el Downmix de los 8 canales a 2 (L y R)
+            // sumando los canales traseros y laterales con atenuación de 0.7071f
+            const float sFL = (ptrFL != nullptr) ? ptrFL[i] : 0.0f;
+            const float sFR = (ptrFR != nullptr) ? ptrFR[i] : 0.0f;
+            const float sFC = (ptrFC != nullptr) ? ptrFC[i] : 0.0f;
+            const float sBL = (ptrBL != nullptr) ? ptrBL[i] : 0.0f;
+            const float sBR = (ptrBR != nullptr) ? ptrBR[i] : 0.0f;
+            const float sSL = (ptrSL != nullptr) ? ptrSL[i] : 0.0f;
+            const float sSR = (ptrSR != nullptr) ? ptrSR[i] : 0.0f;
 
-            const float* inL = (numChannels > 0 && inputChannels[0] != nullptr) ? (inputChannels[0] + samplesProcessed) : nullptr;
-            const float* inR = (numChannels > 1 && inputChannels[1] != nullptr) ? (inputChannels[1] + samplesProcessed) : inL;
+            const float dryL = sFL + kDownmixAtten * (sFC + sBL + sSL);
+            const float dryR = sFR + kDownmixAtten * (sFC + sBR + sSR);
 
-            for (int i = 0; i < chunkSize; ++i)
+            // Paso C (Mezcla): Aplica el slider entre Wet (HRTF) y Dry (Nativo)
+            float mixedL = (wetL * (1.0f - mix)) + (dryL * mix);
+            float mixedR = (wetR * (1.0f - mix)) + (dryR * mix);
+
+            // Paso D (ILD Limiter - La Solución):
+            // Evita cancelaciones acústicas o silencio total (0 dB) por la espalda o laterales.
+            // Si el HRTF atenúa el oído a 0.0f, se fuerza a un mínimo de 0.50f (50%).
+
+            // 1. Piso de volumen mínimo ante disparos traseros o laterales (50% de la energía Dry)
+            const float dryFloorL = 0.50f * std::abs(dryL);
+            if (std::abs(mixedL) < dryFloorL)
             {
-                const float outL_wet = outL[i];
-                const float outR_wet = outR[i];
-
-                const float outL_dry = (inL != nullptr) ? inL[i] : 0.0f;
-                const float outR_dry = (inR != nullptr) ? inR[i] : 0.0f;
-
-                outL[i] = (outL_wet * wetGain) + (outL_dry * dryGain);
-                outR[i] = (outR_wet * wetGain) + (outR_dry * dryGain);
+                const float signL = (std::abs(mixedL) > 1.0e-7f) ? (mixedL > 0.0f ? 1.0f : -1.0f) : (dryL >= 0.0f ? 1.0f : -1.0f);
+                mixedL = signL * dryFloorL;
             }
+
+            const float dryFloorR = 0.50f * std::abs(dryR);
+            if (std::abs(mixedR) < dryFloorR)
+            {
+                const float signR = (std::abs(mixedR) > 1.0e-7f) ? (mixedR > 0.0f ? 1.0f : -1.0f) : (dryR >= 0.0f ? 1.0f : -1.0f);
+                mixedR = signR * dryFloorR;
+            }
+
+            // 2. Límite de Diferencia de Nivel Interaural (ILD Limiter 50% contralateral):
+            // Si un oído recibe sonido pero el contralateral cae a 0 por sombra de la cabeza,
+            // garantiza al menos el 50% de nivel en el oído atenuado.
+            const float magL = std::abs(mixedL);
+            const float magR = std::abs(mixedR);
+
+            if (magL > 1.0e-5f && magR < 0.50f * magL)
+            {
+                const float signR = (magR > 1.0e-7f) ? (mixedR > 0.0f ? 1.0f : -1.0f) : (dryR != 0.0f ? (dryR > 0.0f ? 1.0f : -1.0f) : (mixedL > 0.0f ? 1.0f : -1.0f));
+                mixedR = signR * (0.50f * magL);
+            }
+            else if (magR > 1.0e-5f && magL < 0.50f * magR)
+            {
+                const float signL = (magL > 1.0e-7f) ? (mixedL > 0.0f ? 1.0f : -1.0f) : (dryL != 0.0f ? (dryL > 0.0f ? 1.0f : -1.0f) : (mixedR > 0.0f ? 1.0f : -1.0f));
+                mixedL = signL * (0.50f * magR);
+            }
+
+            // Paso E (Salida): Asignación a los canales de salida estéreo (auriculares)
+            outL[i] = mixedL;
+            outR[i] = mixedR;
         }
 
         samplesProcessed += chunkSize;

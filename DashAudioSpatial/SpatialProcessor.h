@@ -18,7 +18,7 @@ struct SpatialProcessorParameters
     float apparentDistanceM     = 1.4f;   // [0.5 .. 5.0 m] Distancia acústica aparente
     float frontBackSeparation   = 1.0f;   // [0.0 .. 3.0] Claridad en la discriminación frente/detrás
     float elevationEmphasis     = 0.0f;   // [-6.0 .. +6.0 dB] Énfasis acústico en altavoces de techo
-    float spatialMix            = 0.2f;   // [0.0 .. 1.0] Mezcla Dry/Wet: 0.0 = 100% HRTF (3D), 1.0 = 100% Estéreo Nativo
+    float spatialMix            = 0.3f;   // [0.0 .. 1.0] Mezcla Dry/Wet: 0.0 = 100% HRTF (3D), 1.0 = 100% Estéreo Nativo
     BinauralRendererParameters rendererParams {};
     bool  bypass                = false;
 };

@@ -46,11 +46,12 @@ SpatialAudioPanel::SpatialAudioPanel()
     spatialMixSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
     spatialMixSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 55, 18);
     spatialMixSlider_.setRange(0.0, 1.0, 0.01);
-    spatialMixSlider_.setValue(0.2, juce::dontSendNotification);
+    spatialMixSlider_.setValue(0.3, juce::dontSendNotification);
     spatialMixSlider_.setColour(juce::Slider::trackColourId, DashLookAndFeel::kAccentCyan);
     spatialMixSlider_.setColour(juce::Slider::thumbColourId, juce::Colours::white);
     spatialMixSlider_.onValueChange = [this] {
         params_ = getParameters();
+        DBG(juce::String::fromUTF8(u8"[SpatialAudioPanel] Slider Mezcla Espacial modificado: ") + juce::String(params_.spatialMix, 2));
         if (onParametersChanged) onParametersChanged(params_);
         repaint();
     };
