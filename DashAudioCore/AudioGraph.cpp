@@ -100,8 +100,9 @@ void AudioGraph::updateParameters(const AudioGraphParameters& parameters) noexce
 
     for (size_t b = 0; b < ParametricEQProcessor::kMaxBands; ++b)
         impl_->parametricEq.setBand(b, impl_->params.parametricBands[b]);
-    impl_->parametricEq.setBypass(!impl_->params.useParametricEq);
 
+
+    impl_->parametricEq.setBypass(!impl_->params.useParametricEq);
     impl_->limiter.updateParameters(impl_->params.limiter);
 }
 
@@ -206,13 +207,27 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     }
 
     // 6. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
-    impl_->equalizer.process(channelPointers, safeCh, numSamples);
+    // Tras el plegado espacial binaural, solo circulan 2 canales (L/R) por las etapas finales.
+    // Si SpatialProcessor está en bypass (o la entrada era mono/estéreo), se preservan safeCh.
+    const int postSpatialCh = (!impl_->params.spatial.bypass && safeCh >= 2) ? 2 : safeCh;
+
+    // 6. Ecualización Acústica Canónica y Calibración
+    // 6.1. Calibración Acústica de Auriculares (AutoEQ) - Corrección de hardware previa
     impl_->parametricEq.setBypass(!impl_->params.useParametricEq);
-    if (impl_->params.useParametricEq || impl_->parametricEq.isDynamicFootstepBoostActive())
-        impl_->parametricEq.process(channelPointers, safeCh, numSamples);
+
+    impl_->parametricEq.processStatic(channelPointers, postSpatialCh, numSamples);
+
+    // 6.2. Ecualización Estática de Usuario (31 Bandas ISO) - Preferencias tonales del jugador
+    impl_->equalizer.process(channelPointers, postSpatialCh, numSamples);
+
+    // 6.3. Ducking Inverso Anti-Disparos (+6 dB pasos a 3.8 kHz) - Realce dinámico táctico
+    impl_->parametricEq.processDynamic(channelPointers, postSpatialCh, numSamples);
+
+
+
 
     // 7. Limitador de Picos de Muestra Exacta (-0.5 dBFS)
-    impl_->limiter.process(channelPointers, safeCh, numSamples);
+    impl_->limiter.process(channelPointers, postSpatialCh, numSamples);
 }
 
 void AudioGraph::process(float* buffer, int numSamples) noexcept

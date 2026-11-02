@@ -190,7 +190,7 @@ void testAudioGraphDynamicGunshotFootstepBoost()
         std::fprintf(stderr, "  graph.getDynamicFootstepBoostDb() = %.4f dB (expected > 0.5f dB)\n", boostDb);
         std::fprintf(stderr, "  Simulated gunshot: amplitude = 0.9f, duration = 64 samples (alternating +-0.9f crack)\n");
         std::fprintf(stderr, "  Inverse ducking parameters: target = +6.0 dB, duration = 300 ms, band = 3800 Hz peaking\n");
-        std::fprintf(stderr, "  parametricEq.process() invoked in block: %s\n\n", processInvoked ? "true" : "false");
+        std::fprintf(stderr, "  parametricEq.processDynamic() active in block: %s\n\n", processInvoked ? "true" : "false");
     }
 
     assert(boostDb > 0.5f);

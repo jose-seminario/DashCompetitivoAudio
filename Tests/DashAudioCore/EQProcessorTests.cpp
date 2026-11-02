@@ -86,7 +86,7 @@ void testParametricPeakingFilter()
     auto signal = generateSine(1000.0f, 48000.0, 4800, 0.2f);
     const float inputRms = computeRms(signal.data(), signal.size());
 
-    eq.process(signal.data(), static_cast<int>(signal.size()));
+    eq.processStatic(signal.data(), static_cast<int>(signal.size()));
 
     assert(isFiniteBuffer(signal.data(), signal.size()));
     const float outputRms = computeRms(signal.data() + 1000, signal.size() - 1000);
@@ -108,7 +108,7 @@ void testParametricHighPassFilter()
 
     // Señal grave a 50 Hz debe ser fuertemente atenuada
     auto subBass = generateSine(50.0f, 48000.0, 4800, 0.5f);
-    eq.process(subBass.data(), static_cast<int>(subBass.size()));
+    eq.processStatic(subBass.data(), static_cast<int>(subBass.size()));
 
     const float subBassRms = computeRms(subBass.data() + 1000, subBass.size() - 1000);
     assert(subBassRms < 0.15f); // Atenuación notable
@@ -127,7 +127,7 @@ void testParametricNotchFilter()
     eq.setBand(0, notch);
 
     auto sine1k = generateSine(1000.0f, 48000.0, 4800, 0.5f);
-    eq.process(sine1k.data(), static_cast<int>(sine1k.size()));
+    eq.processStatic(sine1k.data(), static_cast<int>(sine1k.size()));
 
     const float notchRms = computeRms(sine1k.data() + 1000, sine1k.size() - 1000);
     assert(notchRms < 0.05f); // Atenuación de al menos -20 dB

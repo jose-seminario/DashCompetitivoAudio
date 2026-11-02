@@ -68,14 +68,21 @@ public:
     [[nodiscard]] float getDynamicFootstepBoostDb() const noexcept;
     [[nodiscard]] bool isDynamicFootstepBoostActive() const noexcept;
 
-    /** Procesa un bloque mono en sitio. */
-    void process(float* buffer, int numSamples) noexcept;
+    /** Procesa solo las bandas paramétricas estáticas (AutoEQ). */
+    void processStatic(float* buffer, int numSamples) noexcept;
+    void processStatic(std::vector<float>& buffer) noexcept;
+    void processStatic(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
-    /** Sobrecarga con std::vector<float> (sin asignaciones dinámicas). */
-    void process(std::vector<float>& buffer) noexcept;
+    /** Procesa solo el Ducking Inverso dinámico anti-disparos (+6 dB pasos a 3.8 kHz). */
+    void processDynamic(float* buffer, int numSamples) noexcept;
+    void processDynamic(std::vector<float>& buffer) noexcept;
+    void processDynamic(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
-    /** Procesa un bloque multicanal planar (1 a 16 canales) en sitio. */
-    void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
+
+
+
+
+
 
 private:
     struct Impl;
