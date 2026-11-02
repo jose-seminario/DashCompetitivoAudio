@@ -160,12 +160,30 @@ function Save-MultiResIco([string]$outputPath) {
     $fs.Close()
 }
 
+function Save-Png([string]$outputPath, [int]$size = 256) {
+    $bmp = Draw-TacticalSkull -size $size
+    $bmp.Save($outputPath, [System.Drawing.Imaging.ImageFormat]::Png)
+    $bmp.Dispose()
+}
+
 $rootPath = Split-Path -Parent $PSScriptRoot
 $icoRoot = Join-Path $rootPath "icon.ico"
 $icoApp  = Join-Path $rootPath "App\icon.ico"
+$icoInstaller = Join-Path $rootPath "Installer\icon.ico"
+$pngRoot = Join-Path $rootPath "icon.png"
+$pngApp  = Join-Path $rootPath "App\icon.png"
 
 Save-MultiResIco -outputPath $icoRoot
-Write-Output "Generado exitosamente: $icoRoot"
+Write-Output "Generado ICO exitosamente: $icoRoot"
 
 Save-MultiResIco -outputPath $icoApp
-Write-Output "Generado exitosamente: $icoApp"
+Write-Output "Generado ICO exitosamente: $icoApp"
+
+Save-MultiResIco -outputPath $icoInstaller
+Write-Output "Generado ICO exitosamente: $icoInstaller"
+
+Save-Png -outputPath $pngRoot -size 256
+Write-Output "Generado PNG exitosamente: $pngRoot"
+
+Save-Png -outputPath $pngApp -size 256
+Write-Output "Generado PNG exitosamente: $pngApp"

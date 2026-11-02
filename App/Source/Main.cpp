@@ -132,15 +132,19 @@ public:
             setResizeLimits(920, 720, 2560, 1440);
             centreWithSize(getWidth(), getHeight());
 
-            // Cargar icono táctico desde icon.ico si existe, o generar calavera vectorial con juce::Path
+            // Cargar icono táctico desde icon.png/icon.ico si existe, o generar calavera vectorial con juce::Path
             juce::Image skullIcon;
-            juce::File icoFile = juce::File::getSpecialLocation(juce::File::currentExecutableFile)
-                                    .getParentDirectory().getChildFile("icon.ico");
-            if (!icoFile.existsAsFile())
-                icoFile = juce::File::getCurrentWorkingDirectory().getChildFile("icon.ico");
+            juce::File exeDir = juce::File::getSpecialLocation(juce::File::currentExecutableFile).getParentDirectory();
+            juce::File imgFile = exeDir.getChildFile("icon.png");
+            if (!imgFile.existsAsFile())
+                imgFile = exeDir.getChildFile("icon.ico");
+            if (!imgFile.existsAsFile())
+                imgFile = juce::File::getCurrentWorkingDirectory().getChildFile("icon.png");
+            if (!imgFile.existsAsFile())
+                imgFile = juce::File::getCurrentWorkingDirectory().getChildFile("icon.ico");
 
-            if (icoFile.existsAsFile())
-                skullIcon = juce::ImageFileFormat::loadFrom(icoFile);
+            if (imgFile.existsAsFile())
+                skullIcon = juce::ImageFileFormat::loadFrom(imgFile);
 
             if (skullIcon.isNull())
                 skullIcon = createSkullIcon(128);
