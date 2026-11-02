@@ -83,7 +83,8 @@ void BinauralRenderer::prepare(double sampleRate, int maximumBlockSize)
         impl_->pinnaNotchFilters[ch].prepare(spec);
         impl_->pinnaNotchFilters[ch].coefficients = notchCoeffs;
     }
-    impl_->topScratch.assign(static_cast<size_t>(impl_->maxBlockSize), 0.0f);
+    constexpr size_t kMaxScratchCapacity = 4096;
+    impl_->topScratch.assign(std::max(kMaxScratchCapacity, static_cast<size_t>(impl_->maxBlockSize)), 0.0f);
 
     impl_->updateGains();
     reset();
@@ -200,10 +201,8 @@ void BinauralRenderer::render(
         const float* convIn = in;
         if (isTopChannel && impl_->params.enablePinnaNotch)
         {
-            if (impl_->topScratch.size() < static_cast<size_t>(numSamples))
-                impl_->topScratch.resize(static_cast<size_t>(numSamples), 0.0f);
-
-            for (int i = 0; i < numSamples; ++i)
+            const int samplesToFilter = std::min(numSamples, static_cast<int>(impl_->topScratch.size()));
+            for (int i = 0; i < samplesToFilter; ++i)
                 impl_->topScratch[static_cast<size_t>(i)] = impl_->pinnaNotchFilters[ch].processSample(in[i]);
 
             convIn = impl_->topScratch.data();

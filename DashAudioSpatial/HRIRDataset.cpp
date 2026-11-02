@@ -20,7 +20,8 @@ namespace
     float calculateWoodworthItdSeconds(float azimuthRad, float headRadiusM) noexcept
     {
         const float absTheta = std::abs(azimuthRad);
-        return (headRadiusM / kSpeedOfSoundMPerS) * (std::sin(absTheta) + absTheta);
+        const float effectiveTheta = (absTheta > (kPi * 0.5f)) ? std::max(0.0f, kPi - absTheta) : absTheta;
+        return (headRadiusM / kSpeedOfSoundMPerS) * (std::sin(effectiveTheta) + effectiveTheta);
     }
 } // namespace
 
