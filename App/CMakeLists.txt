@@ -17,7 +17,6 @@ juce_generate_juce_header(DashCompetitivoAudio)
 
 target_sources(DashCompetitivoAudio
     PRIVATE
-        resources.rc
         Source/Main.cpp
         Source/MainComponent.h
         Source/MainComponent.cpp
