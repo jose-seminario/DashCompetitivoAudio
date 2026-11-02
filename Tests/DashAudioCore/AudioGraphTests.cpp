@@ -130,7 +130,9 @@ void testAudioGraph16ChannelsImmersive()
     dash::core::AudioGraph graph;
     graph.prepare(48000.0, 512, 16); // 9.1.6 Inmersivo (16 canales)
 
-    std::vector<std::vector<float>> channels(16, std::vector<float>(512, 0.15f));
+    std::vector<std::vector<float>> channels(16);
+    for (size_t i = 0; i < 16; ++i)
+        channels[i] = generateSineWave(1000.0f, 48000.0, 512, 0.2f);
     std::vector<float*> pointers(16);
     for (size_t i = 0; i < 16; ++i)
         pointers[i] = channels[i].data();
@@ -141,8 +143,15 @@ void testAudioGraph16ChannelsImmersive()
         assert(isFiniteBuffer(channels[i].data(), 512));
 
     // Tras el procesamiento espacial de la cadena, los canales L y R frontales contienen la mezcla activa
-    assert(std::abs(channels[0][100]) > 0.001f);
-    assert(std::abs(channels[1][100]) > 0.001f);
+    float maxEnergyL = 0.0f;
+    float maxEnergyR = 0.0f;
+    for (size_t i = 0; i < 512; ++i)
+    {
+        maxEnergyL = std::max(maxEnergyL, std::abs(channels[0][i]));
+        maxEnergyR = std::max(maxEnergyR, std::abs(channels[1][i]));
+    }
+    assert(maxEnergyL > 0.01f);
+    assert(maxEnergyR > 0.01f);
 }
 
 void testAudioGraphDynamicGunshotFootstepBoost()
