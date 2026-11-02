@@ -146,7 +146,7 @@ struct ParametricEQProcessor::Impl
     // Ducking Inverso Anti-Disparos: Realce dinámico temporal en la banda de pasos (3.2 kHz a 4.5 kHz)
     std::atomic<int> dynamicBoostSamplesRemaining { 0 };
     std::atomic<float> dynamicBoostTargetDb { 0.0f };
-    float currentDynamicBoostDb = 0.0f;
+    std::atomic<float> currentDynamicBoostDb { 0.0f };
     BiquadCoeffs dynamicFootstepCoeffs { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };
     std::array<DF2TState, kMaxChannels> dynamicFootstepStates {};
 
@@ -200,7 +200,7 @@ void ParametricEQProcessor::prepare(double sampleRate, int /*maximumBlockSize*/,
         impl_->dynamicFootstepStates[ch].s2 = 0.0f;
     }
     impl_->dynamicBoostSamplesRemaining.store(0, std::memory_order_relaxed);
-    impl_->currentDynamicBoostDb = 0.0f;
+    impl_->currentDynamicBoostDb.store(0.0f, std::memory_order_relaxed);
     impl_->dynamicFootstepCoeffs = calculateBiquadCoeffs(
         ParametricFilterType::Peaking, 3800.0f, 0.0f, 2.8f, impl_->sampleRate);
 
@@ -221,7 +221,7 @@ void ParametricEQProcessor::reset() noexcept
         impl_->dynamicFootstepStates[ch].s2 = 0.0f;
     }
     impl_->dynamicBoostSamplesRemaining.store(0, std::memory_order_relaxed);
-    impl_->currentDynamicBoostDb = 0.0f;
+    impl_->currentDynamicBoostDb.store(0.0f, std::memory_order_relaxed);
 }
 
 void ParametricEQProcessor::setBand(size_t bandIndex, const ParametricBandParameters& params) noexcept
@@ -281,7 +281,13 @@ void ParametricEQProcessor::triggerGunshotFootstepBoost(float boostDb, float dur
 
 float ParametricEQProcessor::getDynamicFootstepBoostDb() const noexcept
 {
-    return impl_->currentDynamicBoostDb;
+    return impl_->currentDynamicBoostDb.load(std::memory_order_relaxed);
+}
+
+bool ParametricEQProcessor::isDynamicFootstepBoostActive() const noexcept
+{
+    return impl_->dynamicBoostSamplesRemaining.load(std::memory_order_relaxed) > 0 ||
+           impl_->currentDynamicBoostDb.load(std::memory_order_relaxed) > 0.01f;
 }
 
 void ParametricEQProcessor::process(float* buffer, int numSamples) noexcept
@@ -319,14 +325,16 @@ void ParametricEQProcessor::process(float* const* channelPointers, int numChanne
     }
 
     // Suavizado dinámico de ganancia del filtro (ataque rápido 0.35, relajación suave 0.03)
-    const float smoothCoeff = (targetGain > impl_->currentDynamicBoostDb) ? 0.35f : 0.03f;
-    impl_->currentDynamicBoostDb += smoothCoeff * (targetGain - impl_->currentDynamicBoostDb);
+    const float currentGain = impl_->currentDynamicBoostDb.load(std::memory_order_relaxed);
+    const float smoothCoeff = (targetGain > currentGain) ? 0.35f : 0.03f;
+    const float nextGain = currentGain + smoothCoeff * (targetGain - currentGain);
+    impl_->currentDynamicBoostDb.store(nextGain, std::memory_order_relaxed);
 
-    const bool hasDynamicBoost = (impl_->currentDynamicBoostDb > 0.05f);
+    const bool hasDynamicBoost = isDynamicFootstepBoostActive();
     if (hasDynamicBoost)
     {
         impl_->dynamicFootstepCoeffs = calculateBiquadCoeffs(
-            ParametricFilterType::Peaking, 3800.0f, impl_->currentDynamicBoostDb, 2.8f, impl_->sampleRate);
+            ParametricFilterType::Peaking, 3800.0f, nextGain, 2.8f, impl_->sampleRate);
     }
 
     const bool staticBypassed = impl_->bypass.load(std::memory_order_relaxed);

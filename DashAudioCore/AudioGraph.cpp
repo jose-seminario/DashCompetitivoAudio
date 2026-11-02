@@ -207,7 +207,8 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
 
     // 6. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
     impl_->equalizer.process(channelPointers, safeCh, numSamples);
-    if (impl_->params.useParametricEq || impl_->parametricEq.getDynamicFootstepBoostDb() > 0.01f)
+    impl_->parametricEq.setBypass(!impl_->params.useParametricEq);
+    if (impl_->params.useParametricEq || impl_->parametricEq.isDynamicFootstepBoostActive())
         impl_->parametricEq.process(channelPointers, safeCh, numSamples);
 
     // 7. Limitador de Picos de Muestra Exacta (-0.5 dBFS)

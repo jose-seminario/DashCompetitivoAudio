@@ -17,6 +17,7 @@
 
 #include <cassert>
 #include <cmath>
+#include <cstdio>
 #include <vector>
 
 namespace dash::test
@@ -181,6 +182,16 @@ void testAudioGraphDynamicGunshotFootstepBoost()
     graph.process(gunshotPtrs, 2, 512);
 
     // 3. Tras el transitorio severo, TransientProcessor detecta el disparo y activa el boost en ParametricEQ
+    const float boostDb = graph.getDynamicFootstepBoostDb();
+    const bool processInvoked = (boostDb > 0.01f);
+    std::fprintf(stderr, "\n[DIAGNOSTIC AudioGraphTests line 184]\n");
+    std::fprintf(stderr, "  graph.getDynamicFootstepBoostDb() = %.4f dB\n", boostDb);
+    std::fprintf(stderr, "  Simulated gunshot: amplitude = 0.9f, duration = 64 samples (alternating +-0.9f crack)\n");
+    std::fprintf(stderr, "  Inverse ducking parameters: target = +6.0 dB, duration = 300 ms, band = 3800 Hz peaking\n");
+    std::fprintf(stderr, "  parametricEq.process() invoked in block: %s\n", processInvoked ? "true" : "false");
+    std::fprintf(stderr, "  Assertion evaluation (boostDb > 0.5f): %s (%.4f dB > 0.5f)\n\n",
+                 (boostDb > 0.5f) ? "PASSED" : "FAILED", boostDb);
+
     assert(graph.getDynamicFootstepBoostDb() > 0.5f);
 }
 

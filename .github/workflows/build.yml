@@ -26,6 +26,9 @@ jobs:
       run: |
         cmake --build build --config Release --parallel
 
+    - name: Execute AudioGraphTests Diagnostic (Verbose)
+      run: ctest --test-dir build -C Release -R AudioGraphTests -V
+
     - name: Execute Automated QA & Unit Tests (CTest)
       run: ctest --test-dir build -C Release --output-on-failure
 
