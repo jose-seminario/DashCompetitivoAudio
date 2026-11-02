@@ -132,14 +132,25 @@ public:
             setResizeLimits(920, 720, 2560, 1440);
             centreWithSize(getWidth(), getHeight());
 
-            // Icono vectorial minimalista de la calavera táctica
-            const auto skullIcon = createSkullIcon(128);
+            // Cargar icono táctico desde icon.ico si existe, o generar calavera vectorial con juce::Path
+            juce::Image skullIcon;
+            juce::File icoFile = juce::File::getSpecialLocation(juce::File::currentExecutableFile)
+                                    .getParentDirectory().getChildFile("icon.ico");
+            if (!icoFile.existsAsFile())
+                icoFile = juce::File::getCurrentWorkingDirectory().getChildFile("icon.ico");
+
+            if (icoFile.existsAsFile())
+                skullIcon = juce::ImageFileFormat::loadFrom(icoFile);
+
+            if (skullIcon.isNull())
+                skullIcon = createSkullIcon(128);
+
             setIcon(skullIcon);
 
             // Hacer visible para crear el HWND nativo (ComponentPeer) en Windows
             setVisible(true);
 
-            // Reasignar el icono con el peer nativo ya creado para forzar WM_SETICON en la barra de tareas y título
+            // Reasignar el icono con el peer nativo ya creado para forzar WM_SETICON en la barra de tareas y título (Alt+Tab)
             setIcon(skullIcon);
         }
 

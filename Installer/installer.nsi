@@ -34,6 +34,12 @@ SetCompressor /SOLID lzma
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "${OUT_FILE}"
 
+; Iconos oficiales del instalador y desinstalador (Calavera Táctica)
+Icon "icon.ico"
+UninstallIcon "icon.ico"
+!define MUI_ICON "icon.ico"
+!define MUI_UNICON "icon.ico"
+
 ; Directorio de instalación por defecto ($PROGRAMFILES64\DashCompetitivoAudio)
 InstallDir "$PROGRAMFILES64\${APP_SHORT_KEY}"
 InstallDirRegKey HKLM "Software\${APP_SHORT_KEY}" "InstallLocation"

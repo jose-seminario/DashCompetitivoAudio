@@ -9,12 +9,15 @@ juce_add_gui_app(DashCompetitivoAudio
     PRODUCT_NAME "Dash Competitivo Audio"
     COMPANY_NAME "DashAudio"
     BUNDLE_ID    "com.dashaudio.dashcompetitivo"
+    ICON_BIG     "${CMAKE_CURRENT_SOURCE_DIR}/icon.ico"
+    ICON_SMALL   "${CMAKE_CURRENT_SOURCE_DIR}/icon.ico"
 )
 
 juce_generate_juce_header(DashCompetitivoAudio)
 
 target_sources(DashCompetitivoAudio
     PRIVATE
+        resources.rc
         Source/Main.cpp
         Source/MainComponent.h
         Source/MainComponent.cpp
