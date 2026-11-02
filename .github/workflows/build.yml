@@ -77,8 +77,8 @@ jobs:
         path: |
           build/Installer/DashCompetitivoAudio-setup.exe
           build/Dist/SHA256SUMS.txt
-          build/App/DashCompetitivoAudio_artefacts/Release/
-          build/Plugins/LoudnessCompressor/LoudnessCompressor_artefacts/Release/
-          build/Plugins/TransientSuppressor/TransientSuppressor_artefacts/Release/
-          build/Plugins/AmbienceGuard/AmbienceGuard_artefacts/Release/
+          build/App/DashCompetitivoAudio_artefacts/Release/DashCompetitivoAudio.exe
+          build/Plugins/LoudnessCompressor/LoudnessCompressor_artefacts/Release/VST3/
+          build/Plugins/TransientSuppressor/TransientSuppressor_artefacts/Release/VST3/
+          build/Plugins/AmbienceGuard/AmbienceGuard_artefacts/Release/VST3/
         if-no-files-found: warn

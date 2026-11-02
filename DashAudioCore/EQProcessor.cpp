@@ -180,7 +180,7 @@ void EQProcessor::updateParameters(const EQParameters& params) noexcept
 
 void EQProcessor::process(float* buffer, int numSamples) noexcept
 {
-    if (buffer == nullptr || numSamples <= 0)
+    if (buffer == nullptr || numSamples <= 0 || impl_->atomicBypass.load(std::memory_order_relaxed))
         return;
 
     float* channels[1] = { buffer };
@@ -189,7 +189,7 @@ void EQProcessor::process(float* buffer, int numSamples) noexcept
 
 void EQProcessor::process(std::vector<float>& buffer) noexcept
 {
-    if (buffer.empty())
+    if (buffer.empty() || impl_->atomicBypass.load(std::memory_order_relaxed))
         return;
 
     process(buffer.data(), static_cast<int>(buffer.size()));
