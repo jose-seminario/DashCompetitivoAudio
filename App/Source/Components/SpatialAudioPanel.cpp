@@ -37,6 +37,26 @@ SpatialAudioPanel::SpatialAudioPanel()
     initKnob(frontBackSlider_, frontBackLabel_, juce::String::fromUTF8(u8"Separación Frente/Atrás"), 0.0, 3.0, 1.0, "x");
     initKnob(elevationSlider_, elevationLabel_, juce::String::fromUTF8(u8"Énfasis Altura (Techo)"), -6.0, 6.0, 0.0, " dB");
 
+    // Control Deslizante de Sangrado Espacial (Crossfeed con LowPass 700 Hz y 0.3 ms ITD)
+    crossfeedLabel_.setText(juce::String::fromUTF8(u8"Sangrado Espacial (Crossfeed):"), juce::dontSendNotification);
+    crossfeedLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f).withStyle("Bold")));
+    crossfeedLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+    addAndMakeVisible(crossfeedLabel_);
+
+    crossfeedSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
+    crossfeedSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 55, 18);
+    crossfeedSlider_.setRange(0.0, 50.0, 1.0);
+    crossfeedSlider_.setValue(25.0, juce::dontSendNotification);
+    crossfeedSlider_.setTextValueSuffix("%");
+    crossfeedSlider_.setColour(juce::Slider::trackColourId, DashLookAndFeel::kAccentBlue);
+    crossfeedSlider_.setColour(juce::Slider::thumbColourId, juce::Colours::white);
+    crossfeedSlider_.onValueChange = [this] {
+        params_ = getParameters();
+        if (onParametersChanged) onParametersChanged(params_);
+        repaint();
+    };
+    addAndMakeVisible(crossfeedSlider_);
+
     // Control Deslizante de Mezcla Espacial (HRTF vs Estéreo)
     spatialMixLabel_.setText(juce::String::fromUTF8(u8"Mezcla Espacial (HRTF vs Estéreo):"), juce::dontSendNotification);
     spatialMixLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f).withStyle("Bold")));
@@ -193,7 +213,7 @@ void SpatialAudioPanel::resized()
     const int knobH = 96;
 
     // Fila 1 de Perillas
-    const int row1Y = 130;
+    const int row1Y = 126;
     widthLabel_.setBounds(startX, row1Y, knobW, 16);
     widthSlider_.setBounds(startX, row1Y + 16, knobW, knobH);
 
@@ -201,21 +221,26 @@ void SpatialAudioPanel::resized()
     distanceSlider_.setBounds(startX + 140, row1Y + 16, knobW, knobH);
 
     // Fila 2 de Perillas
-    const int row2Y = 245;
+    const int row2Y = 236;
     frontBackLabel_.setBounds(startX, row2Y, knobW, 16);
     frontBackSlider_.setBounds(startX, row2Y + 16, knobW, knobH);
 
     elevationLabel_.setBounds(startX + 140, row2Y, knobW, 16);
     elevationSlider_.setBounds(startX + 140, row2Y + 16, knobW, knobH);
 
-    // Fila 3: Control Deslizante de Mezcla Espacial
-    const int row3Y = 360;
-    spatialMixLabel_.setBounds(startX, row3Y, 420, 20);
-    spatialMixSlider_.setBounds(startX, row3Y + 22, 420, 26);
-    spatialMixHrtfHintLabel_.setBounds(startX, row3Y + 50, 190, 16);
-    spatialMixStereoHintLabel_.setBounds(startX + 230, row3Y + 50, 190, 16);
+    // Fila 3: Control Deslizante de Sangrado Espacial (Crossfeed)
+    const int row3Y = 345;
+    crossfeedLabel_.setBounds(startX, row3Y, 420, 18);
+    crossfeedSlider_.setBounds(startX, row3Y + 20, 420, 24);
 
-    lfeBypassNoteLabel_.setBounds(startX, getHeight() - 85, 430, 60);
+    // Fila 4: Control Deslizante de Mezcla Espacial
+    const int row4Y = 398;
+    spatialMixLabel_.setBounds(startX, row4Y, 420, 18);
+    spatialMixSlider_.setBounds(startX, row4Y + 20, 420, 24);
+    spatialMixHrtfHintLabel_.setBounds(startX, row4Y + 46, 190, 16);
+    spatialMixStereoHintLabel_.setBounds(startX + 230, row4Y + 46, 190, 16);
+
+    lfeBypassNoteLabel_.setBounds(startX, getHeight() - 75, 430, 55);
 }
 
 void SpatialAudioPanel::setParameters(const dash::spatial::SpatialProcessorParameters& params)
@@ -225,6 +250,7 @@ void SpatialAudioPanel::setParameters(const dash::spatial::SpatialProcessorParam
     distanceSlider_.setValue(params.apparentDistanceM, juce::dontSendNotification);
     frontBackSlider_.setValue(params.frontBackSeparation, juce::dontSendNotification);
     elevationSlider_.setValue(params.elevationEmphasis, juce::dontSendNotification);
+    crossfeedSlider_.setValue(params.crossfeedAmount * 100.0f, juce::dontSendNotification);
     spatialMixSlider_.setValue(params.spatialMix, juce::dontSendNotification);
     bypassToggle_.setToggleState(params.bypass, juce::dontSendNotification);
     repaint();
@@ -237,6 +263,7 @@ dash::spatial::SpatialProcessorParameters SpatialAudioPanel::getParameters() con
     p.apparentDistanceM   = static_cast<float>(distanceSlider_.getValue());
     p.frontBackSeparation = static_cast<float>(frontBackSlider_.getValue());
     p.elevationEmphasis   = static_cast<float>(elevationSlider_.getValue());
+    p.crossfeedAmount     = static_cast<float>(crossfeedSlider_.getValue() / 100.0f);
     p.spatialMix          = static_cast<float>(spatialMixSlider_.getValue());
     p.bypass              = bypassToggle_.getToggleState();
     return p;

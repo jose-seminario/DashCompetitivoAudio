@@ -63,6 +63,10 @@ public:
     void setBypass(bool bypass) noexcept;
     [[nodiscard]] bool isBypassed() const noexcept;
 
+    /** Activa el realce dinámico temporal de frecuencias de pasos (Ducking Inverso Anti-Disparos). */
+    void triggerGunshotFootstepBoost(float boostDb = 6.0f, float durationMs = 300.0f) noexcept;
+    [[nodiscard]] float getDynamicFootstepBoostDb() const noexcept;
+
     /** Procesa un bloque mono en sitio. */
     void process(float* buffer, int numSamples) noexcept;
 

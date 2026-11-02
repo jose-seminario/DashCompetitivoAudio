@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <numbers>
 
@@ -72,7 +73,7 @@ namespace
                 const float sqrtA = std::sqrt(A);
                 b0 = A * ((A + 1.0f) + (A - 1.0f) * cosW + 2.0f * sqrtA * alpha);
                 b1 = -2.0f * A * ((A - 1.0f) + (A + 1.0f) * cosW);
-                b2 = A * ((A + 1.0f) + (A - 1.0f) * cosW - 2.0f * sqrtA * alpha);
+                b2 = A * ((A + 1.0f) - (A - 1.0f) * cosW - 2.0f * sqrtA * alpha);
                 a0 = (A + 1.0f) - (A - 1.0f) * cosW + 2.0f * sqrtA * alpha;
                 a1 = 2.0f * ((A - 1.0f) - (A + 1.0f) * cosW);
                 a2 = (A + 1.0f) - (A - 1.0f) * cosW - 2.0f * sqrtA * alpha;
@@ -142,6 +143,13 @@ struct ParametricEQProcessor::Impl
     };
     std::array<std::array<DF2TState, kMaxBands>, kMaxChannels> states {};
 
+    // Ducking Inverso Anti-Disparos: Realce dinámico temporal en la banda de pasos (3.2 kHz a 4.5 kHz)
+    std::atomic<int> dynamicBoostSamplesRemaining { 0 };
+    std::atomic<float> dynamicBoostTargetDb { 0.0f };
+    float currentDynamicBoostDb = 0.0f;
+    BiquadCoeffs dynamicFootstepCoeffs { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };
+    std::array<DF2TState, kMaxChannels> dynamicFootstepStates {};
+
     void recalculateBand(size_t bandIdx) noexcept
     {
         if (bandIdx >= kMaxBands)
@@ -186,6 +194,16 @@ void ParametricEQProcessor::prepare(double sampleRate, int /*maximumBlockSize*/,
         impl_->currentCoeffs[i] = impl_->targetCoeffs[i];
     }
 
+    for (size_t ch = 0; ch < kMaxChannels; ++ch)
+    {
+        impl_->dynamicFootstepStates[ch].s1 = 0.0f;
+        impl_->dynamicFootstepStates[ch].s2 = 0.0f;
+    }
+    impl_->dynamicBoostSamplesRemaining.store(0, std::memory_order_relaxed);
+    impl_->currentDynamicBoostDb = 0.0f;
+    impl_->dynamicFootstepCoeffs = calculateBiquadCoeffs(
+        ParametricFilterType::Peaking, 3800.0f, 0.0f, 2.8f, impl_->sampleRate);
+
     reset();
 }
 
@@ -199,7 +217,11 @@ void ParametricEQProcessor::reset() noexcept
             impl_->states[ch][b].s1 = 0.0f;
             impl_->states[ch][b].s2 = 0.0f;
         }
+        impl_->dynamicFootstepStates[ch].s1 = 0.0f;
+        impl_->dynamicFootstepStates[ch].s2 = 0.0f;
     }
+    impl_->dynamicBoostSamplesRemaining.store(0, std::memory_order_relaxed);
+    impl_->currentDynamicBoostDb = 0.0f;
 }
 
 void ParametricEQProcessor::setBand(size_t bandIndex, const ParametricBandParameters& params) noexcept
@@ -248,6 +270,20 @@ bool ParametricEQProcessor::isBypassed() const noexcept
     return impl_->bypass.load(std::memory_order_relaxed);
 }
 
+void ParametricEQProcessor::triggerGunshotFootstepBoost(float boostDb, float durationMs) noexcept
+{
+    const int durationSamples = static_cast<int>(std::round((durationMs * 0.001) * impl_->sampleRate));
+    impl_->dynamicBoostTargetDb.store(std::clamp(boostDb, 0.0f, 12.0f), std::memory_order_relaxed);
+    const int currentRemaining = impl_->dynamicBoostSamplesRemaining.load(std::memory_order_relaxed);
+    if (durationSamples > currentRemaining)
+        impl_->dynamicBoostSamplesRemaining.store(durationSamples, std::memory_order_release);
+}
+
+float ParametricEQProcessor::getDynamicFootstepBoostDb() const noexcept
+{
+    return impl_->currentDynamicBoostDb;
+}
+
 void ParametricEQProcessor::process(float* buffer, int numSamples) noexcept
 {
     if (buffer == nullptr || numSamples <= 0)
@@ -270,13 +306,35 @@ void ParametricEQProcessor::process(float* const* channelPointers, int numChanne
     if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
 
-    if (impl_->bypass.load(std::memory_order_relaxed))
-        return;
-
     juce::ScopedNoDenormals noDenormals;
 
+    // 1. Manejo de Ducking Inverso de Pasos (3.8 kHz Peaking Boost)
+    int remaining = impl_->dynamicBoostSamplesRemaining.load(std::memory_order_acquire);
+    float targetGain = 0.0f;
+    if (remaining > 0)
+    {
+        targetGain = impl_->dynamicBoostTargetDb.load(std::memory_order_relaxed);
+        remaining = std::max(0, remaining - numSamples);
+        impl_->dynamicBoostSamplesRemaining.store(remaining, std::memory_order_release);
+    }
+
+    // Suavizado dinámico de ganancia del filtro (ataque rápido 0.35, relajación suave 0.03)
+    const float smoothCoeff = (targetGain > impl_->currentDynamicBoostDb) ? 0.35f : 0.03f;
+    impl_->currentDynamicBoostDb += smoothCoeff * (targetGain - impl_->currentDynamicBoostDb);
+
+    const bool hasDynamicBoost = (impl_->currentDynamicBoostDb > 0.05f);
+    if (hasDynamicBoost)
+    {
+        impl_->dynamicFootstepCoeffs = calculateBiquadCoeffs(
+            ParametricFilterType::Peaking, 3800.0f, impl_->currentDynamicBoostDb, 2.8f, impl_->sampleRate);
+    }
+
+    const bool staticBypassed = impl_->bypass.load(std::memory_order_relaxed);
+    if (staticBypassed && !hasDynamicBoost)
+        return;
+
     // Sincronización lock-free atómica exclusivamente al inicio del bloque de audio
-    if (impl_->pendingUpdate.load(std::memory_order_acquire))
+    if (!staticBypassed && impl_->pendingUpdate.load(std::memory_order_acquire))
     {
         for (size_t b = 0; b < kMaxBands; ++b)
         {
@@ -289,50 +347,74 @@ void ParametricEQProcessor::process(float* const* channelPointers, int numChanne
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
 
     // Si es el primer bloque tras reset/prepare, sincronizar inmediatamente
-    if (!impl_->hasProcessedAudio.load(std::memory_order_relaxed))
+    if (!staticBypassed)
     {
-        for (size_t b = 0; b < kMaxBands; ++b)
-            impl_->currentCoeffs[b] = impl_->targetCoeffs[b];
-        impl_->hasProcessedAudio.store(true, std::memory_order_relaxed);
-    }
-    else
-    {
-        // Suavizado dinámico suave ante cambios de parámetros en caliente
-        constexpr float kSmooth = 0.25f;
-        for (size_t b = 0; b < kMaxBands; ++b)
+        if (!impl_->hasProcessedAudio.load(std::memory_order_relaxed))
         {
-            auto& cur = impl_->currentCoeffs[b];
-            const auto& tgt = impl_->targetCoeffs[b];
+            for (size_t b = 0; b < kMaxBands; ++b)
+                impl_->currentCoeffs[b] = impl_->targetCoeffs[b];
+            impl_->hasProcessedAudio.store(true, std::memory_order_relaxed);
+        }
+        else
+        {
+            // Suavizado dinámico suave ante cambios de parámetros en caliente
+            constexpr float kSmooth = 0.25f;
+            for (size_t b = 0; b < kMaxBands; ++b)
+            {
+                auto& cur = impl_->currentCoeffs[b];
+                const auto& tgt = impl_->targetCoeffs[b];
 
-            cur.b0 += kSmooth * (tgt.b0 - cur.b0);
-            cur.b1 += kSmooth * (tgt.b1 - cur.b1);
-            cur.b2 += kSmooth * (tgt.b2 - cur.b2);
-            cur.a1 += kSmooth * (tgt.a1 - cur.a1);
-            cur.a2 += kSmooth * (tgt.a2 - cur.a2);
+                cur.b0 += kSmooth * (tgt.b0 - cur.b0);
+                cur.b1 += kSmooth * (tgt.b1 - cur.b1);
+                cur.b2 += kSmooth * (tgt.b2 - cur.b2);
+                cur.a1 += kSmooth * (tgt.a1 - cur.a1);
+                cur.a2 += kSmooth * (tgt.a2 - cur.a2);
+            }
         }
     }
 
+    // 2. Procesamiento de canales de audio
     for (size_t ch = 0; ch < activeCh; ++ch)
     {
         float* chData = channelPointers[ch];
         if (chData == nullptr)
             continue;
 
-        for (size_t b = 0; b < kMaxBands; ++b)
+        // Etapa A: Bandas paramétricas estáticas (si no están en bypass)
+        if (!staticBypassed)
         {
-            if (!impl_->bandParams[b].enabled)
-                continue;
+            for (size_t b = 0; b < kMaxBands; ++b)
+            {
+                if (!impl_->bandParams[b].enabled)
+                    continue;
 
-            const auto& c = impl_->currentCoeffs[b];
-            auto& st = impl_->states[ch][b];
+                const auto& c = impl_->currentCoeffs[b];
+                auto& st = impl_->states[ch][b];
+
+                for (int i = 0; i < numSamples; ++i)
+                {
+                    const float x = chData[i];
+                    // Direct Form II Transposed (DF2T)
+                    const float y = c.b0 * x + st.s1;
+                    st.s1 = c.b1 * x - c.a1 * y + st.s2;
+                    st.s2 = c.b2 * x - c.a2 * y;
+                    chData[i] = y;
+                }
+            }
+        }
+
+        // Etapa B: Ducking Inverso Anti-Disparos (Detección de disparos y realce dinámico de pasos)
+        if (hasDynamicBoost)
+        {
+            const auto& dynC = impl_->dynamicFootstepCoeffs;
+            auto& dynSt = impl_->dynamicFootstepStates[ch];
 
             for (int i = 0; i < numSamples; ++i)
             {
                 const float x = chData[i];
-                // Direct Form II Transposed (DF2T)
-                const float y = c.b0 * x + st.s1;
-                st.s1 = c.b1 * x - c.a1 * y + st.s2;
-                st.s2 = c.b2 * x - c.a2 * y;
+                const float y = dynC.b0 * x + dynSt.s1;
+                dynSt.s1 = dynC.b1 * x - dynC.a1 * y + dynSt.s2;
+                dynSt.s2 = dynC.b2 * x - dynC.a2 * y;
                 chData[i] = y;
             }
         }

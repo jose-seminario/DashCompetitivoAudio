@@ -145,4 +145,34 @@ void testAudioGraph16ChannelsImmersive()
     assert(std::abs(channels[1][100]) > 0.001f);
 }
 
+void testAudioGraphDynamicGunshotFootstepBoost()
+{
+    dash::core::AudioGraph graph;
+    graph.prepare(48000.0, 512, 2);
+
+    dash::core::AudioGraphParameters params;
+    params.headroomDb = 0.0f;
+    params.transient.gun = 0.85f; // Alta atenuación ante disparos
+    graph.updateParameters(params);
+
+    // 1. Antes de disparo, la ganancia de ducking inverso debe ser 0.0 dB
+    assert(graph.getDynamicFootstepBoostDb() < 0.1f);
+
+    // 2. Simular un disparo impulsivo fuerte (crack de alta frecuencia y amplitud 0.9f)
+    std::vector<float> gunshotL(512, 0.0f);
+    std::vector<float> gunshotR(512, 0.0f);
+    for (size_t i = 0; i < 64; ++i)
+    {
+        const float val = ((i % 2 == 0) ? 0.9f : -0.9f);
+        gunshotL[i] = val;
+        gunshotR[i] = val;
+    }
+    float* gunshotPtrs[2] = { gunshotL.data(), gunshotR.data() };
+
+    graph.process(gunshotPtrs, 2, 512);
+
+    // 3. Tras el transitorio severo, TransientProcessor detecta el disparo y activa el boost en ParametricEQ
+    assert(graph.getDynamicFootstepBoostDb() > 0.5f);
+}
+
 } // namespace dash::test

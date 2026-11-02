@@ -1,7 +1,9 @@
 #include "SpatialProcessor.h"
+#include <juce_dsp/juce_dsp.h>
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <vector>
 
 namespace dash::spatial
@@ -15,6 +17,17 @@ struct SpatialProcessor::Impl
 
     std::array<std::vector<float>, kMaxChannels> mappedScratch;
     std::array<float*, kMaxChannels> mappedPointers {};
+
+    // Filtros pasa-bajos de 700 Hz para el crossfeed acústico contralateral
+    juce::dsp::IIR::Filter<float> crossfeedLpL;
+    juce::dsp::IIR::Filter<float> crossfeedLpR;
+
+    // Búferes circulares de retardo acústico de 0.3 ms (~14 muestras a 48 kHz)
+    static constexpr size_t kMaxDelaySamples = 64;
+    std::array<float, kMaxDelaySamples> delayBufL {};
+    std::array<float, kMaxDelaySamples> delayBufR {};
+    size_t delayWritePos = 0;
+    size_t delaySamples  = 14;
 
     void prepareBuffers(int blockSize)
     {
@@ -44,12 +57,34 @@ void SpatialProcessor::prepare(double sampleRate, int maximumBlockSize)
     impl_->prepareBuffers(impl_->maxBlockSize);
 
     renderer_.prepare(impl_->sampleRate, impl_->maxBlockSize);
+
+    juce::dsp::ProcessSpec monoSpec {};
+    monoSpec.sampleRate       = impl_->sampleRate;
+    monoSpec.maximumBlockSize = static_cast<juce::uint32>(impl_->maxBlockSize);
+    monoSpec.numChannels      = 1;
+
+    impl_->crossfeedLpL.prepare(monoSpec);
+    impl_->crossfeedLpR.prepare(monoSpec);
+    impl_->crossfeedLpL.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(impl_->sampleRate, 700.0f, 0.7071f);
+    impl_->crossfeedLpR.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(impl_->sampleRate, 700.0f, 0.7071f);
+
+    impl_->delaySamples = std::clamp(
+        static_cast<size_t>(std::round(impl_->sampleRate * 0.0003)),
+        size_t(1),
+        Impl::kMaxDelaySamples - 1);
+
     configureLayout(inputLayout_);
 }
 
 void SpatialProcessor::reset() noexcept
 {
     renderer_.reset();
+    impl_->crossfeedLpL.reset();
+    impl_->crossfeedLpR.reset();
+    std::fill(impl_->delayBufL.begin(), impl_->delayBufL.end(), 0.0f);
+    std::fill(impl_->delayBufR.begin(), impl_->delayBufR.end(), 0.0f);
+    impl_->delayWritePos = 0;
+
     for (size_t ch = 0; ch < kMaxChannels; ++ch)
         std::fill(impl_->mappedScratch[ch].begin(), impl_->mappedScratch[ch].end(), 0.0f);
 }
@@ -164,7 +199,7 @@ void SpatialProcessor::processBinaural(
             outputRight + samplesProcessed,
             chunkSize);
 
-        // Flujo de Procesamiento Binaural, Mezcla Dry/Wet e ILD Limiter (Cero Latencia)
+        // Flujo de Procesamiento Binaural, Mezcla Dry/Wet y Crossfeed Acústico
         float* outL = outputLeft + samplesProcessed;
         float* outR = outputRight + samplesProcessed;
 
@@ -190,12 +225,11 @@ void SpatialProcessor::processBinaural(
 
         for (int i = 0; i < chunkSize; ++i)
         {
-            // Paso A (Wet/HRTF): Obtén la salida del motor 3D
+            // Paso A (Wet/HRTF): Salida del motor 3D
             const float wetL = outL[i];
             const float wetR = outR[i];
 
-            // Paso B (Dry/Nativo): Calcula el Downmix de los 8 canales a 2 (L y R)
-            // sumando los canales traseros y laterales con atenuación de 0.7071f
+            // Paso B (Dry/Nativo): Calcula el Downmix de los canales a estéreo L y R
             const float sFL = (ptrFL != nullptr) ? ptrFL[i] : 0.0f;
             const float sFR = (ptrFR != nullptr) ? ptrFR[i] : 0.0f;
             const float sFC = (ptrFC != nullptr) ? ptrFC[i] : 0.0f;
@@ -208,48 +242,43 @@ void SpatialProcessor::processBinaural(
             const float dryR = sFR + kDownmixAtten * (sFC + sBR + sSR);
 
             // Paso C (Mezcla): Aplica el slider entre Wet (HRTF) y Dry (Nativo)
-            float mixedL = (wetL * (1.0f - mix)) + (dryL * mix);
-            float mixedR = (wetR * (1.0f - mix)) + (dryR * mix);
+            const float mixedL = (wetL * (1.0f - mix)) + (dryL * mix);
+            const float mixedR = (wetR * (1.0f - mix)) + (dryR * mix);
 
-            // Paso D (ILD Limiter - La Solución):
-            // Evita cancelaciones acústicas o silencio total (0 dB) por la espalda o laterales.
-            // Si el HRTF atenúa el oído a 0.0f, se fuerza a un mínimo de 0.50f (50%).
-
-            // 1. Piso de volumen mínimo ante disparos traseros o laterales (50% de la energía Dry)
-            const float dryFloorL = 0.50f * std::abs(dryL);
-            if (std::abs(mixedL) < dryFloorL)
+            // Paso D: Crossfeed Acústico Contralateral con Retardo ITD (0.3 ms) y Piso Difuso (-20 dB)
+            // Elimina el "silencio absoluto" y la fatiga auditiva sin aplanar el escenario 3D.
+            const float cfAmount = std::clamp(impl_->params.crossfeedAmount, 0.0f, 0.50f);
+            if (cfAmount > 1.0e-4f)
             {
-                const float signL = (std::abs(mixedL) > 1.0e-7f) ? (mixedL > 0.0f ? 1.0f : -1.0f) : (dryL >= 0.0f ? 1.0f : -1.0f);
-                mixedL = signL * dryFloorL;
-            }
+                // 1. Filtrado pasa-bajos a 700 Hz (difracción craneal acústica)
+                const float diffractedL = impl_->crossfeedLpL.processSample(mixedL);
+                const float diffractedR = impl_->crossfeedLpR.processSample(mixedR);
 
-            const float dryFloorR = 0.50f * std::abs(dryR);
-            if (std::abs(mixedR) < dryFloorR)
+                // 2. Piso de reflexión difusa de hombro/sala (-22 dB / 8% de agudos)
+                constexpr float kDiffuseReflectionGain = 0.08f;
+                const float bleedL = diffractedL + (kDiffuseReflectionGain * mixedL);
+                const float bleedR = diffractedR + (kDiffuseReflectionGain * mixedR);
+
+                // 3. Escribir y leer de las líneas de retardo ITD de 0.3 ms
+                const size_t writeIdx = impl_->delayWritePos;
+                const size_t readIdx  = (writeIdx + Impl::kMaxDelaySamples - impl_->delaySamples) % Impl::kMaxDelaySamples;
+
+                impl_->delayBufL[writeIdx] = bleedL;
+                impl_->delayBufR[writeIdx] = bleedR;
+                impl_->delayWritePos       = (writeIdx + 1) % Impl::kMaxDelaySamples;
+
+                const float delayedBleedL = impl_->delayBufL[readIdx];
+                const float delayedBleedR = impl_->delayBufR[readIdx];
+
+                // 4. Inyección contralateral en los oídos opuestos
+                outL[i] = mixedL + (cfAmount * delayedBleedR);
+                outR[i] = mixedR + (cfAmount * delayedBleedL);
+            }
+            else
             {
-                const float signR = (std::abs(mixedR) > 1.0e-7f) ? (mixedR > 0.0f ? 1.0f : -1.0f) : (dryR >= 0.0f ? 1.0f : -1.0f);
-                mixedR = signR * dryFloorR;
+                outL[i] = mixedL;
+                outR[i] = mixedR;
             }
-
-            // 2. Límite de Diferencia de Nivel Interaural (ILD Limiter 50% contralateral):
-            // Si un oído recibe sonido pero el contralateral cae a 0 por sombra de la cabeza,
-            // garantiza al menos el 50% de nivel en el oído atenuado.
-            const float magL = std::abs(mixedL);
-            const float magR = std::abs(mixedR);
-
-            if (magL > 1.0e-5f && magR < 0.50f * magL)
-            {
-                const float signR = (magR > 1.0e-7f) ? (mixedR > 0.0f ? 1.0f : -1.0f) : (dryR != 0.0f ? (dryR > 0.0f ? 1.0f : -1.0f) : (mixedL > 0.0f ? 1.0f : -1.0f));
-                mixedR = signR * (0.50f * magL);
-            }
-            else if (magR > 1.0e-5f && magL < 0.50f * magR)
-            {
-                const float signL = (magL > 1.0e-7f) ? (mixedL > 0.0f ? 1.0f : -1.0f) : (dryL != 0.0f ? (dryL > 0.0f ? 1.0f : -1.0f) : (mixedR > 0.0f ? 1.0f : -1.0f));
-                mixedL = signL * (0.50f * magR);
-            }
-
-            // Paso E (Salida): Asignación a los canales de salida estéreo (auriculares)
-            outL[i] = mixedL;
-            outR[i] = mixedR;
         }
 
         samplesProcessed += chunkSize;

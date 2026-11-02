@@ -69,6 +69,7 @@ public:
     [[nodiscard]] float getStationarityIndex() const noexcept;
     [[nodiscard]] bool  isSpatialActive() const noexcept;
     [[nodiscard]] float getLimiterReductionDb() const noexcept;
+    [[nodiscard]] float getDynamicFootstepBoostDb() const noexcept;
 
 private:
     struct Impl;

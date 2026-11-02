@@ -16,6 +16,7 @@ struct BinauralRendererParameters
     float lfeGainDb          = 0.0f;   // [-12.0 .. +6.0 dB] Ganancia del canal subwoofer en auriculares
     float crossfeedAmount    = 0.0f;   // [0.0 .. 1.0] Alimentación cruzada de frecuencias graves (Bauer crossfeed)
     bool  bypassLfeHrtf      = true;   // true = LFE elude HRTF para prevenir comb-filtering en subgraves
+    bool  enablePinnaNotch   = true;   // true = Filtro de muesca anatómica (Pinna Notch 9 kHz) para canales de techo
     bool  bypass             = false;
 };
 

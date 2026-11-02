@@ -3,7 +3,9 @@
 #include <juce_dsp/juce_dsp.h>
 
 #include <algorithm>
+#include <array>
 #include <cmath>
+#include <vector>
 
 namespace dash::spatial
 {
@@ -22,6 +24,10 @@ struct BinauralRenderer::Impl
     // Filtros de Crossfeed para auriculares
     juce::dsp::IIR::Filter<float> crossfeedL;
     juce::dsp::IIR::Filter<float> crossfeedR;
+
+    // Filtro de Muesca Anatómica de Altura (Pinna Notch a 9 kHz) para canales de techo
+    std::array<juce::dsp::IIR::Filter<float>, ChannelLayout::kMaxChannels> pinnaNotchFilters;
+    std::vector<float> topScratch;
 
     float masterGainLin = 1.0f;
     float lfeGainLin    = 0.7071f;
@@ -67,6 +73,18 @@ void BinauralRenderer::prepare(double sampleRate, int maximumBlockSize)
     impl_->crossfeedR.coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(
         impl_->sampleRate, 700.0f, 0.5f);
 
+    // Configurar filtros Pinna Notch a 9 kHz con -9 dB de atenuación para percepción vertical
+    const float notchGainFactor = juce::Decibels::decibelsToGain(-9.0f);
+    auto notchCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(
+        impl_->sampleRate, 9000.0f, 3.0f, notchGainFactor);
+
+    for (size_t ch = 0; ch < ChannelLayout::kMaxChannels; ++ch)
+    {
+        impl_->pinnaNotchFilters[ch].prepare(spec);
+        impl_->pinnaNotchFilters[ch].coefficients = notchCoeffs;
+    }
+    impl_->topScratch.assign(static_cast<size_t>(impl_->maxBlockSize), 0.0f);
+
     impl_->updateGains();
     reset();
 }
@@ -77,6 +95,9 @@ void BinauralRenderer::reset() noexcept
     impl_->lfeFilter.reset();
     impl_->crossfeedL.reset();
     impl_->crossfeedR.reset();
+
+    for (size_t ch = 0; ch < ChannelLayout::kMaxChannels; ++ch)
+        impl_->pinnaNotchFilters[ch].reset();
 }
 
 bool BinauralRenderer::setDataset(const HRIRDataset& dataset, const ChannelLayout& layout)
@@ -166,8 +187,30 @@ void BinauralRenderer::render(
             continue;
         }
 
+        // Filtro Pinna Notch para canales superiores (Techo/Altura)
+        const bool isTopChannel = (spk.elevationDeg > 15.0f ||
+                                   spk.role == ChannelRole::TopFrontLeft ||
+                                   spk.role == ChannelRole::TopFrontRight ||
+                                   spk.role == ChannelRole::TopFrontCenter ||
+                                   spk.role == ChannelRole::TopBackLeft ||
+                                   spk.role == ChannelRole::TopBackRight ||
+                                   spk.role == ChannelRole::TopSideLeft ||
+                                   spk.role == ChannelRole::TopSideRight);
+
+        const float* convIn = in;
+        if (isTopChannel && impl_->params.enablePinnaNotch)
+        {
+            if (impl_->topScratch.size() < static_cast<size_t>(numSamples))
+                impl_->topScratch.resize(static_cast<size_t>(numSamples), 0.0f);
+
+            for (int i = 0; i < numSamples; ++i)
+                impl_->topScratch[static_cast<size_t>(i)] = impl_->pinnaNotchFilters[ch].processSample(in[i]);
+
+            convIn = impl_->topScratch.data();
+        }
+
         // Convolución espacial tridimensional HRIR
-        impl_->convolution.convolveAndAccumulate(ch, in, outputLeft, outputRight, numSamples);
+        impl_->convolution.convolveAndAccumulate(ch, convIn, outputLeft, outputRight, numSamples);
     }
 
     // Procesamiento opcional de Crossfeed de auriculares

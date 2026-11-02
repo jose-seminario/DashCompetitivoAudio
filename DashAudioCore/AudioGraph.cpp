@@ -156,6 +156,13 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     // 3. Supresor de Transitorios de Disparo (Canal Central / Gun Crack)
     impl_->transient.process(channelPointers, safeCh, numSamples);
 
+    // Detección de Disparo: Si hay una reducción transitoria severa (< -2.0 dB),
+    // disparar Ducking Inverso en el ecualizador para elevar pasos (+6 dB en 3.8 kHz durante 300 ms)
+    if (impl_->transient.getLastReductionDb() < -2.0f)
+    {
+        impl_->parametricEq.triggerGunshotFootstepBoost(6.0f, 300.0f);
+    }
+
     // 4. Protector de Frecuencias Ambientales (Multibanda 350 Hz - 2.5 kHz)
     impl_->ambience.process(channelPointers, safeCh, numSamples);
 
@@ -200,7 +207,7 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
 
     // 6. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
     impl_->equalizer.process(channelPointers, safeCh, numSamples);
-    if (impl_->params.useParametricEq)
+    if (impl_->params.useParametricEq || impl_->parametricEq.getDynamicFootstepBoostDb() > 0.01f)
         impl_->parametricEq.process(channelPointers, safeCh, numSamples);
 
     // 7. Limitador de Picos de Muestra Exacta (-0.5 dBFS)
@@ -252,6 +259,11 @@ float AudioGraph::getStationarityIndex() const noexcept
 bool AudioGraph::isSpatialActive() const noexcept
 {
     return !impl_->params.spatial.bypass;
+}
+
+float AudioGraph::getDynamicFootstepBoostDb() const noexcept
+{
+    return impl_->parametricEq.getDynamicFootstepBoostDb();
 }
 
 float AudioGraph::getLimiterReductionDb() const noexcept

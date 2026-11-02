@@ -50,6 +50,9 @@ private:
     juce::Slider elevationSlider_;
     juce::Label  elevationLabel_;
 
+    juce::Slider crossfeedSlider_;
+    juce::Label  crossfeedLabel_;
+
     juce::Slider spatialMixSlider_;
     juce::Label  spatialMixLabel_;
     juce::Label  spatialMixHrtfHintLabel_;

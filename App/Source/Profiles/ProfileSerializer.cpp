@@ -154,6 +154,7 @@ std::string ProfileSerializer::serializeToJson(const AudioProfile& profile, bool
     spatObj->setProperty("apparentDistanceM",   profile.spatialParams.apparentDistanceM);
     spatObj->setProperty("frontBackSeparation", profile.spatialParams.frontBackSeparation);
     spatObj->setProperty("elevationEmphasis",   profile.spatialParams.elevationEmphasis);
+    spatObj->setProperty("crossfeedAmount",     profile.spatialParams.crossfeedAmount);
     spatObj->setProperty("spatialMix",          profile.spatialParams.spatialMix);
     spatObj->setProperty("bypass",              profile.spatialParams.bypass);
     rootObj->setProperty("spatial", juce::var(spatObj));
@@ -412,6 +413,7 @@ bool ProfileSerializer::deserializeFromJson(const std::string& jsonText, AudioPr
         p.spatialParams.apparentDistanceM   = static_cast<float>(spat.getProperty("apparentDistanceM", 1.4));
         p.spatialParams.frontBackSeparation = static_cast<float>(spat.getProperty("frontBackSeparation", 1.0));
         p.spatialParams.elevationEmphasis   = static_cast<float>(spat.getProperty("elevationEmphasis", 0.0));
+        p.spatialParams.crossfeedAmount     = static_cast<float>(spat.getProperty("crossfeedAmount", 0.25));
         p.spatialParams.spatialMix          = static_cast<float>(spat.getProperty("spatialMix", 0.3));
         p.spatialParams.bypass              = static_cast<bool>(spat.getProperty("bypass", false));
     }
