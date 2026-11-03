@@ -86,7 +86,7 @@ struct AudioProfile
 
     // 2. Motor espacial 3D inmersivo
     dash::spatial::SpatialProcessorParameters spatialParams {};
-    bool enableSpatial = false;
+    bool enableSpatial = true;
 
     /** Restablece todos los valores a los valores nominales seguros de fábrica. */
     void resetToDefaults();

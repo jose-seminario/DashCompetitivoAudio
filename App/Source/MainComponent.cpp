@@ -515,8 +515,12 @@ void MainComponent::activateTacticalMode()
         dash::audio::AudioBackendConfig cfg;
         cfg.sampleRate = sr;
         cfg.bufferSize = 512;
-        cfg.numChannels = ch;
-        cfg.numInputChannels = ch;
+        cfg.numChannels = 2; // Auriculares físicos de salida son siempre estéreo (2 canales)
+        cfg.numInputChannels = ch; // Entrada virtual captura los canales del juego (hasta 8 canales 7.1)
+        if (!originalEndpointId_.empty())
+        {
+            cfg.deviceId = originalEndpointId_;
+        }
 
         std::string startErr;
         const bool started = audioBackend_->start(

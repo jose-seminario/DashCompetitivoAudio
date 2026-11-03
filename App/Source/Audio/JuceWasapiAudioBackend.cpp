@@ -141,11 +141,13 @@ bool JuceWasapiAudioBackend::start(
 
     setup.sampleRate = config.sampleRate > 0.0 ? config.sampleRate : 48000.0;
     setup.bufferSize = config.bufferSize > 0 ? config.bufferSize : 512;
-    setup.useDefaultInputChannels = false;
-    setup.useDefaultOutputChannels = true;
-
     const int numInChannels = config.numInputChannels > 0 ? config.numInputChannels : 2;
     const int numOutChannels = config.numChannels > 0 ? config.numChannels : 2;
+
+    setup.useDefaultInputChannels = true;
+    setup.useDefaultOutputChannels = true;
+    setup.inputChannels.setRange(0, numInChannels, true);
+    setup.outputChannels.setRange(0, numOutChannels, true);
 
     auto err = deviceManager_.initialise(
         numInChannels,

@@ -206,10 +206,43 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
         }
     }
 
+    else if (safeCh > 2 && channelPointers[0] != nullptr && channelPointers[1] != nullptr)
+    {
+        // Plegado Estéreo Canónico ITU-R de Respaldo:
+        // Si el motor 3D está en bypass pero la fuente es multicanal (7.1/5.1), pliega
+        // canales traseros (BL, BR), laterales (SL, SR) y central (FC) a L y R.
+        // Garantiza que pasos y disparos por la espalda NUNCA se silencien a 0.
+        constexpr float kDownmixCenter = 0.7071f;
+        constexpr float kDownmixSurround = 0.7071f;
+
+        const float* fc = (safeCh > 2) ? channelPointers[2] : nullptr;
+        const float* bl = (safeCh > 4) ? channelPointers[4] : nullptr;
+        const float* br = (safeCh > 5) ? channelPointers[5] : nullptr;
+        const float* sl = (safeCh > 6) ? channelPointers[6] : nullptr;
+        const float* sr = (safeCh > 7) ? channelPointers[7] : nullptr;
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const float sFC = (fc != nullptr) ? fc[i] : 0.0f;
+            const float sBL = (bl != nullptr) ? bl[i] : 0.0f;
+            const float sBR = (br != nullptr) ? br[i] : 0.0f;
+            const float sSL = (sl != nullptr) ? sl[i] : 0.0f;
+            const float sSR = (sr != nullptr) ? sr[i] : 0.0f;
+
+            channelPointers[0][i] += kDownmixCenter * sFC + kDownmixSurround * (sBL + sSL);
+            channelPointers[1][i] += kDownmixCenter * sFC + kDownmixSurround * (sBR + sSR);
+        }
+
+        for (size_t ch = 2; ch < activeCh; ++ch)
+        {
+            if (channelPointers[ch] != nullptr)
+                std::memset(channelPointers[ch], 0, static_cast<size_t>(numSamples) * sizeof(float));
+        }
+    }
+
     // 6. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
-    // Tras el plegado espacial binaural, solo circulan 2 canales (L/R) por las etapas finales.
-    // Si SpatialProcessor está en bypass (o la entrada era mono/estéreo), se preservan safeCh.
-    const int postSpatialCh = (!impl_->params.spatial.bypass && safeCh >= 2) ? 2 : safeCh;
+    // Tras el plegado (binaural 3D o downmix estéreo), sólo circulan 2 canales (L/R) por las etapas finales.
+    const int postSpatialCh = (safeCh >= 2) ? 2 : safeCh;
 
     // 6. Ecualización Acústica Canónica y Calibración
     // 6.1. Calibración Acústica de Auriculares (AutoEQ) - Corrección de hardware previa

@@ -239,6 +239,12 @@ std::string ApoConfigInjector::buildConfigContent(
         const std::string hesuviInclude = resolveHeSuViIncludePath(targetConfigFilePath, config.hesuviIncludePath);
         out << "Include: " << hesuviInclude << "\r\n";
     }
+    else
+    {
+        // Plegado Estéreo 7.1 de Respaldo: garantiza que canales traseros (RL, RR) y laterales (SL, SR)
+        // se sumen a la salida estéreo si HeSuVi está inactivo.
+        out << "Copy: L=L+0.7071*C+0.7071*RL+0.7071*SL R=R+0.7071*C+0.7071*RR+0.7071*SR\r\n";
+    }
 
     return out.str();
 }
