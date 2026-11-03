@@ -92,6 +92,9 @@ OnboardingWizard::OnboardingWizard()
 
 void OnboardingWizard::paint(juce::Graphics& g)
 {
+    if (getWidth() <= 50 || getHeight() <= 50)
+        return;
+
     // Fondo oscuro semitransparente o sólido
     g.fillAll(DashLookAndFeel::kBgDark);
 
@@ -115,6 +118,9 @@ void OnboardingWizard::paint(juce::Graphics& g)
 
 void OnboardingWizard::resized()
 {
+    if (getWidth() <= 50 || getHeight() <= 50)
+        return;
+
     const auto area = getLocalBounds();
     const int cardW = std::min(760, area.getWidth() - 48);
     const int cardH = std::min(620, area.getHeight() - 48);

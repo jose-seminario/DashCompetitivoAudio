@@ -130,7 +130,7 @@ public:
             setContentOwned(new dash::ui::MainComponent(), true);
             setResizable(true, true);
             setResizeLimits(920, 720, 2560, 1440);
-            centreWithSize(getWidth(), getHeight());
+            centreWithSize(1160, 800);
 
             // Cargar icono táctico desde icon.png/icon.ico si existe, o generar calavera vectorial con juce::Path
             juce::Image skullIcon;

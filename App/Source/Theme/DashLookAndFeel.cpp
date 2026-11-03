@@ -41,6 +41,8 @@ void DashLookAndFeel::drawLinearSlider(
     juce::Slider::SliderStyle style,
     juce::Slider& slider)
 {
+    if (width <= 0 || height <= 0)
+        return;
     juce::ignoreUnused(minSliderPos, maxSliderPos, style);
 
     const bool isVertical = slider.isVertical();
@@ -181,6 +183,8 @@ void DashLookAndFeel::drawRotarySlider(
     float rotaryEndAngle,
     juce::Slider& slider)
 {
+    if (width <= 0 || height <= 0)
+        return;
     const float radius = juce::jmin(width / 2.0f, height / 2.0f) - 6.0f;
     const float centreX = x + width * 0.5f;
     const float centreY = y + height * 0.5f;
@@ -353,6 +357,8 @@ void DashLookAndFeel::drawComboBox(
     int /*buttonX*/, int /*buttonY*/, int /*buttonW*/, int /*buttonH*/,
     juce::ComboBox& box)
 {
+    if (width <= 0 || height <= 0)
+        return;
     juce::ignoreUnused(isButtonDown);
 
     const auto bounds = juce::Rectangle<float>(0, 0, (float)width, (float)height).reduced(0.5f);

@@ -10,7 +10,6 @@ namespace dash::ui
 MainComponent::MainComponent()
 {
     setLookAndFeel(&dashLookAndFeel_);
-    setSize(1160, 800);
 
     // 1. Barra Lateral Izquierda Táctica (Sidebar)
     sidebar_.onItemSelected = [this](int index) {
@@ -207,6 +206,9 @@ MainComponent::MainComponent()
     // 8. Verificación estricta de dependencias y bloqueo absoluto si falta algo
     checkDependenciesAndSetupWizard();
 
+    // 9. Establecer tamaño nominal tras instanciar y cablear todos los subcomponentes
+    setSize(1160, 800);
+
     // Iniciar temporizador de telemetría a 30 Hz
     startTimerHz(30);
 }
@@ -226,16 +228,16 @@ void MainComponent::selectPanel(int panelIndex)
     currentPanelIndex_ = juce::jlimit(0, 9, panelIndex);
     sidebar_.setSelectedItem(currentPanelIndex_);
 
-    dashboardPanel_->setVisible(currentPanelIndex_ == 0);
-    profilePanel_->setVisible(currentPanelIndex_ == 1);
-    audioEnginePanel_->setVisible(currentPanelIndex_ == 2);
-    dynamicsPanel_->setVisible(currentPanelIndex_ == 3);
-    tacticalPanel_->setVisible(currentPanelIndex_ == 4);
-    equalizerPanel_->setVisible(currentPanelIndex_ == 5);
-    spatialPanel_->setVisible(currentPanelIndex_ == 6);
-    headphonePanel_->setVisible(currentPanelIndex_ == 7);
-    benchmarkPanel_->setVisible(currentPanelIndex_ == 8);
-    systemStatusPanel_->setVisible(currentPanelIndex_ == 9);
+    if (dashboardPanel_)    dashboardPanel_->setVisible(currentPanelIndex_ == 0);
+    if (profilePanel_)      profilePanel_->setVisible(currentPanelIndex_ == 1);
+    if (audioEnginePanel_)  audioEnginePanel_->setVisible(currentPanelIndex_ == 2);
+    if (dynamicsPanel_)     dynamicsPanel_->setVisible(currentPanelIndex_ == 3);
+    if (tacticalPanel_)     tacticalPanel_->setVisible(currentPanelIndex_ == 4);
+    if (equalizerPanel_)    equalizerPanel_->setVisible(currentPanelIndex_ == 5);
+    if (spatialPanel_)      spatialPanel_->setVisible(currentPanelIndex_ == 6);
+    if (headphonePanel_)    headphonePanel_->setVisible(currentPanelIndex_ == 7);
+    if (benchmarkPanel_)    benchmarkPanel_->setVisible(currentPanelIndex_ == 8);
+    if (systemStatusPanel_) systemStatusPanel_->setVisible(currentPanelIndex_ == 9);
 
     resized();
 }
@@ -256,16 +258,16 @@ void MainComponent::resized()
 
     const auto contentBounds = juce::Rectangle<int>(sidebarW, 0, getWidth() - sidebarW, getHeight() - statusH);
 
-    dashboardPanel_->setBounds(contentBounds);
-    profilePanel_->setBounds(contentBounds);
-    audioEnginePanel_->setBounds(contentBounds);
-    dynamicsPanel_->setBounds(contentBounds);
-    tacticalPanel_->setBounds(contentBounds);
-    equalizerPanel_->setBounds(contentBounds);
-    spatialPanel_->setBounds(contentBounds);
-    headphonePanel_->setBounds(contentBounds);
-    benchmarkPanel_->setBounds(contentBounds);
-    systemStatusPanel_->setBounds(contentBounds);
+    if (dashboardPanel_)    dashboardPanel_->setBounds(contentBounds);
+    if (profilePanel_)      profilePanel_->setBounds(contentBounds);
+    if (audioEnginePanel_)  audioEnginePanel_->setBounds(contentBounds);
+    if (dynamicsPanel_)     dynamicsPanel_->setBounds(contentBounds);
+    if (tacticalPanel_)     tacticalPanel_->setBounds(contentBounds);
+    if (equalizerPanel_)    equalizerPanel_->setBounds(contentBounds);
+    if (spatialPanel_)      spatialPanel_->setBounds(contentBounds);
+    if (headphonePanel_)    headphonePanel_->setBounds(contentBounds);
+    if (benchmarkPanel_)    benchmarkPanel_->setBounds(contentBounds);
+    if (systemStatusPanel_) systemStatusPanel_->setBounds(contentBounds);
 
     if (onboardingWizard_ && onboardingWizard_->isVisible())
     {
@@ -295,8 +297,11 @@ void MainComponent::timerCallback()
 
         const float reportedLat = (latMs > 0.0f) ? latMs : static_cast<float>((512.0 * 1000.0) / (currentProfile_.audio.sampleRate > 0.0 ? currentProfile_.audio.sampleRate : 48000.0));
 
-        dashboardPanel_->setLatencyMs(reportedLat);
-        dashboardPanel_->setCpuPercent(cpu);
+        if (dashboardPanel_)
+        {
+            dashboardPanel_->setLatencyMs(reportedLat);
+            dashboardPanel_->setCpuPercent(cpu);
+        }
         sidebar_.setEngineStatus(true, reportedLat, cpu);
 
         // Telemetría real de clipping y limitador desde AudioGraph
@@ -307,13 +312,16 @@ void MainComponent::timerCallback()
         }
 
         // Actualizar estados de bypass de los nodos en el Dashboard
-        dashboardPanel_->setNodeBypassState(1, currentProfile_.dspParams.bypassAll);
-        dashboardPanel_->setNodeBypassState(2, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.dynamics.bypass);
-        dashboardPanel_->setNodeBypassState(3, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.transient.bypass);
-        dashboardPanel_->setNodeBypassState(4, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.ambience.bypass);
-        dashboardPanel_->setNodeBypassState(5, currentProfile_.dspParams.bypassAll || !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass);
-        dashboardPanel_->setNodeBypassState(6, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.equalizer.bypass);
-        dashboardPanel_->setNodeBypassState(7, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.limiter.bypass);
+        if (dashboardPanel_)
+        {
+            dashboardPanel_->setNodeBypassState(1, currentProfile_.dspParams.bypassAll);
+            dashboardPanel_->setNodeBypassState(2, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.dynamics.bypass);
+            dashboardPanel_->setNodeBypassState(3, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.transient.bypass);
+            dashboardPanel_->setNodeBypassState(4, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.ambience.bypass);
+            dashboardPanel_->setNodeBypassState(5, currentProfile_.dspParams.bypassAll || !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass);
+            dashboardPanel_->setNodeBypassState(6, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.equalizer.bypass);
+            dashboardPanel_->setNodeBypassState(7, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.limiter.bypass);
+        }
     }
     else
     {
@@ -342,29 +350,41 @@ void MainComponent::loadProfile(const std::string& profileId)
 
 void MainComponent::syncAllPanelsWithProfile()
 {
-    dashboardPanel_->updateQuickControls(
-        currentProfile_.dspParams.transient.gun,
-        currentProfile_.dspParams.equalizer.footstepsDb,
-        currentProfile_.dspParams.ambience.ambGuar,
-        currentProfile_.dspParams.dynamics.makeupGainDb,
-        currentProfile_.enableSpatial
-    );
+    if (dashboardPanel_)
+    {
+        dashboardPanel_->updateQuickControls(
+            currentProfile_.dspParams.transient.gun,
+            currentProfile_.dspParams.equalizer.footstepsDb,
+            currentProfile_.dspParams.ambience.ambGuar,
+            currentProfile_.dspParams.dynamics.makeupGainDb,
+            currentProfile_.enableSpatial
+        );
+    }
 
-    profilePanel_->setLoadedProfile(currentProfile_);
-    dynamicsPanel_->setParameters(currentProfile_.dspParams.dynamics);
-    tacticalPanel_->setParameters(
-        currentProfile_.dspParams.transient,
-        currentProfile_.dspParams.ambience,
-        currentProfile_.dspParams.limiter
-    );
-    equalizerPanel_->setParameters(
-        currentProfile_.dspParams.equalizer,
-        currentProfile_.dspParams.useParametricEq,
-        currentProfile_.dspParams.parametricBands
-    );
-    spatialPanel_->setParameters(currentProfile_.spatialParams);
-    headphonePanel_->setSelectedModelId(juce::String(currentProfile_.headphone.model));
-    headphonePanel_->setCompensationEnabled(currentProfile_.dspParams.useParametricEq);
+    if (profilePanel_)      profilePanel_->setLoadedProfile(currentProfile_);
+    if (dynamicsPanel_)     dynamicsPanel_->setParameters(currentProfile_.dspParams.dynamics);
+    if (tacticalPanel_)
+    {
+        tacticalPanel_->setParameters(
+            currentProfile_.dspParams.transient,
+            currentProfile_.dspParams.ambience,
+            currentProfile_.dspParams.limiter
+        );
+    }
+    if (equalizerPanel_)
+    {
+        equalizerPanel_->setParameters(
+            currentProfile_.dspParams.equalizer,
+            currentProfile_.dspParams.useParametricEq,
+            currentProfile_.dspParams.parametricBands
+        );
+    }
+    if (spatialPanel_)      spatialPanel_->setParameters(currentProfile_.spatialParams);
+    if (headphonePanel_)
+    {
+        headphonePanel_->setSelectedModelId(juce::String(currentProfile_.headphone.model));
+        headphonePanel_->setCompensationEnabled(currentProfile_.dspParams.useParametricEq);
+    }
 
     currentProfile_.dspParams.spatial = currentProfile_.spatialParams;
     currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass;

@@ -337,6 +337,9 @@ void DashboardComponent::paint(juce::Graphics& g)
 {
     g.fillAll(DashLookAndFeel::kBgDark);
 
+    if (getWidth() <= 50 || getHeight() <= 50)
+        return;
+
     // 1. Selector de Perfil y Modo (Fila superior)
     // 2. Hero Card (Lado izquierdo) y Waveform Card (Lado derecho)
     const float topY = 48.0f;
@@ -415,6 +418,9 @@ void DashboardComponent::paint(juce::Graphics& g)
 
 void DashboardComponent::resized()
 {
+    if (getWidth() <= 50 || getHeight() <= 50)
+        return;
+
     // Fila superior: Selector de Modo e Input de Perfil
     easyModeBtn_.setBounds(14, 10, 140, 28);
     advancedModeBtn_.setBounds(162, 10, 150, 28);

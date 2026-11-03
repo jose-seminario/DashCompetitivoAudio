@@ -72,6 +72,9 @@ void SidebarComponent::setEngineStatus(bool isRunning, float latencyMs, float cp
 
 void SidebarComponent::paint(juce::Graphics& g)
 {
+    if (getWidth() <= 20 || getHeight() <= 20)
+        return;
+
     // Fondo de barra lateral (Tarjetas oscuras / Charcoal de la referencia)
     const auto bounds = getLocalBounds().toFloat();
     g.setColour(DashLookAndFeel::kBgCard);
@@ -168,6 +171,9 @@ void SidebarComponent::drawTelemetryCard(juce::Graphics& g, const juce::Rectangl
 
 void SidebarComponent::resized()
 {
+    if (getWidth() <= 20 || getHeight() <= 20)
+        return;
+
     const int startY = 82;
     const int itemH  = 34;
     const int gap    = 6;
