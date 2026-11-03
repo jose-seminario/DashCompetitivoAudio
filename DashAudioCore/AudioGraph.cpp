@@ -212,8 +212,15 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
         // Si el motor 3D está en bypass pero la fuente es multicanal (7.1/5.1), pliega
         // canales traseros (BL, BR), laterales (SL, SR) y central (FC) a L y R.
         // Garantiza que pasos y disparos por la espalda NUNCA se silencien a 0.
-        constexpr float kDownmixCenter = 0.7071f;
-        constexpr float kDownmixSurround = 0.7071f;
+        // Matriz Táctica Competitiva con Sangrado Acústico Contralateral (Crossfeed):
+        // 1. El canal opuesto NUNCA se silencia (evita sordera direccional sin girar la cámara)
+        // 2. Canales traseros (BL, BR) reforzados (0.85x ipsi / 0.40x contra) para presencia total en la espalda
+        // 3. Canales laterales (SL, SR) con 1.0x ipsi / 0.25x contra para percepción periférica continua
+        constexpr float kCenter = 0.7071f;
+        constexpr float kSideIpsi = 1.0f;
+        constexpr float kSideContra = 0.25f;
+        constexpr float kRearIpsi = 0.85f;
+        constexpr float kRearContra = 0.40f;
 
         const float* fc = (safeCh > 2) ? channelPointers[2] : nullptr;
         const float* bl = (safeCh > 4) ? channelPointers[4] : nullptr;
@@ -229,8 +236,8 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
             const float sSL = (sl != nullptr) ? sl[i] : 0.0f;
             const float sSR = (sr != nullptr) ? sr[i] : 0.0f;
 
-            channelPointers[0][i] += kDownmixCenter * sFC + kDownmixSurround * (sBL + sSL);
-            channelPointers[1][i] += kDownmixCenter * sFC + kDownmixSurround * (sBR + sSR);
+            channelPointers[0][i] += kCenter * sFC + (kSideIpsi * sSL) + (kSideContra * sSR) + (kRearIpsi * sBL) + (kRearContra * sBR);
+            channelPointers[1][i] += kCenter * sFC + (kSideIpsi * sSR) + (kSideContra * sSL) + (kRearIpsi * sBR) + (kRearContra * sBL);
         }
 
         for (size_t ch = 2; ch < activeCh; ++ch)

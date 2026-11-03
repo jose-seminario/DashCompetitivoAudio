@@ -243,7 +243,7 @@ std::string ApoConfigInjector::buildConfigContent(
     {
         // Plegado Estéreo 7.1 de Respaldo: garantiza que canales traseros (RL, RR) y laterales (SL, SR)
         // se sumen a la salida estéreo si HeSuVi está inactivo.
-        out << "Copy: L=L+0.7071*C+0.7071*RL+0.7071*SL R=R+0.7071*C+0.7071*RR+0.7071*SR\r\n";
+        out << "Copy: L=L+0.15*R+0.7071*C+1.0*SL+0.25*SR+0.85*RL+0.40*RR R=R+0.15*L+0.7071*C+1.0*SR+0.25*SL+0.85*RR+0.40*RL\r\n";
     }
 
     return out.str();
