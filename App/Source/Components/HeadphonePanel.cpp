@@ -9,7 +9,7 @@ HeadphonePanel::HeadphonePanel()
 {
     titleLabel_.setText(juce::String::fromUTF8(u8"CALIBRACIÓN ACÚSTICA DE AURICULARES (AUTOEQ / HARMAN 2018)"), juce::dontSendNotification);
     titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
-    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(titleLabel_);
 
     modelSelectLabel_.setText(juce::String::fromUTF8(u8"Seleccionar Modelo de Auricular:"), juce::dontSendNotification);

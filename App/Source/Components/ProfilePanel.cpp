@@ -36,7 +36,7 @@ ProfilePanel::ProfilePanel()
 {
     titleLabel_.setText(juce::String::fromUTF8(u8"CATÁLOGO Y GESTIÓN DE PERFILES (DASHAUDIODB / LOCAL)"), juce::dontSendNotification);
     titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
-    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(titleLabel_);
 
     profileListBox_.setModel(&listModel_);

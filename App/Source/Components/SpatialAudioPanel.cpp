@@ -10,7 +10,7 @@ SpatialAudioPanel::SpatialAudioPanel()
 {
     titleLabel_.setText(juce::String::fromUTF8(u8"MOTOR ESPACIAL 3D, HRTF Y RENDERIZADOR BINAURAL (HASTA 16 CANALES)"), juce::dontSendNotification);
     titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
-    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(titleLabel_);
 
     bypassToggle_.setButtonText(juce::String::fromUTF8(u8"Bypass Espacial"));
@@ -48,7 +48,7 @@ SpatialAudioPanel::SpatialAudioPanel()
     crossfeedSlider_.setRange(0.0, 50.0, 1.0);
     crossfeedSlider_.setValue(25.0, juce::dontSendNotification);
     crossfeedSlider_.setTextValueSuffix("%");
-    crossfeedSlider_.setColour(juce::Slider::trackColourId, DashLookAndFeel::kAccentBlue);
+    crossfeedSlider_.setColour(juce::Slider::trackColourId, DashLookAndFeel::kPillTrackDark);
     crossfeedSlider_.setColour(juce::Slider::thumbColourId, juce::Colours::white);
     crossfeedSlider_.onValueChange = [this] {
         params_ = getParameters();
@@ -67,7 +67,7 @@ SpatialAudioPanel::SpatialAudioPanel()
     spatialMixSlider_.setTextBoxStyle(juce::Slider::TextBoxRight, false, 55, 18);
     spatialMixSlider_.setRange(0.0, 1.0, 0.01);
     spatialMixSlider_.setValue(0.3, juce::dontSendNotification);
-    spatialMixSlider_.setColour(juce::Slider::trackColourId, DashLookAndFeel::kAccentCyan);
+    spatialMixSlider_.setColour(juce::Slider::trackColourId, DashLookAndFeel::kPillTrackDark);
     spatialMixSlider_.setColour(juce::Slider::thumbColourId, juce::Colours::white);
     spatialMixSlider_.onValueChange = [this] {
         params_ = getParameters();

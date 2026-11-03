@@ -9,12 +9,12 @@ namespace dash::ui
 /**
  * Pantalla Principal de Control y Orquestación Táctica (DashboardComponent).
  *
- * Presenta:
- *  - Conmutador Easy Mode / Advanced Mode.
- *  - En Easy Mode: Selectores rápidos de juego, auricular y perfil con controles tácticos directos.
- *  - Tutorial de Primer Uso con pasos claros y botón de Autoconfiguración a VB-Cable.
- *  - Cadena Visual de Procesamiento: Input -> Headroom -> Dynamics -> Transient -> Ambience -> Spatial -> EQ -> Limiter -> Output.
- *  - Estado operativo real del motor, backend, clipping y latencia.
+ * Presenta una interfaz de alto impacto visual inspirada en la estética Soft Dark / Neon Coral:
+ *  - Hero Card Coral con silueta táctica, perfil activo y botón maestro.
+ *  - Rack de 5 Faders Verticales en Cápsula (Disparos, Pasos, Ruido, Makeup, 3D Mix).
+ *  - Tarjeta de Visualización de Forma de Onda / Espectro en líneas coral.
+ *  - Cadena Interactiva de Procesamiento (9 Nodos) con micro-indicadores de bypass.
+ *  - Selector rápido de perfiles en píldora y switch de Audio Espacial.
  */
 class DashboardComponent final : public juce::Component
 {
@@ -52,23 +52,24 @@ public:
     void setNodeBypassState(int nodeIndex, bool isBypassed);
 
 private:
-    void initTacticalSlider(juce::Slider& s, juce::Label& l, const juce::String& text, double min, double max, double def, const juce::String& suffix);
+    void initVerticalFader(juce::Slider& s, juce::Label& l, const juce::String& text, double min, double max, double def, const juce::String& suffix);
+    void drawHeroCard(juce::Graphics& g, const juce::Rectangle<float>& area);
+    void drawWaveformCard(juce::Graphics& g, const juce::Rectangle<float>& area);
 
     DisplayMode currentMode_ = DisplayMode::Easy;
     bool isRunning_ = false;
     bool showTutorial_ = true;
 
-    // 1. Selector de modo
+    juce::String deviceName_ = "Altavoces de Windows";
+    juce::String formatText_ = "48000 Hz | 7.1 Surround (8 canales)";
+    float latencyMs_ = 0.0f;
+    float cpuPercent_ = 0.0f;
+
+    // 1. Selector de modo (Cápsulas)
     juce::TextButton easyModeBtn_;
     juce::TextButton advancedModeBtn_;
 
-    // 2. Tarjeta de Estado del Motor
-    juce::Label engineCardTitle_;
-    juce::Label backendLabel_;
-    juce::Label deviceLabel_;
-    juce::Label formatLabel_;
-    juce::Label latencyLabel_;
-    juce::Label cpuLabel_;
+    // 2. Botones del Motor
     juce::TextButton activateBtn_;
     juce::TextButton deactivateBtn_;
 
@@ -90,17 +91,25 @@ private:
     };
     std::vector<ChainNode> chainNodes_;
 
-    // 5. Controles Tácticos Rápidos (Easy Mode)
+    // 5. Controles Tácticos Rápidos (Faders Verticales en Cápsula)
     juce::Label quickTitleLabel_;
     juce::ComboBox quickProfileSelector_;
+
     juce::Slider gunSlider_;
     juce::Label  gunLabel_;
+
     juce::Slider stepsSlider_;
     juce::Label  stepsLabel_;
+
     juce::Slider ambSlider_;
     juce::Label  ambLabel_;
+
     juce::Slider makeupSlider_;
     juce::Label  makeupLabel_;
+
+    juce::Slider spatialMixSlider_;
+    juce::Label  spatialMixLabel_;
+
     juce::ToggleButton spatialToggle_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DashboardComponent)

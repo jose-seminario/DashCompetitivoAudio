@@ -11,7 +11,7 @@ TacticalProcessingPanel::TacticalProcessingPanel()
     // 1. Transient Suppressor
     transientHeader_.setText(juce::String::fromUTF8(u8"1. SUPRESOR DE DISPAROS (GUN CRACK REDUCTION)"), juce::dontSendNotification);
     transientHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle("Bold")));
-    transientHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    transientHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(transientHeader_);
 
     transientBypass_.setButtonText("Bypass");
@@ -27,7 +27,7 @@ TacticalProcessingPanel::TacticalProcessingPanel()
     // 2. Ambience Guard
     ambHeader_.setText(juce::String::fromUTF8(u8"2. PROTECTOR AMBIENTAL MULTIBANDA (AMBIENCE GUARD)"), juce::dontSendNotification);
     ambHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle("Bold")));
-    ambHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    ambHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(ambHeader_);
 
     ambBypass_.setButtonText("Bypass");
@@ -42,7 +42,7 @@ TacticalProcessingPanel::TacticalProcessingPanel()
     // 3. Limiter Processor
     limHeader_.setText(juce::String::fromUTF8(u8"3. LIMITADOR DE PICO ABSOLUTO (PEAK LIMITER)"), juce::dontSendNotification);
     limHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle("Bold")));
-    limHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    limHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(limHeader_);
 
     limBypass_.setButtonText("Bypass");
@@ -63,7 +63,7 @@ void TacticalProcessingPanel::initKnob(
     s.setRange(min, max, (max <= 1.0) ? 0.01 : 0.1);
     s.setValue(def, juce::dontSendNotification);
     s.setTextValueSuffix(suffix);
-    s.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
+    s.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCoralLight);
     s.onValueChange = [this] { notifyChange(); };
     addAndMakeVisible(s);
 

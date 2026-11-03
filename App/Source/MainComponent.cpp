@@ -8,21 +8,15 @@ namespace dash::ui
 {
 
 MainComponent::MainComponent()
-    : tabs_(juce::TabbedButtonBar::TabsAtTop)
 {
     setLookAndFeel(&dashLookAndFeel_);
-    setSize(1080, 800);
+    setSize(1160, 800);
 
-    // 1. Encabezado Superior
-    headerTitleLabel_.setText("DASH COMPETITIVO AUDIO", juce::dontSendNotification);
-    headerTitleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(17.0f).withStyle("Bold")));
-    headerTitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
-    addAndMakeVisible(headerTitleLabel_);
-
-    headerSubtitleLabel_.setText("Tactical Audio DSP Engine & Spatial 3D Platform", juce::dontSendNotification);
-    headerSubtitleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
-    headerSubtitleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
-    addAndMakeVisible(headerSubtitleLabel_);
+    // 1. Barra Lateral Izquierda Táctica (Sidebar)
+    sidebar_.onItemSelected = [this](int index) {
+        selectPanel(index);
+    };
+    addAndMakeVisible(sidebar_);
 
     // 2. Creación e inicialización de paneles modulares
     dashboardPanel_     = std::make_unique<DashboardComponent>();
@@ -36,34 +30,27 @@ MainComponent::MainComponent()
     benchmarkPanel_     = std::make_unique<BenchmarkPanel>();
     systemStatusPanel_  = std::make_unique<SystemStatusPanel>();
 
-    // 3. Configuración de pestañas de navegación (Codificación UTF-8 forzada y nombres compactos)
-    tabs_.setTabBarDepth(34);
-    tabs_.setColour(juce::TabbedComponent::backgroundColourId, DashLookAndFeel::kBgDark);
-    tabs_.setColour(juce::TabbedComponent::outlineColourId, juce::Colours::transparentBlack);
+    addChildComponent(dashboardPanel_.get());
+    addChildComponent(profilePanel_.get());
+    addChildComponent(audioEnginePanel_.get());
+    addChildComponent(dynamicsPanel_.get());
+    addChildComponent(tacticalPanel_.get());
+    addChildComponent(equalizerPanel_.get());
+    addChildComponent(spatialPanel_.get());
+    addChildComponent(headphonePanel_.get());
+    addChildComponent(benchmarkPanel_.get());
+    addChildComponent(systemStatusPanel_.get());
 
-    const auto tabBg = DashLookAndFeel::kBgCardElevated;
-    tabs_.addTab("INICIO", tabBg, dashboardPanel_.get(), false);
-    tabs_.addTab("PERFIL", tabBg, profilePanel_.get(), false);
-    tabs_.addTab("MOTOR", tabBg, audioEnginePanel_.get(), false);
-    tabs_.addTab(juce::String::fromUTF8(u8"DINÁMICA"), tabBg, dynamicsPanel_.get(), false);
-    tabs_.addTab(juce::String::fromUTF8(u8"TÁCTICO"), tabBg, tacticalPanel_.get(), false);
-    tabs_.addTab("EQ", tabBg, equalizerPanel_.get(), false);
-    tabs_.addTab("3D", tabBg, spatialPanel_.get(), false);
-    tabs_.addTab("AURIS", tabBg, headphonePanel_.get(), false);
-    tabs_.addTab("BENCH", tabBg, benchmarkPanel_.get(), false);
-    tabs_.addTab("SISTEMA", tabBg, systemStatusPanel_.get(), false);
-    addAndMakeVisible(tabs_);
-
-    // 4. Barra de estado inferior
+    // 3. Barra de estado inferior
     addAndMakeVisible(statusBar_);
 
-    // 5. Inicialización del motor DSP y Backend de audio WASAPI
+    // 4. Inicialización del motor DSP y Backend de audio WASAPI
     audioGraph_ = std::make_unique<dash::core::AudioGraph>();
     audioBackend_ = std::make_unique<dash::audio::JuceWasapiAudioBackend>();
     std::string initBackendErr;
     audioBackend_->initialize(&initBackendErr);
 
-    // 6. Cableado de callbacks entre componentes
+    // 5. Cableado de callbacks entre componentes
     dashboardPanel_->onActivateClicked = [this] { activateTacticalMode(); };
     dashboardPanel_->onDeactivateClicked = [this] { deactivateAndRestoreAudio(); };
     dashboardPanel_->onAutoConfigClicked = [this] { autoConfigureAudio(); };
@@ -91,22 +78,22 @@ MainComponent::MainComponent()
     dashboardPanel_->onDisplayModeChanged = [this](DashboardComponent::DisplayMode mode) {
         if (mode == DashboardComponent::DisplayMode::Advanced)
         {
-            tabs_.setCurrentTabIndex(3); // Navegación directa a vista avanzada de Dinámica
+            selectPanel(3); // Navegación directa a vista avanzada de Dinámica
         }
     };
 
     dashboardPanel_->onChainNodeClicked = [this](int nodeIndex) {
         switch (nodeIndex)
         {
-            case 0: tabs_.setCurrentTabIndex(2); break; // INPUT -> Motor & WASAPI
-            case 1: tabs_.setCurrentTabIndex(5); break; // HEADROOM -> EQ / Preamp
-            case 2: tabs_.setCurrentTabIndex(3); break; // DYNAMICS -> Dinámica BS.1770
-            case 3: tabs_.setCurrentTabIndex(4); break; // TRANSIENT -> Disparos & Ruido
-            case 4: tabs_.setCurrentTabIndex(4); break; // AMBIENCE -> Disparos & Ruido
-            case 5: tabs_.setCurrentTabIndex(6); break; // SPATIAL -> Audio Espacial 3D
-            case 6: tabs_.setCurrentTabIndex(5); break; // EQUALIZER -> Ecualizador
-            case 7: tabs_.setCurrentTabIndex(4); break; // LIMITER -> Disparos & Ruido (Limiter)
-            case 8: tabs_.setCurrentTabIndex(7); break; // OUTPUT -> Auriculares
+            case 0: selectPanel(2); break; // INPUT -> Motor & WASAPI
+            case 1: selectPanel(5); break; // HEADROOM -> EQ / Preamp
+            case 2: selectPanel(3); break; // DYNAMICS -> Dinámica BS.1770
+            case 3: selectPanel(4); break; // TRANSIENT -> Táctico (Disparos)
+            case 4: selectPanel(4); break; // AMBIENCE -> Táctico (Ruido)
+            case 5: selectPanel(6); break; // SPATIAL -> Audio Espacial 3D
+            case 6: selectPanel(5); break; // EQUALIZER -> Ecualizador
+            case 7: selectPanel(4); break; // LIMITER -> Táctico (Limiter)
+            case 8: selectPanel(7); break; // OUTPUT -> Auriculares
             default: break;
         }
     };
@@ -211,6 +198,9 @@ MainComponent::MainComponent()
         scheduleDebouncedInjection();
     };
 
+    // 6. Seleccionar panel inicial (INICIO)
+    selectPanel(0);
+
     // 7. Cargar perfil inicial por defecto
     loadProfile("warzone-competitive-default");
 
@@ -231,20 +221,51 @@ MainComponent::~MainComponent()
     setLookAndFeel(nullptr);
 }
 
+void MainComponent::selectPanel(int panelIndex)
+{
+    currentPanelIndex_ = juce::jlimit(0, 9, panelIndex);
+    sidebar_.setSelectedItem(currentPanelIndex_);
+
+    dashboardPanel_->setVisible(currentPanelIndex_ == 0);
+    profilePanel_->setVisible(currentPanelIndex_ == 1);
+    audioEnginePanel_->setVisible(currentPanelIndex_ == 2);
+    dynamicsPanel_->setVisible(currentPanelIndex_ == 3);
+    tacticalPanel_->setVisible(currentPanelIndex_ == 4);
+    equalizerPanel_->setVisible(currentPanelIndex_ == 5);
+    spatialPanel_->setVisible(currentPanelIndex_ == 6);
+    headphonePanel_->setVisible(currentPanelIndex_ == 7);
+    benchmarkPanel_->setVisible(currentPanelIndex_ == 8);
+    systemStatusPanel_->setVisible(currentPanelIndex_ == 9);
+
+    resized();
+}
+
 void MainComponent::paint(juce::Graphics& g)
 {
+    // Fondo Slate Carbón Mate de la referencia (#1E2026)
     g.fillAll(DashLookAndFeel::kBgDark);
-    g.setColour(DashLookAndFeel::kBorderSubtle);
-    g.drawHorizontalLine(44, 0.0f, (float)getWidth());
 }
 
 void MainComponent::resized()
 {
-    headerTitleLabel_.setBounds(20, 6, 320, 20);
-    headerSubtitleLabel_.setBounds(20, 24, 380, 16);
+    const int sidebarW = 208;
+    const int statusH  = 30;
 
-    tabs_.setBounds(0, 44, getWidth(), getHeight() - 76);
-    statusBar_.setBounds(0, getHeight() - 32, getWidth(), 32);
+    sidebar_.setBounds(0, 0, sidebarW, getHeight());
+    statusBar_.setBounds(sidebarW, getHeight() - statusH, getWidth() - sidebarW, statusH);
+
+    const auto contentBounds = juce::Rectangle<int>(sidebarW, 0, getWidth() - sidebarW, getHeight() - statusH);
+
+    dashboardPanel_->setBounds(contentBounds);
+    profilePanel_->setBounds(contentBounds);
+    audioEnginePanel_->setBounds(contentBounds);
+    dynamicsPanel_->setBounds(contentBounds);
+    tacticalPanel_->setBounds(contentBounds);
+    equalizerPanel_->setBounds(contentBounds);
+    spatialPanel_->setBounds(contentBounds);
+    headphonePanel_->setBounds(contentBounds);
+    benchmarkPanel_->setBounds(contentBounds);
+    systemStatusPanel_->setBounds(contentBounds);
 
     if (onboardingWizard_ && onboardingWizard_->isVisible())
     {
@@ -272,19 +293,11 @@ void MainComponent::timerCallback()
         const float latMs = audioBackend_->getCurrentLatencyMs();
         const float cpu = audioBackend_->getCpuUsage();
 
-        if (latMs > 0.0f)
-        {
-            dashboardPanel_->setLatencyMs(latMs);
-        }
-        else
-        {
-            // Latencia nominal acústica calculada de forma matemática a partir del tamaño de búfer y sample rate reales
-            const double sr = currentProfile_.audio.sampleRate > 0.0 ? currentProfile_.audio.sampleRate : 48000.0;
-            const float nominalLatencyMs = static_cast<float>((512.0 * 1000.0) / sr);
-            dashboardPanel_->setLatencyMs(nominalLatencyMs);
-        }
+        const float reportedLat = (latMs > 0.0f) ? latMs : static_cast<float>((512.0 * 1000.0) / (currentProfile_.audio.sampleRate > 0.0 ? currentProfile_.audio.sampleRate : 48000.0));
 
+        dashboardPanel_->setLatencyMs(reportedLat);
         dashboardPanel_->setCpuPercent(cpu);
+        sidebar_.setEngineStatus(true, reportedLat, cpu);
 
         // Telemetría real de clipping y limitador desde AudioGraph
         if (audioGraph_)
@@ -304,6 +317,7 @@ void MainComponent::timerCallback()
     }
     else
     {
+        sidebar_.setEngineStatus(false, 0.0f, 0.0f);
         statusBar_.setClippingDetected(false);
     }
 }
@@ -499,6 +513,7 @@ void MainComponent::activateTacticalMode()
                     juce::MessageManager::callAsync([this, state, msg] {
                         isProfileActive_ = false;
                         dashboardPanel_->setEngineRunning(false);
+                        sidebar_.setEngineStatus(false, 0.0f, 0.0f);
                         statusBar_.setEngineStatus(state == dash::audio::AudioBackendState::DeviceDisconnected
                                                        ? juce::String::fromUTF8(u8"MOTOR: DISPOSITIVO DESCONECTADO")
                                                        : juce::String::fromUTF8(u8"MOTOR: ERROR"),
@@ -513,6 +528,7 @@ void MainComponent::activateTacticalMode()
         {
             isProfileActive_ = false;
             dashboardPanel_->setEngineRunning(false);
+            sidebar_.setEngineStatus(false, 0.0f, 0.0f);
             statusBar_.setEngineStatus(juce::String::fromUTF8(u8"MOTOR: ERROR DE INICIALIZACIÓN"), false);
             statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Fallo al iniciar WASAPI: ") + juce::String(startErr), true);
             return;
@@ -521,6 +537,7 @@ void MainComponent::activateTacticalMode()
 
     isProfileActive_ = true;
     dashboardPanel_->setEngineRunning(true);
+    sidebar_.setEngineStatus(true, (float)((512.0 * 1000.0) / sr), 0.5f);
     statusBar_.setEngineStatus(juce::String::fromUTF8(u8"MOTOR: ACTIVO [WASAPI / C++ DSP]"), true);
 
     executeConfigInjection();
@@ -531,6 +548,7 @@ void MainComponent::deactivateAndRestoreAudio()
 {
     isProfileActive_ = false;
     dashboardPanel_->setEngineRunning(false);
+    sidebar_.setEngineStatus(false, 0.0f, 0.0f);
     statusBar_.setEngineStatus(juce::String::fromUTF8(u8"MOTOR: DETENIDO"), false);
 
     if (audioBackend_)
@@ -564,8 +582,8 @@ void MainComponent::checkDependenciesAndSetupWizard()
 
     if (missingCritical)
     {
-        // 1. Bloqueo Absoluto: Deshabilitar paneles, pestañas y perillas
-        tabs_.setEnabled(false);
+        // 1. Bloqueo Absoluto: Deshabilitar barra lateral
+        sidebar_.setEnabled(false);
 
         // 2. Instanciar y posicionar Asistente a pantalla completa por encima de todo
         if (!onboardingWizard_)
@@ -602,7 +620,7 @@ void MainComponent::checkDependenciesAndSetupWizard()
     }
     else
     {
-        tabs_.setEnabled(true);
+        sidebar_.setEnabled(true);
         dismissWizard();
         dashboardPanel_->setTutorialVisible(true);
     }
@@ -620,7 +638,7 @@ void MainComponent::dismissWizard()
             removeChildComponent(onboardingWizard_.get());
             onboardingWizard_.reset();
         }
-        tabs_.setEnabled(true);
+        sidebar_.setEnabled(true);
         dashboardPanel_->setTutorialVisible(true);
         statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Sistema preparado para procesamiento táctico."), false);
     }
@@ -631,7 +649,7 @@ void MainComponent::dismissWizard()
         {
             onboardingWizard_->toFront(true);
         }
-        tabs_.setEnabled(false);
+        sidebar_.setEnabled(false);
         dashboardPanel_->setTutorialVisible(false);
         statusBar_.setStatusMessage(
             juce::String::fromUTF8(u8"⚠️ ACCIÓN REQUERIDA: Faltan dependencias para iniciar"),
@@ -653,13 +671,13 @@ void MainComponent::recheckDependencies()
 
     if (isReady)
     {
-        tabs_.setEnabled(true);
+        sidebar_.setEnabled(true);
         dismissWizard();
         statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Dependencias verificadas correctamente."), false);
     }
     else
     {
-        tabs_.setEnabled(false);
+        sidebar_.setEnabled(false);
         if (onboardingWizard_)
         {
             onboardingWizard_->setBounds(getLocalBounds());

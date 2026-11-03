@@ -8,7 +8,7 @@ DynamicsPanel::DynamicsPanel()
 {
     titleLabel_.setText(juce::String::fromUTF8(u8"COMPRESOR HÍBRIDO ITU-R BS.1770-4 (ASCENDENTE / DESCENDENTE)"), juce::dontSendNotification);
     titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
-    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(titleLabel_);
 
     bypassToggle_.setButtonText("Bypass Compresor");
@@ -38,7 +38,7 @@ void DynamicsPanel::initKnob(
     s.setRange(min, max, 0.1);
     s.setValue(def, juce::dontSendNotification);
     s.setTextValueSuffix(suffix);
-    s.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
+    s.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCoralLight);
     s.onValueChange = [this] {
         params_ = getParameters();
         if (onParametersChanged) onParametersChanged(params_);
@@ -143,7 +143,7 @@ void DynamicsPanel::drawTransferCurve(juce::Graphics& g, const juce::Rectangle<f
         }
     }
 
-    g.setColour(bypassToggle_.getToggleState() ? DashLookAndFeel::kTextMuted : DashLookAndFeel::kAccentCyan);
+    g.setColour(bypassToggle_.getToggleState() ? DashLookAndFeel::kTextMuted : DashLookAndFeel::kAccentCoralLight);
     g.strokePath(curve, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 }
 

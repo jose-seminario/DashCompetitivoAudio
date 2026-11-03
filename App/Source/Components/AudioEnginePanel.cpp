@@ -8,7 +8,7 @@ AudioEnginePanel::AudioEnginePanel()
 {
     titleLabel_.setText(juce::String::fromUTF8(u8"MOTOR DE AUDIO Y DISPOSITIVOS DE REPRODUCCIÓN (WASAPI / APO)"), juce::dontSendNotification);
     titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
-    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(titleLabel_);
 
     deviceSelectLabel_.setText(juce::String::fromUTF8(u8"Dispositivo de Reproducción (Endpoint):"), juce::dontSendNotification);

@@ -55,6 +55,8 @@ target_sources(DashCompetitivoAudio
         Source/Theme/DashLookAndFeel.cpp
         Source/Components/StatusBarComponent.h
         Source/Components/StatusBarComponent.cpp
+        Source/Components/SidebarComponent.h
+        Source/Components/SidebarComponent.cpp
         Source/Components/DashboardComponent.h
         Source/Components/DashboardComponent.cpp
         Source/Components/ProfilePanel.h

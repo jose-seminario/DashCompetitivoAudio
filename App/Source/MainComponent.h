@@ -6,6 +6,7 @@
 #include <string>
 
 #include "Theme/DashLookAndFeel.h"
+#include "Components/SidebarComponent.h"
 #include "Components/StatusBarComponent.h"
 #include "Components/DashboardComponent.h"
 #include "Components/ProfilePanel.h"
@@ -35,11 +36,11 @@ namespace dash::ui
  * Componente Principal y Orquestador de la Aplicación (MainComponent).
  *
  * Responsabilidad estricta:
- *  - Coordinación de vistas y navegación por paneles modulares.
+ *  - Coordinación de vistas y navegación por Sidebar lateral izquierdo.
  *  - Delegación de DSP a AudioGraph.
  *  - Delegación de perfiles a ProfileRepository.
  *  - Delegación de inyección de configuración Windows a ApoConfigManager.
- *  - Gestión del LookAndFeel táctico y temporizador de telemetría a 30 FPS.
+ *  - Gestión del LookAndFeel táctico Soft Dark / Neon Coral y telemetría a 30 FPS.
  *  - Integración del Asistente de Primera Vez (OnboardingWizard) y Autoconfiguración.
  */
 class MainComponent final
@@ -86,13 +87,11 @@ private:
     bool isProfileActive_ = false;
     bool needsInjection_  = false;
     int debounceCounter_  = 0;
+    int currentPanelIndex_ = 0;
 
     // Componentes de interfaz de usuario
-    juce::Label headerTitleLabel_;
-    juce::Label headerSubtitleLabel_;
-
-    juce::TabbedComponent tabs_;
-    StatusBarComponent   statusBar_;
+    SidebarComponent   sidebar_;
+    StatusBarComponent statusBar_;
 
     // Paneles modulares
     std::unique_ptr<DashboardComponent>      dashboardPanel_;

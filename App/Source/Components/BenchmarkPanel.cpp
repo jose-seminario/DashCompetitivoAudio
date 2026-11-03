@@ -20,7 +20,7 @@ BenchmarkPanel::BenchmarkPanel()
 {
     titleLabel_.setText(juce::String::fromUTF8(u8"BENCHMARK ACÚSTICO, LATENCIA Y PRESUPUESTO DE TIEMPO DSP"), juce::dontSendNotification);
     titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
-    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(titleLabel_);
 
     summaryBudgetLabel_.setText(juce::String::fromUTF8(u8"Presupuesto de Búfer: 5333 µs (5.33 ms a 48 kHz / 256 samples) | Consumo Total: ~98 µs (1.8% de CPU)"), juce::dontSendNotification);

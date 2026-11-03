@@ -15,7 +15,7 @@ SystemStatusPanel::SystemStatusPanel()
 {
     titleLabel_.setText(juce::String::fromUTF8(u8"ESTADO DEL SISTEMA, PRIVILEGIOS Y DEPENDENCIAS WINDOWS"), juce::dontSendNotification);
     titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
-    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(titleLabel_);
 
     overallStatusLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f).withStyle("Bold")));

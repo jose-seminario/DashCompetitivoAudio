@@ -123,7 +123,7 @@ public:
         explicit MainWindow(const juce::String& name)
             : DocumentWindow(
                   name,
-                  juce::Colour(0xff1e1e1e),
+                  dash::ui::DashLookAndFeel::kBgDark,
                   DocumentWindow::allButtons)
         {
             setUsingNativeTitleBar(true);

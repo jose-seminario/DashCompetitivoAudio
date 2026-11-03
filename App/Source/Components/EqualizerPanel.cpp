@@ -125,7 +125,7 @@ EqualizerPanel::EqualizerPanel()
 {
     titleLabel_.setText(juce::String::fromUTF8(u8"ECUALIZADOR ACÚSTICO (31 BANDAS ISO + PARAMÉTRICO DE 10 BANDAS)"), juce::dontSendNotification);
     titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
-    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyan);
+    titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCoralLight);
     addAndMakeVisible(titleLabel_);
 
     bypassToggle_.setButtonText("Bypass EQ");
@@ -134,7 +134,7 @@ EqualizerPanel::EqualizerPanel()
     addAndMakeVisible(bypassToggle_);
 
     parametricModeToggle_.setButtonText(juce::String::fromUTF8(u8"Activar Modo Paramétrico (PEQ)"));
-    parametricModeToggle_.setColour(juce::ToggleButton::textColourId, DashLookAndFeel::kAccentCyan);
+    parametricModeToggle_.setColour(juce::ToggleButton::textColourId, DashLookAndFeel::kAccentCoralLight);
     parametricModeToggle_.onClick = [this] {
         useParametric_ = parametricModeToggle_.getToggleState();
         notifyChange();
@@ -148,7 +148,7 @@ EqualizerPanel::EqualizerPanel()
     footstepsSlider_.setRange(-6.0, 12.0, 0.1);
     footstepsSlider_.setValue(1.6, juce::dontSendNotification);
     footstepsSlider_.setTextValueSuffix(" dB");
-    footstepsSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
+    footstepsSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCoralLight);
     footstepsSlider_.onValueChange = [this] { notifyChange(); };
     addAndMakeVisible(footstepsSlider_);
 
@@ -163,7 +163,7 @@ EqualizerPanel::EqualizerPanel()
     bassSlider_.setRange(-6.0, 6.0, 0.1);
     bassSlider_.setValue(1.5, juce::dontSendNotification);
     bassSlider_.setTextValueSuffix(" dB");
-    bassSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
+    bassSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCoralLight);
     bassSlider_.onValueChange = [this] { notifyChange(); };
     addAndMakeVisible(bassSlider_);
 
@@ -178,7 +178,7 @@ EqualizerPanel::EqualizerPanel()
     preampSlider_.setRange(-12.0, 12.0, 0.1);
     preampSlider_.setValue(0.0, juce::dontSendNotification);
     preampSlider_.setTextValueSuffix(" dB");
-    preampSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
+    preampSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCoralLight);
     preampSlider_.onValueChange = [this] { notifyChange(); };
     addAndMakeVisible(preampSlider_);
 
@@ -250,7 +250,7 @@ EqualizerPanel::EqualizerPanel()
     freqSlider_.setSkewFactorFromMidPoint(1000.0);
     freqSlider_.setValue(1000.0, juce::dontSendNotification);
     freqSlider_.setTextValueSuffix(" Hz");
-    freqSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
+    freqSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCoralLight);
     freqSlider_.onValueChange = [this] {
         if (selectedBandIndex_ >= 0 && selectedBandIndex_ < 10)
         {
@@ -272,7 +272,7 @@ EqualizerPanel::EqualizerPanel()
     gainSlider_.setRange(-18.0, 18.0, 0.1);
     gainSlider_.setValue(0.0, juce::dontSendNotification);
     gainSlider_.setTextValueSuffix(" dB");
-    gainSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
+    gainSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCoralLight);
     gainSlider_.onValueChange = [this] {
         if (selectedBandIndex_ >= 0 && selectedBandIndex_ < 10)
         {
@@ -293,7 +293,7 @@ EqualizerPanel::EqualizerPanel()
     qSlider_.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 56, 16);
     qSlider_.setRange(0.1, 10.0, 0.05);
     qSlider_.setValue(0.707, juce::dontSendNotification);
-    qSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCyan);
+    qSlider_.setColour(juce::Slider::rotarySliderFillColourId, DashLookAndFeel::kAccentCoralLight);
     qSlider_.onValueChange = [this] {
         if (selectedBandIndex_ >= 0 && selectedBandIndex_ < 10)
         {
@@ -441,7 +441,7 @@ void EqualizerPanel::drawFrequencyResponseCurve(juce::Graphics& g, const juce::R
         }
     }
 
-    g.setColour(bypassToggle_.getToggleState() ? DashLookAndFeel::kTextMuted : DashLookAndFeel::kAccentCyan);
+    g.setColour(bypassToggle_.getToggleState() ? DashLookAndFeel::kTextMuted : DashLookAndFeel::kAccentCoralLight);
     g.strokePath(curve, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
 }
 

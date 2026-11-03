@@ -8,9 +8,13 @@ namespace dash::ui
 /**
  * Tema Visual Táctico Profesional (DashLookAndFeel).
  *
- * Proporciona una paleta oscura moderna (#121214, #1A1A1E), controles rotativos
- * vectorizados de precisión, botones planos tácticos y menús con estilo visual uniforme.
- * Tipografía minimalista y moderna basada en Segoe UI.
+ * Basado en la estética Soft Dark / Neon Coral Capsule:
+ *  - Paleta Slate carbón mate (#1E2026, #16181D)
+ *  - Degradado Coral Neón / Sunset Red (#FF5C6C -> #FF384D)
+ *  - Faders verticales y horizontales en cápsula con perilla 3D
+ *  - Switches toggle tipo pastilla/cápsula moderna
+ *  - Botones y campos de búsqueda redondeados (pill shape)
+ *  - Tipografía minimalista basada en Segoe UI
  */
 class DashLookAndFeel : public juce::LookAndFeel_V4
 {
@@ -18,19 +22,33 @@ public:
     DashLookAndFeel();
     ~DashLookAndFeel() override = default;
 
-    // Colores semánticos del sistema
-    static inline const juce::Colour kBgDark          { 0xff121214 }; // Fondo de ventana
-    static inline const juce::Colour kBgCard          { 0xff1a1a1e }; // Fondo de tarjetas
-    static inline const juce::Colour kBgCardElevated  { 0xff242429 }; // Fondo elevado
-    static inline const juce::Colour kBorderSubtle    { 0xff2a2a30 }; // Bordes sutiles
-    static inline const juce::Colour kBorderFocus     { 0xff0284c7 }; // Borde activo
-    static inline const juce::Colour kTextMain        { 0xfff4f4f5 }; // Texto blanco primario
-    static inline const juce::Colour kTextMuted       { 0xffa1a1aa }; // Texto gris secundario
-    static inline const juce::Colour kAccentCyan      { 0xff06b6d4 }; // Acento cian táctico
-    static inline const juce::Colour kAccentBlue      { 0xff0284c7 }; // Acento azul primario
+    // Colores semánticos del sistema (Paleta Soft Dark / Neon Coral de referencia)
+    static inline const juce::Colour kBgDark          { 0xff1e2026 }; // Fondo de ventana carbón mate
+    static inline const juce::Colour kBgCard          { 0xff16181d }; // Fondo de tarjetas oscuras
+    static inline const juce::Colour kBgCardElevated  { 0xff252831 }; // Fondo elevado / faders / inputs
+    static inline const juce::Colour kBorderSubtle    { 0xff2e323c }; // Bordes sutiles
+    static inline const juce::Colour kBorderFocus     { 0xffff4d61 }; // Borde activo en coral
+    static inline const juce::Colour kTextMain        { 0xffffffff }; // Texto blanco primario
+    static inline const juce::Colour kTextMuted       { 0xff8e95a5 }; // Texto gris secundario
+    static inline const juce::Colour kAccentCoral     { 0xffff384d }; // Rojo coral / Sunset primario
+    static inline const juce::Colour kAccentCoralLight{ 0xffff5c6c }; // Coral brillante superior
+    static inline const juce::Colour kAccentCyan      { 0xff06b6d4 }; // Acento cian táctico secundario
+    static inline const juce::Colour kAccentBlue      { 0xff0284c7 }; // Acento azul
     static inline const juce::Colour kSuccessEmerald  { 0xff10b981 }; // Éxito / Activo
     static inline const juce::Colour kWarningAmber    { 0xfff59e0b }; // Alerta / Advertencia
     static inline const juce::Colour kDangerCrimson   { 0xffef4444 }; // Peligro / Bypass
+    static inline const juce::Colour kPillWhite       { 0xffffffff }; // Blanco cápsula
+    static inline const juce::Colour kPillTrackLight  { 0xffe2e5ec }; // Pista clara para faders
+    static inline const juce::Colour kPillTrackDark   { 0xff272a33 }; // Pista oscura para faders
+
+    void drawLinearSlider(
+        juce::Graphics& g,
+        int x, int y, int width, int height,
+        float sliderPos,
+        float minSliderPos,
+        float maxSliderPos,
+        juce::Slider::SliderStyle style,
+        juce::Slider& slider) override;
 
     void drawRotarySlider(
         juce::Graphics& g,
@@ -39,6 +57,12 @@ public:
         float rotaryStartAngle,
         float rotaryEndAngle,
         juce::Slider& slider) override;
+
+    void drawToggleButton(
+        juce::Graphics& g,
+        juce::ToggleButton& button,
+        bool shouldDrawButtonAsHighlighted,
+        bool shouldDrawButtonAsDown) override;
 
     void drawButtonBackground(
         juce::Graphics& g,
