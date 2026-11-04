@@ -12,6 +12,12 @@ namespace dash::core
 inline constexpr std::size_t kMaxSupportedChannels = 2;
 
 /**
+ * Techo nominal del limitador estéreo de pico (-0.5 dBFS).
+ */
+inline constexpr float kLimiterCeilingDb = -0.5f;
+inline constexpr float kDefaultCeilingDb = -0.5f;
+
+/**
  * Frecuencias de muestreo nominales soportadas por el motor.
  */
 inline constexpr double kSampleRate44100  = 44100.0;

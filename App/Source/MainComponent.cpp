@@ -341,7 +341,7 @@ MainComponent::MainComponent()
     // 1. Inicializar parámetros estéreo y Limiter a -0.5 dBFS
     graphParams_.preampDb = 0.0f;
     graphParams_.bandGainsDb.fill(0.0f);
-    graphParams_.limiter.ceilingDb = dash::core::kDefaultCeilingDb;
+    graphParams_.limiter.ceilingDb = -0.5f;
     graphParams_.limiter.bypass    = false;
     graphParams_.bypassAll         = false;
 
