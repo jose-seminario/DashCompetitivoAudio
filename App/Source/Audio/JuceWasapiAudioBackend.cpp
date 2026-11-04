@@ -60,7 +60,6 @@ std::vector<AudioDeviceInfo> JuceWasapiAudioBackend::enumerateRenderDevices(std:
             info.preferredSampleRate = 48000;
             info.preferredChannels = 2;
             info.isDefault = (i == defaultIdx);
-            info.isVirtualCable = names[i].containsIgnoreCase("cable") || names[i].containsIgnoreCase("virtual");
             result.push_back(std::move(info));
         }
     }
@@ -85,7 +84,6 @@ std::vector<AudioDeviceInfo> JuceWasapiAudioBackend::enumerateCaptureDevices(std
             info.preferredSampleRate = 48000;
             info.preferredChannels = 2;
             info.isDefault = (i == defaultIdx);
-            info.isVirtualCable = names[i].containsIgnoreCase("cable") || names[i].containsIgnoreCase("virtual");
             result.push_back(std::move(info));
         }
     }
@@ -139,7 +137,7 @@ bool JuceWasapiAudioBackend::start(
     {
         for (const auto& dev : renderDevs)
         {
-            if (dev.isDefault && !dev.isVirtualCable)
+            if (dev.isDefault)
             {
                 chosenOutputName = juce::String(dev.friendlyName.c_str());
                 break;
@@ -169,18 +167,6 @@ bool JuceWasapiAudioBackend::start(
             if (dName.equalsIgnoreCase(target) || dName.containsIgnoreCase(target) || target.containsIgnoreCase(dName))
             {
                 chosenInputName = dName;
-                break;
-            }
-        }
-    }
-
-    if (chosenInputName.isEmpty())
-    {
-        for (const auto& dev : captureDevs)
-        {
-            if (dev.isVirtualCable || dev.friendlyName.find(L"CABLE") != std::wstring::npos)
-            {
-                chosenInputName = juce::String(dev.friendlyName.c_str());
                 break;
             }
         }

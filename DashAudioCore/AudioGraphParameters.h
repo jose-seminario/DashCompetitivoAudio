@@ -14,9 +14,9 @@ namespace dash::core
  */
 struct AudioGraphParameters
 {
-    float preampDb = 0.0f; // Ganancia previa [-12.0 .. +12.0 dB]
+    float preampDb = 0.0f; // Ganancia previa [-18.0 .. +18.0 dB]
 
-    // Ganancias en dB de las 6 bandas tácticas [-12.0 .. +12.0 dB]:
+    // Ganancias en dB de las 6 bandas tácticas [-18.0 .. +18.0 dB]:
     //  [0] Sub-Bajos    (60 Hz,   LowShelf,  Q = 0.707)
     //  [1] Bajos        (150 Hz,  LowShelf,  Q = 0.707)
     //  [2] Cuerpo       (400 Hz,  Peaking,   Q = 1.0)

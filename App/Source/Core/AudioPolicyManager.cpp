@@ -16,13 +16,7 @@ using Microsoft::WRL::ComPtr;
 namespace
 {
     // ==============================================================================
-    // Aislamiento de la interfaz COM no documentada IPolicyConfig
-    // Implementada por AudioSes.dll en Windows Vista, 7, 8, 10 y 11.
-    //
-    // AVISO TÉCNICO:
-    // Esta interfaz no está formalmente documentada en el Windows SDK. Microsoft podría
-    // alterar los offsets de la vtable en compilaciones futuras de Windows. Por ello,
-    // se confina en este módulo y se proyecta la migración hacia el router WASAPI (ADR-0001).
+    // Aislamiento de la interfaz COM IPolicyConfig (AudioSes.dll en Windows 10/11).
     // ==============================================================================
 
     struct DeviceShareMode;
@@ -91,8 +85,6 @@ namespace
             INT bVisible) = 0;
     };
 
-    // Guard RAII para inicializar COM de forma segura tanto en hilos nuevos
-    // como en el Message Thread de JUCE (que ya inicializa COM en modo STA).
     class ScopedComInitializer
     {
     public:
@@ -101,7 +93,6 @@ namespace
             hr_ = ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
             if (hr_ == RPC_E_CHANGED_MODE)
             {
-                // El hilo actual ya tiene COM inicializado en MTA; es seguro operar sin desinicializar.
                 shouldUninitialize_ = false;
                 hr_ = S_OK;
             }
@@ -187,7 +178,6 @@ bool AudioPolicyManager::setDefaultEndpoint(const std::wstring& deviceId, std::s
         return false;
     }
 
-    // 1. Rol de Consola (Juegos, audio del sistema y aplicaciones interactivas)
     hr = policyConfig->SetDefaultEndpoint(deviceId.c_str(), eConsole);
     if (FAILED(hr))
     {
@@ -195,7 +185,6 @@ bool AudioPolicyManager::setDefaultEndpoint(const std::wstring& deviceId, std::s
         return false;
     }
 
-    // 2. Rol Multimedia (Música, vídeo y motores de reproducción multimedia)
     hr = policyConfig->SetDefaultEndpoint(deviceId.c_str(), eMultimedia);
     if (FAILED(hr))
     {
@@ -300,7 +289,6 @@ std::vector<AudioEndpointInfo> AudioPolicyManager::enumerateActiveRenderEndpoint
 
 std::wstring AudioPolicyManager::extractEndpointGuid(const std::wstring& fullDeviceId)
 {
-    // Formato estándar MMDevice: "{0.0.0.00000000}.{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}"
     const auto lastOpenBrace = fullDeviceId.rfind(L'{');
     if (lastOpenBrace != std::wstring::npos)
         return fullDeviceId.substr(lastOpenBrace);

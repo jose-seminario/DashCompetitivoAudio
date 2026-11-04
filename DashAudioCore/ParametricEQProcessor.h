@@ -29,7 +29,7 @@ enum class ParametricFilterType
 struct ParametricBandParameters
 {
     float frequencyHz          = 1000.0f; // [20.0 .. 20000.0 Hz]
-    float gainDb               = 0.0f;    // [-12.0 .. +12.0 dB]
+    float gainDb               = 0.0f;    // [-18.0 .. +18.0 dB]
     float q                    = 0.707f;  // [0.1 .. 18.0] Factor de calidad
     ParametricFilterType type  = ParametricFilterType::Peaking;
     bool  enabled              = true;
@@ -93,7 +93,7 @@ public:
     void setBypass(bool bypass) noexcept;
     [[nodiscard]] bool isBypassed() const noexcept;
 
-    /** Procesa las 6 bandas tácticas estáticas en estéreo (1 o 2 canales) sin asignaciones dinámicas. */
+    /** Procesa las 6 bandas tácticas estáticas en estéreo (1 o 2 canales) sin asignaciones dinámicas ni clipping interno. */
     void process(float* buffer, int numSamples) noexcept;
     void process(std::vector<float>& buffer) noexcept;
     void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;

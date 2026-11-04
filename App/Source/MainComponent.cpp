@@ -29,7 +29,7 @@ namespace
 } // namespace
 
 // ==============================================================================
-// Pestaña 1: "ECUALIZADOR" (Preamp + Reset a la izquierda, 6 Faders verticales a la derecha)
+// Pestaña 1: "ECUALIZADOR" (Preamp + Reset a la izquierda, 6 Faders verticales ±18 dB a la derecha)
 // ==============================================================================
 class MainComponent::EqualizerTabComponent final : public juce::Component
 {
@@ -175,11 +175,14 @@ private:
     static void configureVerticalFader(juce::Slider& slider)
     {
         slider.setSliderStyle(juce::Slider::LinearVertical);
-        slider.setRange(-12.0, 12.0, 0.1);
+        slider.setRange(
+            static_cast<double>(dash::core::kMinEqGainDb),
+            static_cast<double>(dash::core::kMaxEqGainDb),
+            0.1);
         slider.setValue(0.0, juce::dontSendNotification);
         slider.setDoubleClickReturnValue(true, 0.0);
         slider.setTextValueSuffix(" dB");
-        slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 72, 24);
+        slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 76, 24);
     }
 
     juce::Rectangle<int> leftCardBounds_;
@@ -455,7 +458,6 @@ public:
 
     void paint(juce::Graphics& g) override
     {
-        // Fondo traslúcido para bloquear la vista inferior
         g.fillAll(juce::Colour(0xee0e1117));
 
         if (!cardBounds_.isEmpty())
@@ -466,7 +468,6 @@ public:
             g.setColour(DashLookAndFeel::kBorderSubtle);
             g.drawRoundedRectangle(cardBounds_.toFloat().reduced(0.5f), 12.0f, 1.2f);
 
-            // Borde superior decorativo cian
             g.setColour(DashLookAndFeel::kAccentCyanGlow);
             g.fillRoundedRectangle(cardBounds_.getX() + 16.0f, cardBounds_.getY(), cardBounds_.getWidth() - 32.0f, 3.0f, 1.5f);
         }
@@ -540,7 +541,7 @@ MainComponent::MainComponent()
     // 1. Inicializar parámetros estéreo y Limiter a -0.5 dBFS
     graphParams_.preampDb = 0.0f;
     graphParams_.bandGainsDb.fill(0.0f);
-    graphParams_.limiter.ceilingDb = -0.5f;
+    graphParams_.limiter.ceilingDb = dash::core::kLimiterCeilingDb;
     graphParams_.limiter.bypass    = false;
     graphParams_.bypassAll         = false;
 
@@ -556,7 +557,10 @@ MainComponent::MainComponent()
     settingsTab_  = std::make_unique<SettingsTabComponent>();
 
     equalizerTab_->onPreampChanged = [this](float preampDb) {
-        graphParams_.preampDb = juce::jlimit(-12.0f, 12.0f, preampDb);
+        graphParams_.preampDb = juce::jlimit(
+            dash::core::kMinEqGainDb,
+            dash::core::kMaxEqGainDb,
+            preampDb);
         syncDspParameters();
         scheduleDebouncedApoSync();
     };
@@ -564,7 +568,10 @@ MainComponent::MainComponent()
     equalizerTab_->onBandChanged = [this](size_t bandIdx, float gainDb) {
         if (bandIdx < graphParams_.bandGainsDb.size())
         {
-            graphParams_.bandGainsDb[bandIdx] = juce::jlimit(-12.0f, 12.0f, gainDb);
+            graphParams_.bandGainsDb[bandIdx] = juce::jlimit(
+                dash::core::kMinEqGainDb,
+                dash::core::kMaxEqGainDb,
+                gainDb);
             syncDspParameters();
             scheduleDebouncedApoSync();
         }
@@ -599,10 +606,8 @@ MainComponent::MainComponent()
     };
 
     settingsTab_->onAutoConfigApoClicked = [this] {
-        executeApoSync();
-        const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
-        std::error_code ec;
-        if (std::filesystem::exists(apoConfigPath, ec) || std::filesystem::exists(apoConfigPath.parent_path(), ec))
+        std::string err;
+        if (executeApoSync(&err))
         {
             settingsTab_->setAutoConfigStatus(
                 juce::String::fromUTF8("¡APO auto-configurado con éxito con las 6 bandas tácticas!"),
@@ -610,9 +615,10 @@ MainComponent::MainComponent()
         }
         else
         {
-            settingsTab_->setAutoConfigStatus(
-                juce::String::fromUTF8("Directivas generadas. Inicia Equalizer APO para activarlas en Windows."),
-                false);
+            const juce::String msg = err.empty()
+                ? juce::String::fromUTF8("No se pudo escribir config.txt. Verifica que Equalizer APO esté instalado.")
+                : juce::String::fromUTF8(err.c_str());
+            settingsTab_->setAutoConfigStatus(msg, true);
         }
     };
 
@@ -625,17 +631,16 @@ MainComponent::MainComponent()
     // 3. Crear overlay de detección/bloqueo de Equalizer APO
     apoOverlay_ = std::make_unique<ApoOnboardingOverlay>();
     apoOverlay_->onVerifyRequested = [this] {
-        checkApoInstallation();
+        checkApoInstallation(true);
     };
     addChildComponent(apoOverlay_.get());
 
     // 4. Detectar dispositivos de salida estéreo e iniciar motor WASAPI
     populateOutputDevices();
     restartAudioStream();
-    scheduleDebouncedApoSync();
 
     // 5. Verificar presencia de APO y bloquear interfaz si no está instalado
-    checkApoInstallation();
+    checkApoInstallation(false);
 
     setSize(960, 580);
     startTimerHz(20);
@@ -648,15 +653,18 @@ MainComponent::~MainComponent()
     if (audioBackend_)
         audioBackend_->shutdown();
 
-    const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
-    if (dash::audio::ApoConfigManager::hasManagedSection(apoConfigPath))
-        dash::audio::ApoConfigManager::removeManagedSection(apoConfigPath);
+    if (dash::audio::ApoConfigManager::isApoInstalled())
+    {
+        const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
+        if (dash::audio::ApoConfigManager::hasManagedSection(apoConfigPath))
+            dash::audio::ApoConfigManager::removeManagedSection(apoConfigPath);
+    }
 
     tabs_.clearTabs();
     setLookAndFeel(nullptr);
 }
 
-void MainComponent::checkApoInstallation()
+void MainComponent::checkApoInstallation(bool userInitiated)
 {
     const bool apoInstalled = dash::audio::ApoConfigManager::isApoInstalled();
 
@@ -674,9 +682,16 @@ void MainComponent::checkApoInstallation()
         {
             apoOverlay_->setVisible(true);
             apoOverlay_->toFront(true);
-            apoOverlay_->setStatusMessage(
-                juce::String::fromUTF8("Equalizer APO aún no fue detectado. Asegúrate de instalarlo y reiniciar."),
-                true);
+            if (userInitiated)
+            {
+                apoOverlay_->setStatusMessage(
+                    juce::String::fromUTF8("Equalizer APO aún no fue detectado. Asegúrate de instalarlo y reiniciar."),
+                    true);
+            }
+            else
+            {
+                apoOverlay_->setStatusMessage({}, false);
+            }
         }
         resized();
     }
@@ -822,12 +837,22 @@ void MainComponent::resetAllEqAndPreamp()
 
 void MainComponent::scheduleDebouncedApoSync()
 {
+    if (!dash::audio::ApoConfigManager::isApoInstalled())
+        return;
+
     needsApoSync_    = true;
     debounceCounter_ = 0;
 }
 
-void MainComponent::executeApoSync()
+bool MainComponent::executeApoSync(std::string* outError)
 {
+    if (!dash::audio::ApoConfigManager::isApoInstalled())
+    {
+        if (outError)
+            *outError = "Equalizer APO no está instalado en el sistema.";
+        return false;
+    }
+
     const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
     std::error_code ec;
     auto parentDir = apoConfigPath.parent_path();
@@ -846,7 +871,11 @@ void MainComponent::executeApoSync()
 
     const std::string directives = dash::audio::ApoConfigInjector::buildConfigContent(apoCfg, apoConfigPath);
     std::string err;
-    dash::audio::ApoConfigManager::injectManagedSection(apoConfigPath, directives, &err);
+    const auto res = dash::audio::ApoConfigManager::injectManagedSection(apoConfigPath, directives, &err);
+    if (outError)
+        *outError = err;
+
+    return res == dash::audio::ApoConfigResult::Success;
 }
 
 } // namespace dash::ui

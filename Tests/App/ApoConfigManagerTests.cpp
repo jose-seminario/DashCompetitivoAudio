@@ -1,5 +1,5 @@
 /**
- * DashCompetitivoAudio - Suite de Pruebas Unitarias para ApoConfigManager y ApoConfigInjector (6 Bandas Biquad)
+ * DashCompetitivoAudio - Suite de Pruebas Unitarias para ApoConfigManager y ApoConfigInjector (6 Bandas Biquad ±18 dB)
  */
 
 #include <Core/ApoConfigManager.h>
@@ -30,21 +30,21 @@ void testApoConfigManagerNonDestructiveInjection()
     }
 
     ApoChainConfig chain;
-    chain.preampDb    = -3.5;
-    chain.bandGainsDb = { -2.0, -1.0, 0.5, 3.5, 4.0, -2.5 };
+    chain.preampDb    = -18.0;
+    chain.bandGainsDb = { -18.0, -9.5, 0.5, 14.5, 18.0, -15.25 };
     chain.bypass      = false;
 
     const std::string directives = ApoConfigInjector::buildConfigContent(chain, configFile);
 
-    // Verificar las 6 directivas Biquad LS / PK / HS y ausencia total de Copy/HeSuVi
+    // Verificar las 6 directivas Biquad LS / PK / HS con rango extremo [-18 .. +18 dB]
     assert(directives.find("Copy:") == std::string::npos);
-    assert(directives.find("HeSuVi") == std::string::npos);
-    assert(directives.find("Filter 1: ON LS Fc 60 Hz Gain -2 dB") != std::string::npos);
-    assert(directives.find("Filter 2: ON LS Fc 150 Hz Gain -1 dB") != std::string::npos);
+    assert(directives.find("Preamp: -18 dB") != std::string::npos);
+    assert(directives.find("Filter 1: ON LS Fc 60 Hz Gain -18 dB") != std::string::npos);
+    assert(directives.find("Filter 2: ON LS Fc 150 Hz Gain -9.5 dB") != std::string::npos);
     assert(directives.find("Filter 3: ON PK Fc 400 Hz Gain 0.5 dB Q 1") != std::string::npos);
-    assert(directives.find("Filter 4: ON PK Fc 1500 Hz Gain 3.5 dB Q 1.2") != std::string::npos);
-    assert(directives.find("Filter 5: ON PK Fc 3500 Hz Gain 4 dB Q 1.2") != std::string::npos);
-    assert(directives.find("Filter 6: ON HS Fc 8000 Hz Gain -2.5 dB") != std::string::npos);
+    assert(directives.find("Filter 4: ON PK Fc 1500 Hz Gain 14.5 dB Q 1.2") != std::string::npos);
+    assert(directives.find("Filter 5: ON PK Fc 3500 Hz Gain 18 dB Q 1.2") != std::string::npos);
+    assert(directives.find("Filter 6: ON HS Fc 8000 Hz Gain -15.25 dB") != std::string::npos);
 
     std::string err;
     const ApoConfigResult res = ApoConfigManager::injectManagedSection(configFile, directives, &err);
@@ -60,8 +60,8 @@ void testApoConfigManagerNonDestructiveInjection()
         assert(content.find("GraphicEQ: 100 0; 1000 2; 10000 -1") != std::string::npos);
         assert(content.find(ApoConfigManager::kBeginMarker) != std::string::npos);
         assert(content.find(ApoConfigManager::kEndMarker) != std::string::npos);
-        assert(content.find("Preamp: -3.5 dB") != std::string::npos);
-        assert(content.find("Filter 4: ON PK Fc 1500 Hz Gain 3.5 dB Q 1.2") != std::string::npos);
+        assert(content.find("Preamp: -18 dB") != std::string::npos);
+        assert(content.find("Filter 5: ON PK Fc 3500 Hz Gain 18 dB Q 1.2") != std::string::npos);
     }
 
     const ApoConfigResult removeRes = ApoConfigManager::removeManagedSection(configFile, &err);
@@ -89,7 +89,7 @@ void testApoConfigManagerIdempotence()
     const auto configFile = tempDir / "config.txt";
 
     ApoChainConfig chain;
-    chain.bandGainsDb[3] = 2.5;
+    chain.bandGainsDb[3] = 16.5;
     const std::string directives = ApoConfigInjector::buildConfigContent(chain, configFile);
 
     assert(ApoConfigManager::injectManagedSection(configFile, directives) == ApoConfigResult::Success);

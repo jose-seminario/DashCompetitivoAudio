@@ -12,6 +12,7 @@
 #include "Core/ApoConfigInjector.h"
 #include "Core/ApoConfigManager.h"
 #include "Audio/JuceWasapiAudioBackend.h"
+#include <DashAudioCore/AudioConstants.h>
 #include <DashAudioCore/AudioGraph.h>
 #include <DashAudioCore/ParametricEQProcessor.h>
 
@@ -23,7 +24,7 @@ namespace dash::ui
  *
  * Incluye:
  *  - Detección de Equalizer APO con pantalla de bloqueo / tutorial si no está instalado.
- *  - Interfaz de 2 pestañas ("ECUALIZADOR" y "AJUSTES").
+ *  - Interfaz de 2 pestañas ("ECUALIZADOR" con faders de ±18 dB y "AJUSTES").
  *  - Botón de auto-configuración directa de Equalizer APO en la pestaña de Ajustes.
  */
 class MainComponent final
@@ -56,8 +57,8 @@ private:
     void syncDspParameters();
     void resetAllEqAndPreamp();
     void scheduleDebouncedApoSync();
-    void executeApoSync();
-    void checkApoInstallation();
+    bool executeApoSync(std::string* outError = nullptr);
+    void checkApoInstallation(bool userInitiated = false);
 
     DashLookAndFeel dashLookAndFeel_;
 

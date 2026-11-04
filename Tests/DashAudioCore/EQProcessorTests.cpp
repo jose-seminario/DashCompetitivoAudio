@@ -1,5 +1,5 @@
 /**
- * DashCompetitivoAudio - Suite de Pruebas Unitarias para ParametricEQProcessor (6 Bandas Estéreo)
+ * DashCompetitivoAudio - Suite de Pruebas Unitarias para ParametricEQProcessor (6 Bandas Estéreo ±18 dB)
  */
 
 #include <DashAudioCore/ParametricEQProcessor.h>
@@ -53,6 +53,7 @@ void testSixBandDefaultConfiguration()
 
     static_assert(ParametricEQProcessor::kMaxBands == 6);
     static_assert(ParametricEQProcessor::kMaxChannels == 2);
+    static_assert(kMinEqGainDb == -18.0f && kMaxEqGainDb == 18.0f);
 
     ParametricEQProcessor eq;
     eq.prepare(48000.0, 512, 2);
@@ -77,11 +78,12 @@ void testLowShelfAndPeakingBoost()
     dash::core::ParametricEQProcessor eq;
     eq.prepare(48000.0, 512, 2);
 
-    // Banda 4 (Pasos Agudos: Peaking 3500 Hz) +6 dB
-    eq.setBandGainDb(4, 6.0f);
+    // Banda 4 (Pasos Agudos: Peaking 3500 Hz) +18 dB sin clipping interno
+    eq.setBandGainDb(4, 18.0f);
+    assert(std::abs(eq.getBand(4).gainDb - 18.0f) < 0.01f);
 
-    auto left  = generateSine(3500.0f, 48000.0, 4800, 0.2f);
-    auto right = generateSine(3500.0f, 48000.0, 4800, 0.2f);
+    auto left  = generateSine(3500.0f, 48000.0, 4800, 0.25f);
+    auto right = generateSine(3500.0f, 48000.0, 4800, 0.25f);
     const float inRms = computeRms(left.data() + 1000, left.size() - 1000);
 
     float* chs[2] = { left.data(), right.data() };
@@ -92,8 +94,9 @@ void testLowShelfAndPeakingBoost()
 
     const float outRmsL = computeRms(left.data() + 1000, left.size() - 1000);
     const float outRmsR = computeRms(right.data() + 1000, right.size() - 1000);
-    assert(outRmsL > inRms * 1.7f);
-    assert(outRmsR > inRms * 1.7f);
+    // +18 dB (~7.94x) supera ampliamente 1.0f en float sin recorte interno
+    assert(outRmsL > inRms * 6.5f);
+    assert(outRmsR > inRms * 6.5f);
 }
 
 void testHighShelfAttenuation()
@@ -101,25 +104,26 @@ void testHighShelfAttenuation()
     dash::core::ParametricEQProcessor eq;
     eq.prepare(48000.0, 512, 2);
 
-    // Banda 5 (Disparos: HighShelf 8000 Hz) -9 dB
-    eq.setBandGainDb(5, -9.0f);
+    // Banda 5 (Disparos: HighShelf 8000 Hz) -18 dB
+    eq.setBandGainDb(5, -18.0f);
+    assert(std::abs(eq.getBand(5).gainDb - (-18.0f)) < 0.01f);
 
-    auto highTone = generateSine(12000.0f, 48000.0, 4800, 0.4f);
+    auto highTone = generateSine(14000.0f, 48000.0, 4800, 0.4f);
     const float inRms = computeRms(highTone.data() + 1000, highTone.size() - 1000);
 
     eq.process(highTone.data(), static_cast<int>(highTone.size()));
 
     assert(isFiniteBuffer(highTone.data(), highTone.size()));
     const float outRms = computeRms(highTone.data() + 1000, highTone.size() - 1000);
-    assert(outRms < inRms * 0.55f);
+    assert(outRms < inRms * 0.25f);
 }
 
 void testStereoChannelIsolation()
 {
     dash::core::ParametricEQProcessor eq;
     eq.prepare(48000.0, 512, 2);
-    eq.setBandGainDb(0, 4.0f);
-    eq.setBandGainDb(3, 5.0f);
+    eq.setBandGainDb(0, 6.0f);
+    eq.setBandGainDb(3, 12.0f);
 
     auto left = generateSine(1500.0f, 48000.0, 2048, 0.3f);
     std::vector<float> right(2048, 0.0f);
@@ -127,7 +131,7 @@ void testStereoChannelIsolation()
     float* chs[2] = { left.data(), right.data() };
     eq.process(chs, 2, 2048);
 
-    // Estéreo puro: el canal derecho en silencio no recibe crossfeed del izquierdo
+    // Estéreo puro: el canal derecho en silencio permanece completamente independiente del izquierdo
     for (float s : right)
         assert(std::abs(s) < 1.0e-7f);
 

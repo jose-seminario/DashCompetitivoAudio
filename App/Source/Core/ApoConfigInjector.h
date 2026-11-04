@@ -10,17 +10,17 @@ namespace dash::audio
 {
 
 /**
- * Configuración estéreo de 6 bandas para Equalizer APO (sin 3D, sin HeSuVi, sin crossfeed).
+ * Configuración estéreo de 6 bandas Biquad para Equalizer APO.
  */
 struct ApoChainConfig
 {
     // Filtro opcional de dispositivo Equalizer APO, ej. "{xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx}"
     std::string targetEndpointGuid;
 
-    // Preamp global en dB [-12.0 .. +12.0 dB]
+    // Preamp global en dB [-18.0 .. +18.0 dB]
     double preampDb = 0.0;
 
-    // Ganancias en dB de las 6 bandas tácticas:
+    // Ganancias en dB de las 6 bandas tácticas [-18.0 .. +18.0 dB]:
     //  [0] Sub-Bajos    (LS 60 Hz,   Q=0.707)
     //  [1] Bajos        (LS 150 Hz,  Q=0.707)
     //  [2] Cuerpo       (PK 400 Hz,  Q=1.0)

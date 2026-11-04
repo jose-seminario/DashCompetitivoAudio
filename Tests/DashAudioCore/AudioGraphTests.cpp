@@ -1,5 +1,5 @@
 /**
- * DashCompetitivoAudio - Suite de Pruebas Unitarias para AudioGraph (Estéreo 6 Bandas + Limitador)
+ * DashCompetitivoAudio - Suite de Pruebas Unitarias para AudioGraph (Estéreo 6 Bandas ±18 dB + Limitador)
  */
 
 #include <DashAudioCore/AudioGraph.h>
@@ -54,13 +54,13 @@ void testAudioGraphStereoSixBandProcessing()
 
     dash::core::AudioGraphParameters params;
     params.preampDb = 0.0f;
-    params.bandGainsDb = { -2.0f, -1.0f, 0.0f, 4.5f, 5.5f, -3.0f };
+    params.bandGainsDb = { -6.0f, -3.0f, 0.0f, 9.0f, 12.0f, -6.0f };
     params.bypassAll = false;
     graph.updateParameters(params);
 
     // Tono en la banda de Pasos Medios (1500 Hz) debe realzarse limpiamente en estéreo
-    auto left  = generateSineWave(1500.0f, 48000.0, 2048, 0.2f);
-    auto right = generateSineWave(1500.0f, 48000.0, 2048, 0.2f);
+    auto left  = generateSineWave(1500.0f, 48000.0, 2048, 0.15f);
+    auto right = generateSineWave(1500.0f, 48000.0, 2048, 0.15f);
     const float inRms = computeRms(left.data() + 512, left.size() - 512);
 
     float* channels[2] = { left.data(), right.data() };
@@ -71,23 +71,23 @@ void testAudioGraphStereoSixBandProcessing()
 
     const float outRmsL = computeRms(left.data() + 512, left.size() - 512);
     const float outRmsR = computeRms(right.data() + 512, right.size() - 512);
-    assert(outRmsL > inRms * 1.4f);
-    assert(outRmsR > inRms * 1.4f);
+    assert(outRmsL > inRms * 2.0f);
+    assert(outRmsR > inRms * 2.0f);
 }
 
 void testAudioGraphStereoChannelIsolation()
 {
     dash::core::AudioGraph graph;
     graph.prepare(48000.0, 512, 2);
-    graph.setBandGainDb(4, 6.0f); // Pasos Agudos 3500 Hz
+    graph.setBandGainDb(4, 15.0f); // Pasos Agudos 3500 Hz
 
-    auto left = generateSineWave(3500.0f, 48000.0, 1024, 0.2f);
+    auto left = generateSineWave(3500.0f, 48000.0, 1024, 0.15f);
     std::vector<float> right(1024, 0.0f);
     float* channels[2] = { left.data(), right.data() };
 
     graph.process(channels, 2, 1024);
 
-    // Sin 3D ni crossfeed: el canal opuesto permanece 100% independiente
+    // Estéreo nativo puro: el canal opuesto permanece 100% independiente
     for (float s : right)
         assert(std::abs(s) < 1.0e-7f);
 }
@@ -97,8 +97,11 @@ void testAudioGraphLimiterProtection()
     dash::core::AudioGraph graph;
     graph.prepare(48000.0, 512, 2);
 
-    graph.setPreampDb(12.0f);
-    graph.setBandGainDb(3, 12.0f);
+    // Ajuste extremo: Preamp +18 dB y Banda 3 +18 dB (+36 dB combinados)
+    graph.setPreampDb(18.0f);
+    graph.setBandGainDb(3, 18.0f);
+    assert(std::abs(graph.getParameters().preampDb - 18.0f) < 0.01f);
+    assert(std::abs(graph.getParameters().bandGainsDb[3] - 18.0f) < 0.01f);
 
     auto left  = generateSineWave(1500.0f, 48000.0, 2048, 0.8f);
     auto right = generateSineWave(1500.0f, 48000.0, 2048, 0.8f);
@@ -106,22 +109,22 @@ void testAudioGraphLimiterProtection()
 
     graph.process(channels, 2, 2048);
 
-    // El LimiterProcessor (-0.5 dBFS ~= 0.944061 lineal) impide el clipping digital
+    // El LimiterProcessor (-0.5 dBFS ~= 0.944061 lineal) frena toda sobrecarga al final de la cadena
     constexpr float kCeilingLin = 0.944062f;
     for (size_t i = 0; i < 2048; ++i)
     {
         assert(std::abs(left[i])  <= kCeilingLin + 1.0e-5f);
         assert(std::abs(right[i]) <= kCeilingLin + 1.0e-5f);
     }
-    assert(graph.getLimiterReductionDb() < -1.0f);
+    assert(graph.getLimiterReductionDb() < -15.0f);
 }
 
 void testAudioGraphBypassAll()
 {
     dash::core::AudioGraph graph;
     graph.prepare(48000.0, 512, 2);
-    graph.setPreampDb(6.0f);
-    graph.setBandGainDb(0, 6.0f);
+    graph.setPreampDb(12.0f);
+    graph.setBandGainDb(0, 12.0f);
     graph.setBypass(true);
 
     auto left  = generateSineWave(1000.0f, 48000.0, 1024, 0.7f);

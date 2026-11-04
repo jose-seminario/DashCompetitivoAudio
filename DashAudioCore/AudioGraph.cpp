@@ -25,7 +25,7 @@ struct AudioGraph::Impl
     void updatePreamp() noexcept
     {
         preampLin.store(
-            juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 24.0f, params.preampDb)),
+            juce::Decibels::decibelsToGain(juce::jlimit(kMinEqGainDb, kMaxEqGainDb, params.preampDb)),
             std::memory_order_relaxed);
     }
 };
@@ -70,12 +70,16 @@ void AudioGraph::reset() noexcept
 void AudioGraph::updateParameters(const AudioGraphParameters& parameters) noexcept
 {
     impl_->params = parameters;
-    impl_->bypassAll.store(parameters.bypassAll, std::memory_order_relaxed);
-    impl_->updatePreamp();
+    impl_->params.preampDb = juce::jlimit(kMinEqGainDb, kMaxEqGainDb, parameters.preampDb);
 
     for (size_t b = 0; b < ParametricEQProcessor::kMaxBands; ++b)
+    {
+        impl_->params.bandGainsDb[b] = juce::jlimit(kMinEqGainDb, kMaxEqGainDb, parameters.bandGainsDb[b]);
         impl_->parametricEq.setBandGainDb(b, impl_->params.bandGainsDb[b]);
+    }
 
+    impl_->bypassAll.store(parameters.bypassAll, std::memory_order_relaxed);
+    impl_->updatePreamp();
     impl_->parametricEq.setBypass(false);
     impl_->limiter.updateParameters(impl_->params.limiter);
 }
@@ -90,14 +94,14 @@ void AudioGraph::setBandGainDb(size_t bandIndex, float gainDb) noexcept
     if (bandIndex >= ParametricEQProcessor::kMaxBands)
         return;
 
-    const float clamped = juce::jlimit(-12.0f, 12.0f, gainDb);
+    const float clamped = juce::jlimit(kMinEqGainDb, kMaxEqGainDb, gainDb);
     impl_->params.bandGainsDb[bandIndex] = clamped;
     impl_->parametricEq.setBandGainDb(bandIndex, clamped);
 }
 
 void AudioGraph::setPreampDb(float preampDb) noexcept
 {
-    impl_->params.preampDb = juce::jlimit(-12.0f, 12.0f, preampDb);
+    impl_->params.preampDb = juce::jlimit(kMinEqGainDb, kMaxEqGainDb, preampDb);
     impl_->updatePreamp();
 }
 

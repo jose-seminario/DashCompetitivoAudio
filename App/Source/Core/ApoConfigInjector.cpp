@@ -143,6 +143,9 @@ std::string ApoConfigInjector::buildConfigContent(
     const ApoChainConfig& config,
     const std::filesystem::path& /*targetConfigFilePath*/)
 {
+    constexpr double kMinDb = static_cast<double>(dash::core::kMinEqGainDb);
+    constexpr double kMaxDb = static_cast<double>(dash::core::kMaxEqGainDb);
+
     std::ostringstream out;
     out.imbue(std::locale::classic());
 
@@ -155,7 +158,7 @@ std::string ApoConfigInjector::buildConfigContent(
 
     const double effectivePreamp = config.bypass
         ? 0.0
-        : std::clamp(config.preampDb, -12.0, 12.0);
+        : std::clamp(config.preampDb, kMinDb, kMaxDb);
     out << "Preamp: " << formatCompact(effectivePreamp) << " dB\r\n";
 
     const auto defaults = dash::core::ParametricEQProcessor::getDefaultBands();
@@ -164,7 +167,7 @@ std::string ApoConfigInjector::buildConfigContent(
     for (size_t i = 0; i < dash::core::ParametricEQProcessor::kMaxBands; ++i)
     {
         const auto& band = defaults[i];
-        const double gainDb = std::clamp(config.bandGainsDb[i], -12.0, 12.0);
+        const double gainDb = std::clamp(config.bandGainsDb[i], kMinDb, kMaxDb);
         const char* typeCode = apoFilterTypeCode(band.type);
 
         out << "Filter " << (i + 1) << ": " << stateToken << " " << typeCode

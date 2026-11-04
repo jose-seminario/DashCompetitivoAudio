@@ -15,12 +15,10 @@ namespace dash::core
  */
 struct LimiterParameters
 {
-    float ceilingDb       = -0.5f;     // Techo estricto en dBFS (-0.5 dBFS => ~0.944061 lineal)
-    float releaseNorm     = 0.612903f; // [0.0 .. 1.0] Relajación normalizada (15 ms .. 250 ms)
-    bool  bypass          = false;
-    float releaseMs       = 50.0f;     // [5.0 .. 500.0 ms] Tiempo de relajación
-    bool  linkChannels    = true;      // Enlace estéreo L/R para conservar imagen intacta
-    bool  useAdvancedMode = false;
+    float ceilingDb    = kLimiterCeilingDb; // Techo estricto en dBFS (-0.5 dBFS => ~0.944061 lineal)
+    float releaseMs    = 50.0f;             // [5.0 .. 500.0 ms] Tiempo de relajación
+    bool  bypass       = false;
+    bool  linkChannels = true;              // Enlace estéreo L/R para conservar imagen intacta
 };
 
 /**

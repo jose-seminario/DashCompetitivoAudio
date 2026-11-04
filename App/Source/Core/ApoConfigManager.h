@@ -10,7 +10,6 @@ enum class ApoConfigResult
 {
     Success,
     PermissionDenied,
-    ExternalConflictDetected,
     BackupFailed,
     WriteFailed,
     FileNotFound
@@ -26,10 +25,9 @@ enum class ApoConfigResult
  *       # BEGIN DASHCOMPETITIVOAUDIO MANAGED BLOCK
  *       ...
  *       # END DASHCOMPETITIVOAUDIO MANAGED BLOCK
- *  4. Al desactivar el perfil, remueve únicamente la sección administrada, restaurando
+ *  4. Al cerrar la aplicación o remover la sección administrada, restaura
  *     las directivas originales del usuario sin vaciar el archivo.
- *  5. Detecta modificaciones externas concurrentes para evitar sobrescribir cambios ajenos.
- *  6. Utiliza escritura atómica en el sistema de archivos NTFS.
+ *  5. Utiliza escritura atómica en el sistema de archivos NTFS.
  */
 class ApoConfigManager
 {
@@ -71,14 +69,9 @@ public:
     static bool hasBackup(const std::filesystem::path& configPath);
 
     /**
-     * Comprueba si Equalizer APO se encuentra instalado en el sistema.
+     * Comprueba si Equalizer APO se encuentra genuinamente instalado en el sistema.
      */
     static bool isApoInstalled();
-
-    /**
-     * Calcula un hash FNV-1a de 64 bits del contenido de un archivo en disco.
-     */
-    static uint64_t computeContentHash(const std::string& content) noexcept;
 
 private:
     static bool readFullFile(

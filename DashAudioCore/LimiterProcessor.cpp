@@ -31,13 +31,7 @@ struct LimiterProcessor::Impl
     void recalculateCoefficients() noexcept
     {
         ceilingLin = juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 0.0f, params.ceilingDb));
-
-        float relSec = 0.050f;
-        if (params.useAdvancedMode)
-            relSec = juce::jlimit(0.005f, 0.500f, params.releaseMs * 0.001f);
-        else
-            relSec = 0.015f + juce::jlimit(0.0f, 1.0f, params.releaseNorm) * 0.235f;
-
+        const float relSec = juce::jlimit(0.005f, 0.500f, params.releaseMs * 0.001f);
         releaseCoeff = calcOnePoleCoeff(relSec);
     }
 };
@@ -167,7 +161,7 @@ float LimiterProcessor::getCurrentGainLinear() const noexcept
 
 float LimiterProcessor::getCurrentReductionDb() const noexcept
 {
-    return juce::Decibels::gainToDecibels(impl_->telemetryGainLin.load(std::memory_order_relaxed), -60.0f);
+    return juce::Decibels::gainToDecibels(impl_->telemetryGainLin.load(std::memory_order_relaxed), -120.0f);
 }
 
 } // namespace dash::core

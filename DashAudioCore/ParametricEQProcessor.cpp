@@ -35,12 +35,13 @@ namespace
         const float nyquist = static_cast<float>(sampleRate * 0.49);
         const float f0 = std::clamp(freqHz, 20.0f, nyquist);
         const float safeQ = std::max(0.1f, q);
+        const float safeGainDb = std::clamp(gainDb, kMinEqGainDb, kMaxEqGainDb);
 
         const float w0 = 2.0f * kPi * f0 / static_cast<float>(sampleRate);
         const float cosW = std::cos(w0);
         const float sinW = std::sin(w0);
         const float alpha = sinW / (2.0f * safeQ);
-        const float A = std::pow(10.0f, gainDb / 40.0f);
+        const float A = std::pow(10.0f, safeGainDb / 40.0f);
 
         float b0 = 1.0f, b1 = 0.0f, b2 = 0.0f;
         float a0 = 1.0f, a1 = 0.0f, a2 = 0.0f;
@@ -147,6 +148,7 @@ struct ParametricEQProcessor::Impl
         if (bandIdx >= kMaxBands)
             return;
 
+        bandParams[bandIdx].gainDb = std::clamp(bandParams[bandIdx].gainDb, kMinEqGainDb, kMaxEqGainDb);
         const auto& p = bandParams[bandIdx];
         if (!p.enabled)
         {
@@ -217,15 +219,18 @@ void ParametricEQProcessor::setBand(size_t bandIndex, const ParametricBandParame
     if (bandIndex >= kMaxBands)
         return;
 
-    impl_->stagingParams[bandIndex] = params;
-    if (!params.enabled)
+    ParametricBandParameters sanitized = params;
+    sanitized.gainDb = std::clamp(params.gainDb, kMinEqGainDb, kMaxEqGainDb);
+
+    impl_->stagingParams[bandIndex] = sanitized;
+    if (!sanitized.enabled)
     {
         impl_->stagingCoeffs[bandIndex] = BiquadCoeffs { 1.0f, 0.0f, 0.0f, 0.0f, 0.0f };
     }
     else
     {
         impl_->stagingCoeffs[bandIndex] = calculateBiquadCoeffs(
-            params.type, params.frequencyHz, params.gainDb, params.q, impl_->sampleRate);
+            sanitized.type, sanitized.frequencyHz, sanitized.gainDb, sanitized.q, impl_->sampleRate);
     }
 
     if (!impl_->hasProcessedAudio.load(std::memory_order_relaxed))
@@ -246,7 +251,7 @@ void ParametricEQProcessor::setBandGainDb(size_t bandIndex, float gainDb) noexce
         return;
 
     ParametricBandParameters updated = impl_->stagingParams[bandIndex];
-    updated.gainDb = std::clamp(gainDb, -24.0f, 24.0f);
+    updated.gainDb = std::clamp(gainDb, kMinEqGainDb, kMaxEqGainDb);
     setBand(bandIndex, updated);
 }
 

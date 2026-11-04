@@ -17,20 +17,23 @@
 namespace dash::audio
 {
 
-uint64_t ApoConfigManager::computeContentHash(const std::string& content) noexcept
+namespace
 {
-    // Algoritmo FNV-1a de 64 bits para detección rápida y determinista de cambios
-    constexpr uint64_t kFnvPrime  = 0x100000001b3ULL;
-    constexpr uint64_t kFnvOffset = 0xcbf29ce484222325ULL;
-
-    uint64_t hash = kFnvOffset;
-    for (unsigned char c : content)
+    bool hasApoBinariesInDir(const std::filesystem::path& installDir) noexcept
     {
-        hash ^= static_cast<uint64_t>(c);
-        hash *= kFnvPrime;
+        if (installDir.empty())
+            return false;
+
+        std::error_code ec;
+        if (!std::filesystem::exists(installDir, ec))
+            return false;
+
+        return std::filesystem::exists(installDir / "EqualizerAPO.dll", ec)
+            || std::filesystem::exists(installDir / "Configurator.exe", ec)
+            || std::filesystem::exists(installDir / "DeviceSelector.exe", ec)
+            || std::filesystem::exists(installDir / "Editor.exe", ec);
     }
-    return hash;
-}
+} // namespace
 
 bool ApoConfigManager::readFullFile(
     const std::filesystem::path& path,
@@ -67,7 +70,6 @@ bool ApoConfigManager::createBackupIfNeeded(
     const std::filesystem::path backupPath = originalPath.string() + kBackupExt;
     std::error_code ec;
 
-    // Solo creamos el backup original si no existe ya uno previo
     if (!std::filesystem::exists(backupPath, ec))
     {
         std::ofstream ofs(backupPath, std::ios::binary | std::ios::trunc);
@@ -100,24 +102,13 @@ bool ApoConfigManager::hasBackup(const std::filesystem::path& configPath)
 
 bool ApoConfigManager::isApoInstalled()
 {
-    std::error_code ec;
-    const auto apoPath = ApoConfigInjector::getDefaultApoConfigPath();
-    if (std::filesystem::exists(apoPath, ec))
+    const auto apoConfigPath = ApoConfigInjector::getDefaultApoConfigPath();
+    const auto installDir = apoConfigPath.parent_path().parent_path();
+    if (hasApoBinariesInDir(installDir))
         return true;
 
-    const auto parentDir = apoPath.parent_path();
-    if (!parentDir.empty() && std::filesystem::exists(parentDir, ec))
+    if (hasApoBinariesInDir("C:\\Program Files\\EqualizerAPO"))
         return true;
-
-    const auto installDir = parentDir.parent_path();
-    if (!installDir.empty() && std::filesystem::exists(installDir, ec))
-        return true;
-
-    if (std::filesystem::exists("C:\\Program Files\\EqualizerAPO\\config\\config.txt", ec) ||
-        std::filesystem::exists("C:\\Program Files\\EqualizerAPO", ec))
-    {
-        return true;
-    }
 
     return false;
 }
@@ -135,7 +126,6 @@ ApoConfigResult ApoConfigManager::injectManagedSection(
         if (!readFullFile(configPath, &existingContent, outError))
             return ApoConfigResult::PermissionDenied;
 
-        // Crear backup del estado previo no administrado
         if (existingContent.find(kBeginMarker) == std::string::npos)
         {
             if (!createBackupIfNeeded(configPath, existingContent, outError))
@@ -143,7 +133,6 @@ ApoConfigResult ApoConfigManager::injectManagedSection(
         }
     }
 
-    // Construcción del bloque gestionado con delimitadores explícitos
     std::ostringstream blockStream;
     blockStream << "\r\n" << kBeginMarker << "\r\n"
                 << managedDirectives;
@@ -159,9 +148,7 @@ ApoConfigResult ApoConfigManager::injectManagedSection(
 
     if (beginPos != std::string::npos && endPos != std::string::npos && endPos > beginPos)
     {
-        // Reemplazar de forma quirúrgica únicamente la sección entre los marcadores
         const size_t afterEnd = endPos + std::string(kEndMarker).length();
-        // Consumir CRLF tras el marcador final si existiera
         size_t nextValid = afterEnd;
         if (nextValid < existingContent.size() && existingContent[nextValid] == '\r') ++nextValid;
         if (nextValid < existingContent.size() && existingContent[nextValid] == '\n') ++nextValid;
@@ -176,14 +163,12 @@ ApoConfigResult ApoConfigManager::injectManagedSection(
     }
     else
     {
-        // Anexar al final del archivo conservando intactos todos los filtros del usuario
         newContent = existingContent;
         if (!newContent.empty() && newContent.back() != '\n')
             newContent += "\r\n";
         newContent += managedBlock;
     }
 
-    // Escritura atómica preservando el 100% de los filtros originales
     const std::filesystem::path tempPath = configPath.string() + ".dash.tmp";
     std::ofstream ofs(tempPath, std::ios::binary | std::ios::trunc);
     if (!ofs)
@@ -234,7 +219,6 @@ ApoConfigResult ApoConfigManager::removeManagedSection(
 
     if (beginPos == std::string::npos || endPos == std::string::npos || endPos <= beginPos)
     {
-        // No hay sección administrada; no se requiere acción
         return ApoConfigResult::Success;
     }
 
@@ -243,7 +227,6 @@ ApoConfigResult ApoConfigManager::removeManagedSection(
     if (nextValid < existingContent.size() && existingContent[nextValid] == '\r') ++nextValid;
     if (nextValid < existingContent.size() && existingContent[nextValid] == '\n') ++nextValid;
 
-    // Restaurar el contenido antes y después del bloque gestionado
     std::string restoredContent = existingContent.substr(0, beginPos)
                                 + existingContent.substr(nextValid);
 

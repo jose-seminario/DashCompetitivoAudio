@@ -12,6 +12,12 @@ namespace dash::core
 inline constexpr std::size_t kMaxSupportedChannels = 2;
 
 /**
+ * Rango extremo permitido para el Preamp y las 6 bandas del ecualizador (-18.0 dB a +18.0 dB).
+ */
+inline constexpr float kMinEqGainDb = -18.0f;
+inline constexpr float kMaxEqGainDb = 18.0f;
+
+/**
  * Techo nominal del limitador estéreo de pico (-0.5 dBFS).
  */
 inline constexpr float kLimiterCeilingDb = -0.5f;

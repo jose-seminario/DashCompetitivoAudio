@@ -6,7 +6,7 @@ namespace dash::audio
 {
 
 /**
- * Metadatos y capacidades de un dispositivo de audio del sistema operativo.
+ * Metadatos y capacidades de un dispositivo de audio estéreo del sistema operativo.
  */
 struct AudioDeviceInfo
 {
@@ -16,7 +16,6 @@ struct AudioDeviceInfo
     int          preferredSampleRate = 48000;
     int          preferredChannels   = 2;
     bool         isDefault           = false;
-    bool         isVirtualCable      = false;
 };
 
 } // namespace dash::audio

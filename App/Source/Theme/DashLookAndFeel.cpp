@@ -69,8 +69,8 @@ void DashLookAndFeel::drawLinearSlider(
             slotWidth,
             slotH);
 
-        // 1. Marcas de nivel estilo consola de audio (-12 a +12 dB en pasos de 3 dB)
-        constexpr int kNumTicks = 9; // +12, +9, +6, +3, 0, -3, -6, -9, -12
+        // 1. Marcas de nivel estilo consola de audio (-18 a +18 dB en pasos de 3 dB)
+        constexpr int kNumTicks = 13; // +18, +15, +12, +9, +6, +3, 0, -3, -6, -9, -12, -15, -18
         const float tickInnerGap = slotWidth * 0.5f + 5.0f;
 
         for (int i = 0; i < kNumTicks; ++i)
@@ -78,7 +78,7 @@ void DashLookAndFeel::drawLinearSlider(
             const float norm = static_cast<float>(i) / static_cast<float>(kNumTicks - 1);
             const float ty   = slotTop + norm * slotH;
             const bool isZeroCenter = (i == (kNumTicks / 2));
-            const bool isMajor      = isZeroCenter || (i == 0) || (i == kNumTicks - 1) || (i == 2) || (i == 6);
+            const bool isMajor      = ((i % 2) == 0);
 
             const float tickLen = isZeroCenter ? 11.0f : (isMajor ? 7.5f : 4.5f);
             const float strokeW = isZeroCenter ? 1.8f : 1.0f;
