@@ -1,10 +1,5 @@
 #pragma once
 
-#include "DynamicsProcessor.h"
-#include "TransientProcessor.h"
-#include "AmbienceProcessor.h"
-#include <DashAudioSpatial/SpatialProcessor.h>
-#include "EQProcessor.h"
 #include "ParametricEQProcessor.h"
 #include "LimiterProcessor.h"
 
@@ -14,24 +9,26 @@ namespace dash::core
 {
 
 /**
- * Parámetros integrados de configuración de la cadena completa de procesamiento (AudioGraph).
+ * Parámetros de la cadena estéreo táctica de 6 bandas (AudioGraph).
+ * Cadena: Entrada Estéreo (2ch) -> Preamp -> ParametricEQ (6 bandas) -> Limiter (-0.5 dBFS) -> Salida.
  */
 struct AudioGraphParameters
 {
-    float headroomDb = -6.0f; // Ganancia inicial de margen dinámico para evitar clipping inter-etapa
+    float preampDb = 0.0f; // Ganancia previa [-12.0 .. +12.0 dB]
 
-    DynamicsParameters  dynamics {};   // 1. Compresor dinámico híbrido ITU-R BS.1770-4
-    TransientParameters transient {};  // 2. Supresor de transitorios de disparos (Gun Crack)
-    AmbienceParameters  ambience {};   // 3. Protector ambiental multibanda (350 Hz - 2.5 kHz)
-    dash::spatial::SpatialProcessorParameters spatial {}; // 4. Procesador acústico espacial 3D / HRIR
-    EQParameters        equalizer {};  // 5. Ecualización acústica de 31 bandas ISO
-    LimiterParameters   limiter {};    // 6. Limitador final de seguridad (-0.5 dBFS)
+    // Ganancias en dB de las 6 bandas tácticas [-12.0 .. +12.0 dB]:
+    //  [0] Sub-Bajos    (60 Hz,   LowShelf,  Q = 0.707)
+    //  [1] Bajos        (150 Hz,  LowShelf,  Q = 0.707)
+    //  [2] Cuerpo       (400 Hz,  Peaking,   Q = 1.0)
+    //  [3] Pasos Medios (1500 Hz, Peaking,   Q = 1.2)
+    //  [4] Pasos Agudos (3500 Hz, Peaking,   Q = 1.2)
+    //  [5] Disparos     (8000 Hz, HighShelf, Q = 0.707)
+    std::array<float, ParametricEQProcessor::kMaxBands> bandGainsDb {
+        0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f
+    };
 
-    // Módulo opcional de ecualización paramétrica de precisión
-    bool useParametricEq = false;
-    std::array<ParametricBandParameters, ParametricEQProcessor::kMaxBands> parametricBands {};
-
-    bool bypassAll = false; // Bypass global de la cadena
+    LimiterParameters limiter {}; // Limitador Sample-Peak final (-0.5 dBFS)
+    bool bypassAll = false;       // Bypass global de la cadena
 };
 
 } // namespace dash::core

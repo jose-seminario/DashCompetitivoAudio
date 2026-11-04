@@ -2,6 +2,7 @@
 
 #include "IAudioBackend.h"
 #include <JuceHeader.h>
+#include <array>
 #include <atomic>
 #include <mutex>
 #include <string>
@@ -11,10 +12,8 @@ namespace dash::audio
 {
 
 /**
- * Backend de audio nativo de Windows basado en WASAPI implementado sobre juce::AudioDeviceManager.
- *
- * Provee procesamiento de audio en tiempo real y comunicación de bajo retardo
- * sin requerir la presencia de Equalizer APO.
+ * Backend de audio estéreo nativo de Windows basado en WASAPI sobre juce::AudioDeviceManager.
+ * Procesa exclusivamente hasta 2 canales estéreo en tiempo real.
  */
 class JuceWasapiAudioBackend final
     : public IAudioBackend,
@@ -59,7 +58,7 @@ private:
     void audioDeviceStopped() override;
     void audioDeviceError(const juce::String& errorMessage) override;
 
-    static constexpr int kMaxIntermediateChannels = 16;
+    static constexpr int kMaxIntermediateChannels = 2;
     juce::AudioBuffer<float> intermediateScratchBuffer_;
     std::array<float*, kMaxIntermediateChannels> scratchChannelPointers_ {};
 

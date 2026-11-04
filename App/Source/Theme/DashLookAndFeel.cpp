@@ -7,29 +7,31 @@ namespace dash::ui
 
 DashLookAndFeel::DashLookAndFeel()
 {
-    // Tipografía minimalista y moderna predeterminada
     setDefaultSansSerifTypefaceName("Segoe UI");
 
     setColour(juce::ResizableWindow::backgroundColourId, kBgDark);
+    setColour(juce::TabbedComponent::backgroundColourId, kBgDark);
+    setColour(juce::TabbedComponent::outlineColourId,    juce::Colours::transparentBlack);
+
     setColour(juce::ComboBox::backgroundColourId,        kBgCardElevated);
     setColour(juce::ComboBox::outlineColourId,           kBorderSubtle);
     setColour(juce::ComboBox::textColourId,              kTextMain);
-    setColour(juce::ComboBox::arrowColourId,             kAccentCoralLight);
+    setColour(juce::ComboBox::arrowColourId,             kAccentCyanGlow);
 
     setColour(juce::PopupMenu::backgroundColourId,            kBgCardElevated);
     setColour(juce::PopupMenu::textColourId,                 kTextMain);
     setColour(juce::PopupMenu::highlightedBackgroundColourId, kBorderSubtle);
-    setColour(juce::PopupMenu::highlightedTextColourId,       kAccentCoralLight);
+    setColour(juce::PopupMenu::highlightedTextColourId,       kAccentCyanGlow);
 
     setColour(juce::TextButton::buttonColourId,   kBgCardElevated);
     setColour(juce::TextButton::textColourOffId,  kTextMain);
-    setColour(juce::TextButton::textColourOnId,   kAccentCoralLight);
+    setColour(juce::TextButton::textColourOnId,   kAccentCyanGlow);
 
     setColour(juce::Label::textColourId, kTextMain);
-    setColour(juce::Slider::textBoxTextColourId, kTextMain);
-    setColour(juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    setColour(juce::Slider::rotarySliderFillColourId, kAccentCoral);
-    setColour(juce::Slider::trackColourId, kPillTrackDark);
+    setColour(juce::Slider::textBoxTextColourId,       kTextMain);
+    setColour(juce::Slider::textBoxBackgroundColourId, kSlotRecessed);
+    setColour(juce::Slider::textBoxOutlineColourId,    kBorderSubtle);
+    setColour(juce::Slider::trackColourId,             kAccentCyan);
 }
 
 void DashLookAndFeel::drawLinearSlider(
@@ -45,184 +47,163 @@ void DashLookAndFeel::drawLinearSlider(
         return;
     juce::ignoreUnused(minSliderPos, maxSliderPos, style);
 
-    const bool isVertical = slider.isVertical();
-    const auto bounds = juce::Rectangle<float>((float)x, (float)y, (float)width, (float)height);
+    const auto bounds = juce::Rectangle<float>(
+        static_cast<float>(x),
+        static_cast<float>(y),
+        static_cast<float>(width),
+        static_cast<float>(height));
 
-    if (isVertical)
+    if (slider.isVertical())
     {
-        // Fader Vertical en Cápsula (Estilo idéntico a los 5 faders de la referencia)
-        const float trackWidth = juce::jlimit(20.0f, 34.0f, (float)width * 0.44f);
-        const float centreX = bounds.getCentreX();
-        const float trackRadius = trackWidth * 0.5f;
+        const float padTop    = 12.0f;
+        const float padBottom = 12.0f;
+        const float slotWidth = juce::jlimit(10.0f, 16.0f, bounds.getWidth() * 0.18f);
+        const float centreX   = bounds.getCentreX();
+        const float slotTop   = bounds.getY() + padTop;
+        const float slotH     = juce::jmax(24.0f, bounds.getHeight() - padTop - padBottom);
+        const float slotBot   = slotTop + slotH;
 
-        const auto trackBounds = juce::Rectangle<float>(
-            centreX - trackRadius,
-            bounds.getY() + 8.0f,
-            trackWidth,
-            bounds.getHeight() - 16.0f);
+        const juce::Rectangle<float> slotBounds(
+            centreX - slotWidth * 0.5f,
+            slotTop,
+            slotWidth,
+            slotH);
 
-        // 1. Pista cápsula inactiva (Pastilla oscura suave con borde)
-        g.setColour(slider.findColour(juce::Slider::trackColourId, true));
-        g.fillRoundedRectangle(trackBounds, trackRadius);
-        g.setColour(kBorderSubtle);
-        g.drawRoundedRectangle(trackBounds, trackRadius, 1.2f);
+        // 1. Marcas de nivel estilo consola de audio (-12 a +12 dB en pasos de 3 dB)
+        constexpr int kNumTicks = 9; // +12, +9, +6, +3, 0, -3, -6, -9, -12
+        const float tickInnerGap = slotWidth * 0.5f + 5.0f;
 
-        // 2. Relleno activo en cápsula con degradado Coral Neón (#FF5C6C -> #FF384D)
-        const float clampedPos = juce::jlimit(trackBounds.getY(), trackBounds.getBottom(), sliderPos);
-        const float fillHeight = trackBounds.getBottom() - clampedPos;
-
-        if (fillHeight > 1.0f)
+        for (int i = 0; i < kNumTicks; ++i)
         {
-            const auto fillBounds = juce::Rectangle<float>(
-                trackBounds.getX(),
-                clampedPos,
-                trackWidth,
-                fillHeight);
+            const float norm = static_cast<float>(i) / static_cast<float>(kNumTicks - 1);
+            const float ty   = slotTop + norm * slotH;
+            const bool isZeroCenter = (i == (kNumTicks / 2));
+            const bool isMajor      = isZeroCenter || (i == 0) || (i == kNumTicks - 1) || (i == 2) || (i == 6);
 
-            juce::Path trackPath;
-            trackPath.addRoundedRectangle(trackBounds, trackRadius);
+            const float tickLen = isZeroCenter ? 11.0f : (isMajor ? 7.5f : 4.5f);
+            const float strokeW = isZeroCenter ? 1.8f : 1.0f;
 
-            juce::Graphics::ScopedSaveState state(g);
-            g.reduceClipRegion(trackPath);
+            g.setColour(isZeroCenter ? kAccentCyanGlow.withAlpha(0.85f)
+                                     : kTextMuted.withAlpha(isMajor ? 0.55f : 0.30f));
 
-            juce::ColourGradient grad(
-                kAccentCoralLight, centreX, clampedPos,
-                kAccentCoral, centreX, trackBounds.getBottom(), false);
-            g.setGradientFill(grad);
-            g.fillRoundedRectangle(fillBounds, trackRadius);
+            g.drawLine(centreX - tickInnerGap - tickLen, ty, centreX - tickInnerGap, ty, strokeW);
+            g.drawLine(centreX + tickInnerGap, ty, centreX + tickInnerGap + tickLen, ty, strokeW);
         }
 
-        // 3. Perilla circular (Thumb) con tacto 3D y aro de brillo
-        const float thumbDiameter = trackWidth * 1.06f;
-        const float thumbRadius = thumbDiameter * 0.5f;
-        const float thumbY = clampedPos;
+        // 2. Fondo oscuro hundido del carril del fader
+        g.setColour(kSlotRecessed);
+        g.fillRoundedRectangle(slotBounds, slotWidth * 0.5f);
+        g.setColour(kBorderSubtle);
+        g.drawRoundedRectangle(slotBounds, slotWidth * 0.5f, 1.2f);
 
-        // Sombra suave de la perilla
-        g.setColour(juce::Colours::black.withAlpha(0.35f));
-        g.fillEllipse(centreX - thumbRadius, thumbY - thumbRadius + 2.5f, thumbDiameter, thumbDiameter);
+        // 3. Barra de color neón activa
+        const float clampedPos = juce::jlimit(slotTop, slotBot, sliderPos);
+        const juce::Colour accentBase = slider.findColour(juce::Slider::trackColourId, true);
+        const bool isBipolar = (slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0);
 
-        // Cuerpo de la perilla circular en coral luminoso
-        juce::ColourGradient thumbGrad(
-            kAccentCoralLight.brighter(0.14f), centreX, thumbY - thumbRadius,
-            kAccentCoral, centreX, thumbY + thumbRadius, false);
-        g.setGradientFill(thumbGrad);
-        g.fillEllipse(centreX - thumbRadius, thumbY - thumbRadius, thumbDiameter, thumbDiameter);
+        if (slider.isEnabled())
+        {
+            juce::Path clipPath;
+            clipPath.addRoundedRectangle(slotBounds.reduced(1.5f), (slotWidth - 3.0f) * 0.5f);
+            juce::Graphics::ScopedSaveState clipState(g);
+            g.reduceClipRegion(clipPath);
 
-        // Anillo de brillo blanco translúcido
-        g.setColour(juce::Colours::white.withAlpha(0.55f));
-        g.drawEllipse(centreX - thumbRadius, thumbY - thumbRadius, thumbDiameter, thumbDiameter, 1.4f);
+            if (isBipolar)
+            {
+                const float zeroY = slotTop + slotH * 0.5f;
+                const float topY  = juce::jmin(zeroY, clampedPos);
+                const float botY  = juce::jmax(zeroY, clampedPos);
+                const float barH  = botY - topY;
+
+                // Relleno tenue de referencia bajo el fader
+                g.setColour(accentBase.withAlpha(0.14f));
+                g.fillRect(slotBounds.getX(), clampedPos, slotWidth, slotBot - clampedPos);
+
+                if (barH > 0.8f)
+                {
+                    const bool isBoost = (clampedPos < zeroY);
+                    const juce::Colour cTop = isBoost ? kAccentCyanGlow : accentBase;
+                    const juce::Colour cBot = isBoost ? accentBase      : kAccentCoral;
+
+                    juce::ColourGradient neonGrad(
+                        cTop, centreX, topY,
+                        cBot, centreX, botY,
+                        false);
+                    g.setGradientFill(neonGrad);
+                    g.fillRect(slotBounds.getX(), topY, slotWidth, barH);
+                }
+            }
+            else
+            {
+                const float barH = slotBot - clampedPos;
+                if (barH > 0.8f)
+                {
+                    juce::ColourGradient neonGrad(
+                        kAccentCyanGlow, centreX, clampedPos,
+                        accentBase,      centreX, slotBot,
+                        false);
+                    g.setGradientFill(neonGrad);
+                    g.fillRect(slotBounds.getX(), clampedPos, slotWidth, barH);
+                }
+            }
+        }
+
+        // 4. Capuchón rectangular de fader estilo consola de mezcla profesional
+        const float capW = juce::jlimit(26.0f, 40.0f, bounds.getWidth() * 0.52f);
+        const float capH = 18.0f;
+        const juce::Rectangle<float> capBounds(
+            centreX - capW * 0.5f,
+            clampedPos - capH * 0.5f,
+            capW,
+            capH);
+
+        // Sombra proyectada
+        g.setColour(juce::Colours::black.withAlpha(0.50f));
+        g.fillRoundedRectangle(capBounds.translated(0.0f, 2.5f), 4.0f);
+
+        // Cuerpo metálico oscuro del capuchón
+        juce::ColourGradient capGrad(
+            juce::Colour(0xff343b4d), centreX, capBounds.getY(),
+            juce::Colour(0xff1d222d), centreX, capBounds.getBottom(),
+            false);
+        g.setGradientFill(capGrad);
+        g.fillRoundedRectangle(capBounds, 4.0f);
+
+        // Borde iluminado y línea indicadora central en neón
+        const juce::Colour lineCol = slider.isEnabled() ? kAccentCyanGlow : kTextMuted;
+        g.setColour(slider.isEnabled() ? accentBase.withAlpha(0.85f) : kBorderSubtle);
+        g.drawRoundedRectangle(capBounds, 4.0f, 1.3f);
+
+        g.setColour(lineCol);
+        g.drawLine(
+            capBounds.getX() + 4.0f,
+            clampedPos,
+            capBounds.getRight() - 4.0f,
+            clampedPos,
+            2.2f);
     }
     else
     {
-        // Slider Horizontal encapsulado
-        const float trackHeight = juce::jlimit(12.0f, 22.0f, (float)height * 0.36f);
-        const float centreY = bounds.getCentreY();
-        const float trackRadius = trackHeight * 0.5f;
+        const float trackH = 8.0f;
+        const float cy     = bounds.getCentreY();
+        const juce::Rectangle<float> track(bounds.getX() + 6.0f, cy - trackH * 0.5f, bounds.getWidth() - 12.0f, trackH);
 
-        const auto trackBounds = juce::Rectangle<float>(
-            bounds.getX() + 6.0f,
-            centreY - trackRadius,
-            bounds.getWidth() - 12.0f,
-            trackHeight);
-
-        // 1. Pista inactiva
-        g.setColour(slider.findColour(juce::Slider::trackColourId, true));
-        g.fillRoundedRectangle(trackBounds, trackRadius);
+        g.setColour(kSlotRecessed);
+        g.fillRoundedRectangle(track, trackH * 0.5f);
         g.setColour(kBorderSubtle);
-        g.drawRoundedRectangle(trackBounds, trackRadius, 1.2f);
+        g.drawRoundedRectangle(track, trackH * 0.5f, 1.0f);
 
-        // 2. Relleno activo con degradado coral horizontal
-        const float clampedPos = juce::jlimit(trackBounds.getX(), trackBounds.getRight(), sliderPos);
-        const float fillWidth = clampedPos - trackBounds.getX();
-
-        if (fillWidth > 1.0f)
+        const float clampedX = juce::jlimit(track.getX(), track.getRight(), sliderPos);
+        const float fillW    = clampedX - track.getX();
+        if (fillW > 1.0f)
         {
-            const auto fillBounds = juce::Rectangle<float>(
-                trackBounds.getX(),
-                trackBounds.getY(),
-                fillWidth,
-                trackHeight);
-
-            juce::Path trackPath;
-            trackPath.addRoundedRectangle(trackBounds, trackRadius);
-
-            juce::Graphics::ScopedSaveState state(g);
-            g.reduceClipRegion(trackPath);
-
-            juce::ColourGradient grad(
-                kAccentCoral, trackBounds.getX(), centreY,
-                kAccentCoralLight, clampedPos, centreY, false);
-            g.setGradientFill(grad);
-            g.fillRoundedRectangle(fillBounds, trackRadius);
+            g.setColour(kAccentCyan);
+            g.fillRoundedRectangle(track.withWidth(fillW), trackH * 0.5f);
         }
 
-        // 3. Perilla circular
-        const float thumbDiameter = trackHeight * 1.45f;
-        const float thumbRadius = thumbDiameter * 0.5f;
-        const float thumbX = clampedPos;
-
-        g.setColour(juce::Colours::black.withAlpha(0.35f));
-        g.fillEllipse(thumbX - thumbRadius, centreY - thumbRadius + 2.0f, thumbDiameter, thumbDiameter);
-
-        juce::ColourGradient thumbGrad(
-            kAccentCoralLight.brighter(0.14f), thumbX, centreY - thumbRadius,
-            kAccentCoral, thumbX, centreY + thumbRadius, false);
-        g.setGradientFill(thumbGrad);
-        g.fillEllipse(thumbX - thumbRadius, centreY - thumbRadius, thumbDiameter, thumbDiameter);
-
-        g.setColour(juce::Colours::white.withAlpha(0.6f));
-        g.drawEllipse(thumbX - thumbRadius, centreY - thumbRadius, thumbDiameter, thumbDiameter, 1.4f);
+        g.setColour(kAccentCyanGlow);
+        g.fillEllipse(clampedX - 7.0f, cy - 7.0f, 14.0f, 14.0f);
     }
-}
-
-void DashLookAndFeel::drawRotarySlider(
-    juce::Graphics& g,
-    int x, int y, int width, int height,
-    float sliderPosProportional,
-    float rotaryStartAngle,
-    float rotaryEndAngle,
-    juce::Slider& slider)
-{
-    if (width <= 0 || height <= 0)
-        return;
-    const float radius = juce::jmin(width / 2.0f, height / 2.0f) - 6.0f;
-    const float centreX = x + width * 0.5f;
-    const float centreY = y + height * 0.5f;
-    const float rx = centreX - radius;
-    const float ry = centreY - radius;
-    const float rw = radius * 2.0f;
-    const float angle = rotaryStartAngle + sliderPosProportional * (rotaryEndAngle - rotaryStartAngle);
-
-    // 1. Fondo circular de la perilla
-    g.setColour(kBgCardElevated);
-    g.fillEllipse(rx, ry, rw, rw);
-    g.setColour(kBorderSubtle);
-    g.drawEllipse(rx, ry, rw, rw, 1.4f);
-
-    // 2. Arco de fondo inactivo
-    const float arcRadius = radius - 4.5f;
-    juce::Path bgArc;
-    bgArc.addCentredArc(centreX, centreY, arcRadius, arcRadius, 0.0f, rotaryStartAngle, rotaryEndAngle, true);
-    g.setColour(kBorderSubtle.withAlpha(0.7f));
-    g.strokePath(bgArc, juce::PathStrokeType(3.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-
-    // 3. Arco de valor activo con degradado táctico Coral Neón
-    if (slider.isEnabled())
-    {
-        juce::Path activeArc;
-        activeArc.addCentredArc(centreX, centreY, arcRadius, arcRadius, 0.0f, rotaryStartAngle, angle, true);
-        g.setColour(kAccentCoralLight);
-        g.strokePath(activeArc, juce::PathStrokeType(4.0f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
-    }
-
-    // 4. Indicador de puntero central (notch)
-    juce::Path p;
-    const float pointerLength = radius * 0.45f;
-    const float pointerThickness = 2.5f;
-    p.addRoundedRectangle(-pointerThickness * 0.5f, -radius + 4.0f, pointerThickness, pointerLength, 1.0f);
-    p.applyTransform(juce::AffineTransform::rotation(angle).translated(centreX, centreY));
-    g.setColour(slider.isEnabled() ? kTextMain : kTextMuted);
-    g.fillPath(p);
 }
 
 void DashLookAndFeel::drawToggleButton(
@@ -236,8 +217,7 @@ void DashLookAndFeel::drawToggleButton(
     const auto bounds = button.getLocalBounds().toFloat();
     const bool isToggled = button.getToggleState();
 
-    // Switch tipo cápsula moderno (inspirado en la referencia)
-    const float switchW = 44.0f;
+    const float switchW = 46.0f;
     const float switchH = 24.0f;
     const float switchY = bounds.getCentreY() - switchH * 0.5f;
     const auto switchArea = juce::Rectangle<float>(bounds.getX() + 2.0f, switchY, switchW, switchH);
@@ -245,43 +225,40 @@ void DashLookAndFeel::drawToggleButton(
 
     if (isToggled)
     {
-        // Fondo activo: Degradado Coral Neón (#FF5C6C -> #FF384D)
         juce::ColourGradient grad(
             kAccentCoralLight, switchArea.getX(), switchArea.getY(),
             kAccentCoral, switchArea.getRight(), switchArea.getBottom(), false);
         g.setGradientFill(grad);
         g.fillRoundedRectangle(switchArea, cornerRadius);
-        g.setColour(kAccentCoralLight.withAlpha(0.4f));
+        g.setColour(kAccentCoralLight.withAlpha(0.55f));
         g.drawRoundedRectangle(switchArea, cornerRadius, 1.2f);
     }
     else
     {
-        // Fondo inactivo: Cápsula oscura elevada
         g.setColour(kBgCardElevated);
         g.fillRoundedRectangle(switchArea, cornerRadius);
         g.setColour(kBorderSubtle);
         g.drawRoundedRectangle(switchArea, cornerRadius, 1.2f);
     }
 
-    // Thumb circular deslizante blanco puro
     const float thumbSize = switchH - 6.0f;
     const float thumbX = isToggled ? (switchArea.getRight() - thumbSize - 3.0f) : (switchArea.getX() + 3.0f);
     const float thumbY = switchArea.getY() + 3.0f;
 
-    // Sombra suave del thumb
-    g.setColour(juce::Colours::black.withAlpha(0.30f));
+    g.setColour(juce::Colours::black.withAlpha(0.35f));
     g.fillEllipse(thumbX, thumbY + 1.2f, thumbSize, thumbSize);
 
-    // Cuerpo del thumb en blanco
-    g.setColour(kPillWhite);
+    g.setColour(juce::Colours::white);
     g.fillEllipse(thumbX, thumbY, thumbSize, thumbSize);
 
-    // Texto de la etiqueta al lado derecho
     if (button.getButtonText().isNotEmpty())
     {
         const auto textArea = bounds.withTrimmedLeft(switchW + 12.0f);
         g.setColour(button.isEnabled() ? kTextMain : kTextMuted);
-        g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f).withStyle(isToggled ? "Bold" : "Plain")));
+        g.setFont(juce::Font(juce::FontOptions()
+            .withName("Segoe UI")
+            .withHeight(14.0f)
+            .withStyle(isToggled ? "Bold" : "Plain")));
         g.drawFittedText(button.getButtonText(), textArea.toNearestInt(), juce::Justification::centredLeft, 1);
     }
 }
@@ -294,60 +271,20 @@ void DashLookAndFeel::drawButtonBackground(
     bool shouldDrawButtonAsDown)
 {
     const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
-    const bool isCircular = (std::abs(bounds.getWidth() - bounds.getHeight()) <= 6.0f);
-    const float cornerRadius = isCircular ? (bounds.getHeight() * 0.5f) : (bounds.getHeight() * 0.5f); // Full capsule pill
+    const float cornerRadius = 6.0f;
 
-    juce::Colour baseColor = backgroundColour;
-
+    juce::Colour fillCol = backgroundColour;
     if (shouldDrawButtonAsDown)
-    {
-        g.setColour(baseColor.darker(0.12f));
-        if (isCircular)
-            g.fillEllipse(bounds);
-        else
-            g.fillRoundedRectangle(bounds, cornerRadius);
-
-        // Brillo interior coral reactivo a la pulsación
-        g.setColour(kAccentCoral.withAlpha(0.25f));
-        if (isCircular)
-            g.fillEllipse(bounds.reduced(1.2f));
-        else
-            g.fillRoundedRectangle(bounds.reduced(1.2f), cornerRadius - 1.0f);
-
-        g.setColour(kAccentCoral);
-        if (isCircular)
-            g.drawEllipse(bounds, 1.4f);
-        else
-            g.drawRoundedRectangle(bounds, cornerRadius, 1.4f);
-    }
+        fillCol = fillCol.darker(0.18f);
     else if (shouldDrawButtonAsHighlighted)
-    {
-        g.setColour(baseColor.brighter(0.08f));
-        if (isCircular)
-            g.fillEllipse(bounds);
-        else
-            g.fillRoundedRectangle(bounds, cornerRadius);
+        fillCol = fillCol.brighter(0.10f);
 
-        g.setColour(kAccentCoralLight);
-        if (isCircular)
-            g.drawEllipse(bounds, 1.2f);
-        else
-            g.drawRoundedRectangle(bounds, cornerRadius, 1.2f);
-    }
-    else
-    {
-        g.setColour(baseColor);
-        if (isCircular)
-            g.fillEllipse(bounds);
-        else
-            g.fillRoundedRectangle(bounds, cornerRadius);
+    g.setColour(fillCol);
+    g.fillRoundedRectangle(bounds, cornerRadius);
 
-        g.setColour(kBorderSubtle);
-        if (isCircular)
-            g.drawEllipse(bounds, 1.0f);
-        else
-            g.drawRoundedRectangle(bounds, cornerRadius, 1.0f);
-    }
+    g.setColour((shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown) ? kAccentCyanGlow : kBorderSubtle);
+    g.drawRoundedRectangle(bounds, cornerRadius, 1.2f);
+    juce::ignoreUnused(button);
 }
 
 void DashLookAndFeel::drawComboBox(
@@ -361,22 +298,21 @@ void DashLookAndFeel::drawComboBox(
         return;
     juce::ignoreUnused(isButtonDown);
 
-    const auto bounds = juce::Rectangle<float>(0, 0, (float)width, (float)height).reduced(0.5f);
-    const float cornerRadius = bounds.getHeight() * 0.5f; // Forma de píldora redondeada completa
+    const auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)).reduced(0.5f);
+    const float cornerRadius = 6.0f;
 
     g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
     g.fillRoundedRectangle(bounds, cornerRadius);
 
     g.setColour(box.hasKeyboardFocus(true) ? kBorderFocus : box.findColour(juce::ComboBox::outlineColourId));
-    g.drawRoundedRectangle(bounds, cornerRadius, 1.0f);
+    g.drawRoundedRectangle(bounds, cornerRadius, 1.2f);
 
-    // Flecha indicadora estilizada hacia abajo en Coral
-    const float arrowX = (float)width - 18.0f;
-    const float arrowY = (float)height * 0.5f;
+    const float arrowX = static_cast<float>(width) - 18.0f;
+    const float arrowY = static_cast<float>(height) * 0.5f;
     juce::Path arrow;
-    arrow.startNewSubPath(arrowX - 4.0f, arrowY - 2.5f);
+    arrow.startNewSubPath(arrowX - 4.5f, arrowY - 2.5f);
     arrow.lineTo(arrowX, arrowY + 2.5f);
-    arrow.lineTo(arrowX + 4.0f, arrowY - 2.5f);
+    arrow.lineTo(arrowX + 4.5f, arrowY - 2.5f);
 
     g.setColour(box.findColour(juce::ComboBox::arrowColourId));
     g.strokePath(arrow, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
@@ -384,11 +320,11 @@ void DashLookAndFeel::drawComboBox(
 
 void DashLookAndFeel::drawPopupMenuBackground(juce::Graphics& g, int width, int height)
 {
-    const auto bounds = juce::Rectangle<float>(0, 0, (float)width, (float)height);
+    const auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
     g.setColour(kBgCardElevated);
-    g.fillRoundedRectangle(bounds, 10.0f);
+    g.fillRoundedRectangle(bounds, 6.0f);
     g.setColour(kBorderSubtle);
-    g.drawRoundedRectangle(bounds.reduced(0.5f), 10.0f, 1.0f);
+    g.drawRoundedRectangle(bounds.reduced(0.5f), 6.0f, 1.0f);
 }
 
 void DashLookAndFeel::drawPopupMenuItem(
@@ -408,7 +344,7 @@ void DashLookAndFeel::drawPopupMenuItem(
 
     if (isSeparator)
     {
-        auto r = area.reduced(5, 0);
+        auto r = area.reduced(6, 0);
         g.setColour(kBorderSubtle);
         g.fillRect(r.removeFromTop(1).withY(area.getCentreY()));
         return;
@@ -417,23 +353,82 @@ void DashLookAndFeel::drawPopupMenuItem(
     if (isHighlighted && isActive)
     {
         g.setColour(kBorderSubtle);
-        g.fillRoundedRectangle(area.reduced(4, 1).toFloat(), 6.0f);
+        g.fillRoundedRectangle(area.reduced(4, 1).toFloat(), 4.0f);
     }
 
     auto textArea = area.reduced(12, 0);
-    g.setColour(isHighlighted ? kAccentCoralLight : (isActive ? kTextMain : kTextMuted));
+    g.setColour(isHighlighted ? kAccentCyanGlow : (isActive ? kTextMain : kTextMuted));
     g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f)));
     g.drawFittedText(text, textArea, juce::Justification::centredLeft, 1);
 }
 
-juce::Font DashLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
+void DashLookAndFeel::drawTabButton(
+    juce::TabBarButton& button,
+    juce::Graphics& g,
+    bool isMouseOver,
+    bool isMouseDown)
 {
-    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(juce::jmin(13.5f, (float)buttonHeight * 0.50f)).withStyle("Bold"));
+    juce::ignoreUnused(isMouseDown);
+
+    const auto activeArea = button.getActiveArea().toFloat();
+    const bool isFront = button.isFrontTab();
+
+    g.setColour(isFront ? kBgCard : kBgDark);
+    g.fillRect(activeArea);
+
+    if (isFront)
+    {
+        g.setColour(kAccentCyanGlow);
+        g.fillRect(activeArea.getX() + 10.0f, activeArea.getBottom() - 3.0f, activeArea.getWidth() - 20.0f, 3.0f);
+    }
+    else if (isMouseOver)
+    {
+        g.setColour(kBgCardElevated.withAlpha(0.55f));
+        g.fillRect(activeArea);
+    }
+
+    g.setColour(isFront ? kTextMain : (isMouseOver ? kTextMain.withAlpha(0.85f) : kTextMuted));
+    g.setFont(getTabButtonFont(button, activeArea.getHeight()));
+    g.drawFittedText(
+        button.getButtonText(),
+        button.getTextArea(),
+        juce::Justification::centred,
+        1);
 }
 
-juce::Font DashLookAndFeel::getTabButtonFont(juce::TabBarButton&, float height)
+int DashLookAndFeel::getTabButtonBestWidth(juce::TabBarButton& button, int tabDepth)
 {
-    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(juce::jmin(12.5f, height * 0.44f)).withStyle("Bold"));
+    const auto font = getTabButtonFont(button, static_cast<float>(tabDepth));
+    juce::GlyphArrangement ga;
+    ga.addLineOfText(font, button.getButtonText(), 0.0f, 0.0f);
+    const int textW = static_cast<int>(std::ceil(ga.getBoundingBox(0, -1, true).getWidth()));
+    return juce::jmax(170, textW + 56);
+}
+
+void DashLookAndFeel::drawTabAreaBehindFrontButton(
+    juce::TabbedButtonBar& /*bar*/,
+    juce::Graphics& g,
+    int w,
+    int h)
+{
+    g.setColour(kBorderSubtle);
+    g.fillRect(0, h - 1, w, 1);
+}
+
+juce::Font DashLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
+{
+    return juce::Font(juce::FontOptions()
+        .withName("Segoe UI")
+        .withHeight(juce::jmin(13.5f, static_cast<float>(buttonHeight) * 0.48f))
+        .withStyle("Bold"));
+}
+
+juce::Font DashLookAndFeel::getTabButtonFont(juce::TabBarButton&, float /*height*/)
+{
+    return juce::Font(juce::FontOptions()
+        .withName("Segoe UI")
+        .withHeight(14.0f)
+        .withStyle("Bold"));
 }
 
 juce::Font DashLookAndFeel::getLabelFont(juce::Label&)
@@ -443,12 +438,12 @@ juce::Font DashLookAndFeel::getLabelFont(juce::Label&)
 
 juce::Font DashLookAndFeel::getComboBoxFont(juce::ComboBox&)
 {
-    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f));
+    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f));
 }
 
 juce::Font DashLookAndFeel::getPopupMenuFont()
 {
-    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f));
+    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f));
 }
 
 } // namespace dash::ui

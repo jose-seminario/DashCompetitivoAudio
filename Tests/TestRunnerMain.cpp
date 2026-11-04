@@ -1,8 +1,11 @@
 /**
  * DashCompetitivoAudio - Ejecutor Principal de Pruebas Automatizadas (CTest Runner)
  *
- * Permite ejecutar la totalidad de las 13 suites o filtrar una suite individual
- * pasando su nombre como primer argumento de línea de comandos.
+ * Suites activas del Ecualizador Táctico Estéreo de 6 Bandas:
+ *  1. EQProcessorTests
+ *  2. LimiterProcessorTests
+ *  3. AudioGraphTests
+ *  4. ApoConfigManagerTests
  */
 
 #include <exception>
@@ -13,71 +16,25 @@
 
 namespace dash::test
 {
-    // 1. DynamicsProcessorTests
-    void testDynamicsSilenceAndNaN();
-    void testDynamicsDownwardCompression();
-    void testDynamicsUpwardCompression();
-    void testDynamicsLfeExclusion();
-    void testDynamicsBypass();
+    // 1. EQProcessorTests
+    void testSixBandDefaultConfiguration();
+    void testLowShelfAndPeakingBoost();
+    void testHighShelfAttenuation();
+    void testStereoChannelIsolation();
 
-    // 2. TransientProcessorTests
-    void testTransientGunCrackSuppression();
-    void testTransientFootstepsPreservation();
-    void testTransientMidSidePreservation();
-
-    // 3. AmbienceProcessorTests
-    void testAmbienceStationaryDucking();
-    void testAmbienceDynamicSignalProtection();
-    void testAmbienceCrossoverReconstruction();
-
-    // 4. EQProcessorTests
-    void testGraphicEQ31Bands();
-    void testParametricPeakingFilter();
-    void testParametricHighPassFilter();
-    void testParametricNotchFilter();
-
-    // 5. LimiterProcessorTests
+    // 2. LimiterProcessorTests
     void testLimiterCeilingClamping();
     void testLimiterMultichannelLink();
-    void testLimiterLfeIndependence();
     void testLimiterZeroLatency();
 
-    // 6. AudioGraphTests
-    void testAudioGraphFullProcessing();
+    // 3. AudioGraphTests
+    void testAudioGraphStereoSixBandProcessing();
+    void testAudioGraphStereoChannelIsolation();
+    void testAudioGraphLimiterProtection();
     void testAudioGraphBypassAll();
     void testAudioGraphSampleRateAndBlockSizeVariations();
-    void testAudioGraphMultichannelSurround();
-    void testAudioGraph16ChannelsImmersive();
-    void testAudioGraphDynamicGunshotFootstepBoost();
 
-    // 7. ChannelLayoutTests
-    void testStandardChannelLayouts();
-    void testWindowsSpeakerMaskConversion();
-    void testDiscreteCustomLayout();
-
-    // 8. BinauralRendererTests
-    void testBinauralRenderer71ToStereo();
-    void testBinauralRendererLfeBypass();
-
-    // 9. ConvolutionTests
-    void testConvolutionUnitImpulse();
-    void testConvolutionDelayImpulse();
-    void testConvolutionBlockBoundaryContinuity();
-
-    // 10. ProfileValidatorTests
-    void testProfileValidatorMaliciousJsonRejection();
-    void testProfileValidatorPathTraversalPrevention();
-    void testProfileValidatorNumericRanges();
-
-    // 11. ProfileSerializerTests
-    void testProfileSerializerRoundTrip();
-    void testProfileSerializerMalformedJsonRejection();
-
-    // 12. ProfileMigratorTests
-    void testProfileMigratorV0ToV1();
-    void testProfileMigratorUnsupportedVersion();
-
-    // 13. ApoConfigManagerTests
+    // 4. ApoConfigManagerTests
     void testApoConfigManagerNonDestructiveInjection();
     void testApoConfigManagerIdempotence();
     void testEndpointGuidExtraction();
@@ -94,69 +51,23 @@ int main(int argc, char* argv[])
     };
 
     const std::vector<SuiteEntry> suites = {
-        { "DynamicsProcessorTests", [] {
-            testDynamicsSilenceAndNaN();
-            testDynamicsDownwardCompression();
-            testDynamicsUpwardCompression();
-            testDynamicsLfeExclusion();
-            testDynamicsBypass();
-        }},
-        { "TransientProcessorTests", [] {
-            testTransientGunCrackSuppression();
-            testTransientFootstepsPreservation();
-            testTransientMidSidePreservation();
-        }},
-        { "AmbienceProcessorTests", [] {
-            testAmbienceStationaryDucking();
-            testAmbienceDynamicSignalProtection();
-            testAmbienceCrossoverReconstruction();
-        }},
         { "EQProcessorTests", [] {
-            testGraphicEQ31Bands();
-            testParametricPeakingFilter();
-            testParametricHighPassFilter();
-            testParametricNotchFilter();
+            testSixBandDefaultConfiguration();
+            testLowShelfAndPeakingBoost();
+            testHighShelfAttenuation();
+            testStereoChannelIsolation();
         }},
         { "LimiterProcessorTests", [] {
             testLimiterCeilingClamping();
             testLimiterMultichannelLink();
-            testLimiterLfeIndependence();
             testLimiterZeroLatency();
         }},
         { "AudioGraphTests", [] {
-            testAudioGraphFullProcessing();
+            testAudioGraphStereoSixBandProcessing();
+            testAudioGraphStereoChannelIsolation();
+            testAudioGraphLimiterProtection();
             testAudioGraphBypassAll();
             testAudioGraphSampleRateAndBlockSizeVariations();
-            testAudioGraphMultichannelSurround();
-            testAudioGraph16ChannelsImmersive();
-            testAudioGraphDynamicGunshotFootstepBoost();
-        }},
-        { "ChannelLayoutTests", [] {
-            testStandardChannelLayouts();
-            testWindowsSpeakerMaskConversion();
-            testDiscreteCustomLayout();
-        }},
-        { "BinauralRendererTests", [] {
-            testBinauralRenderer71ToStereo();
-            testBinauralRendererLfeBypass();
-        }},
-        { "ConvolutionTests", [] {
-            testConvolutionUnitImpulse();
-            testConvolutionDelayImpulse();
-            testConvolutionBlockBoundaryContinuity();
-        }},
-        { "ProfileValidatorTests", [] {
-            testProfileValidatorMaliciousJsonRejection();
-            testProfileValidatorPathTraversalPrevention();
-            testProfileValidatorNumericRanges();
-        }},
-        { "ProfileSerializerTests", [] {
-            testProfileSerializerRoundTrip();
-            testProfileSerializerMalformedJsonRejection();
-        }},
-        { "ProfileMigratorTests", [] {
-            testProfileMigratorV0ToV1();
-            testProfileMigratorUnsupportedVersion();
         }},
         { "ApoConfigManagerTests", [] {
             testApoConfigManagerNonDestructiveInjection();

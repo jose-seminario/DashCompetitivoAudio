@@ -1,812 +1,589 @@
 #include "MainComponent.h"
 
-#include <cmath>
 #include <algorithm>
-#include <thread>
+#include <cmath>
+#include <filesystem>
+#include <functional>
 
 namespace dash::ui
 {
 
+namespace
+{
+    constexpr double kDefaultSampleRate = 48000.0;
+    constexpr int    kDefaultBufferSize = 512;
+
+    constexpr std::array<const char*, dash::core::ParametricEQProcessor::kMaxBands> kBandFreqLabels {
+        "60 Hz",
+        "150 Hz",
+        "400 Hz",
+        "1.5 kHz",
+        "3.5 kHz",
+        "8.0 kHz"
+    };
+
+    std::string wideToNarrowAscii(const std::wstring& wide)
+    {
+        return juce::String(wide.c_str()).toStdString();
+    }
+} // namespace
+
+// ==============================================================================
+// Pestaña 1: "ECUALIZADOR" (Preamp + Reset a la izquierda, 6 Faders verticales a la derecha)
+// ==============================================================================
+class MainComponent::EqualizerTabComponent final : public juce::Component
+{
+public:
+    std::function<void(float)>         onPreampChanged;
+    std::function<void(size_t, float)> onBandChanged;
+    std::function<void()>              onResetClicked;
+
+    EqualizerTabComponent()
+    {
+        // Configuración del canal izquierdo: Preamp + Reset
+        preampTitle_.setText("Preamp", juce::dontSendNotification);
+        preampTitle_.setJustificationType(juce::Justification::centred);
+        preampTitle_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
+        preampTitle_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+        addAndMakeVisible(preampTitle_);
+
+        preampSubLabel_.setText("Ganancia", juce::dontSendNotification);
+        preampSubLabel_.setJustificationType(juce::Justification::centred);
+        preampSubLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
+        preampSubLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
+        addAndMakeVisible(preampSubLabel_);
+
+        configureVerticalFader(preampSlider_);
+        preampSlider_.onValueChange = [this] {
+            if (onPreampChanged)
+                onPreampChanged(static_cast<float>(preampSlider_.getValue()));
+        };
+        addAndMakeVisible(preampSlider_);
+
+        resetButton_.setButtonText("Reset");
+        resetButton_.onClick = [this] {
+            if (onResetClicked)
+                onResetClicked();
+        };
+        addAndMakeVisible(resetButton_);
+
+        // Configuración de los 6 faders verticales tácticos
+        for (size_t i = 0; i < kNumBands; ++i)
+        {
+            bandTitles_[i].setText(
+                juce::String::fromUTF8(dash::core::ParametricEQProcessor::kBandNames[i]),
+                juce::dontSendNotification);
+            bandTitles_[i].setJustificationType(juce::Justification::centred);
+            bandTitles_[i].setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f).withStyle("Bold")));
+            bandTitles_[i].setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+            addAndMakeVisible(bandTitles_[i]);
+
+            bandFreqLabels_[i].setText(kBandFreqLabels[i], juce::dontSendNotification);
+            bandFreqLabels_[i].setJustificationType(juce::Justification::centred);
+            bandFreqLabels_[i].setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(11.5f)));
+            bandFreqLabels_[i].setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyanGlow);
+            addAndMakeVisible(bandFreqLabels_[i]);
+
+            configureVerticalFader(bandSliders_[i]);
+            bandSliders_[i].onValueChange = [this, i] {
+                if (onBandChanged)
+                    onBandChanged(i, static_cast<float>(bandSliders_[i].getValue()));
+            };
+            addAndMakeVisible(bandSliders_[i]);
+        }
+    }
+
+    void setValues(float preampDb, const std::array<float, dash::core::ParametricEQProcessor::kMaxBands>& gainsDb)
+    {
+        preampSlider_.setValue(static_cast<double>(preampDb), juce::dontSendNotification);
+        for (size_t i = 0; i < kNumBands; ++i)
+            bandSliders_[i].setValue(static_cast<double>(gainsDb[i]), juce::dontSendNotification);
+    }
+
+    void setBypassedVisualState(bool bypassed)
+    {
+        const float alpha = bypassed ? 0.45f : 1.0f;
+        preampSlider_.setEnabled(!bypassed);
+        preampSlider_.setAlpha(alpha);
+        for (auto& s : bandSliders_)
+        {
+            s.setEnabled(!bypassed);
+            s.setAlpha(alpha);
+        }
+        repaint();
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(DashLookAndFeel::kBgDark);
+
+        if (!leftCardBounds_.isEmpty())
+        {
+            g.setColour(DashLookAndFeel::kBgCard);
+            g.fillRoundedRectangle(leftCardBounds_.toFloat(), 10.0f);
+            g.setColour(DashLookAndFeel::kBorderSubtle);
+            g.drawRoundedRectangle(leftCardBounds_.toFloat().reduced(0.5f), 10.0f, 1.0f);
+        }
+
+        if (!rightCardBounds_.isEmpty())
+        {
+            g.setColour(DashLookAndFeel::kBgCard);
+            g.fillRoundedRectangle(rightCardBounds_.toFloat(), 10.0f);
+            g.setColour(DashLookAndFeel::kBorderSubtle);
+            g.drawRoundedRectangle(rightCardBounds_.toFloat().reduced(0.5f), 10.0f, 1.0f);
+        }
+    }
+
+    void resized() override
+    {
+        auto area = getLocalBounds().reduced(18, 16);
+        const int leftWidth = juce::jlimit(125, 165, area.getWidth() / 6);
+
+        leftCardBounds_ = area.removeFromLeft(leftWidth);
+        area.removeFromLeft(14);
+        rightCardBounds_ = area;
+
+        // Layout de tarjeta izquierda: Preamp + botón Reset
+        auto leftInner = leftCardBounds_.reduced(12, 14);
+        preampTitle_.setBounds(leftInner.removeFromTop(22));
+        preampSubLabel_.setBounds(leftInner.removeFromTop(18));
+        leftInner.removeFromTop(6);
+
+        auto resetArea = leftInner.removeFromBottom(34);
+        leftInner.removeFromBottom(10);
+        preampSlider_.setBounds(leftInner);
+        resetButton_.setBounds(resetArea.reduced(4, 0));
+
+        // Layout de consola derecha: 6 faders verticales grandes
+        auto rightInner = rightCardBounds_.reduced(12, 14);
+        const int stripWidth = rightInner.getWidth() / static_cast<int>(kNumBands);
+
+        for (size_t i = 0; i < kNumBands; ++i)
+        {
+            auto strip = (i + 1 == kNumBands)
+                ? rightInner
+                : rightInner.removeFromLeft(stripWidth);
+
+            auto stripInner = strip.reduced(4, 0);
+            bandTitles_[i].setBounds(stripInner.removeFromTop(22));
+            bandFreqLabels_[i].setBounds(stripInner.removeFromTop(18));
+            stripInner.removeFromTop(6);
+            stripInner.removeFromBottom(4);
+            bandSliders_[i].setBounds(stripInner);
+        }
+    }
+
+private:
+    static constexpr size_t kNumBands = dash::core::ParametricEQProcessor::kMaxBands;
+
+    static void configureVerticalFader(juce::Slider& slider)
+    {
+        slider.setSliderStyle(juce::Slider::LinearVertical);
+        slider.setRange(-12.0, 12.0, 0.1);
+        slider.setValue(0.0, juce::dontSendNotification);
+        slider.setDoubleClickReturnValue(true, 0.0);
+        slider.setTextValueSuffix(" dB");
+        slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 72, 24);
+    }
+
+    juce::Rectangle<int> leftCardBounds_;
+    juce::Rectangle<int> rightCardBounds_;
+
+    juce::Label      preampTitle_;
+    juce::Label      preampSubLabel_;
+    juce::Slider     preampSlider_;
+    juce::TextButton resetButton_;
+
+    std::array<juce::Label,  kNumBands> bandTitles_;
+    std::array<juce::Label,  kNumBands> bandFreqLabels_;
+    std::array<juce::Slider, kNumBands> bandSliders_;
+};
+
+// ==============================================================================
+// Pestaña 2: "AJUSTES" (Selector de salida, Bypass global y Telemetría CPU/Latencia)
+// ==============================================================================
+class MainComponent::SettingsTabComponent final : public juce::Component
+{
+public:
+    std::function<void(int)>  onOutputDeviceSelected;
+    std::function<void(bool)> onBypassToggled;
+
+    SettingsTabComponent()
+    {
+        deviceHeader_.setText(juce::String::fromUTF8("Dispositivo de Salida (Estéreo 2.0)"), juce::dontSendNotification);
+        deviceHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.5f).withStyle("Bold")));
+        deviceHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+        addAndMakeVisible(deviceHeader_);
+
+        outputDeviceBox_.setTextWhenNothingSelected(juce::String::fromUTF8("Salida Predeterminada de Windows"));
+        outputDeviceBox_.onChange = [this] {
+            if (onOutputDeviceSelected)
+                onOutputDeviceSelected(outputDeviceBox_.getSelectedItemIndex());
+        };
+        addAndMakeVisible(outputDeviceBox_);
+
+        bypassHeader_.setText("Control Maestro", juce::dontSendNotification);
+        bypassHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.5f).withStyle("Bold")));
+        bypassHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+        addAndMakeVisible(bypassHeader_);
+
+        bypassToggle_.setButtonText(juce::String::fromUTF8("Bypass Global (Desactivar Ecualizador)"));
+        bypassToggle_.onClick = [this] {
+            if (onBypassToggled)
+                onBypassToggled(bypassToggle_.getToggleState());
+        };
+        addAndMakeVisible(bypassToggle_);
+
+        telemetryHeader_.setText(juce::String::fromUTF8("Telemetría en Tiempo Real"), juce::dontSendNotification);
+        telemetryHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.5f).withStyle("Bold")));
+        telemetryHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+        addAndMakeVisible(telemetryHeader_);
+
+        cpuLabel_.setText("CPU: 0.0 %", juce::dontSendNotification);
+        cpuLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(15.0f).withStyle("Bold")));
+        cpuLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyanGlow);
+        addAndMakeVisible(cpuLabel_);
+
+        latencyLabel_.setText("Latencia: 0.0 ms", juce::dontSendNotification);
+        latencyLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(15.0f).withStyle("Bold")));
+        latencyLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyanGlow);
+        addAndMakeVisible(latencyLabel_);
+    }
+
+    void setDeviceList(const juce::StringArray& names, int selectedIndex)
+    {
+        outputDeviceBox_.clear(juce::dontSendNotification);
+        for (int i = 0; i < names.size(); ++i)
+            outputDeviceBox_.addItem(names[i], i + 1);
+
+        if (selectedIndex >= 0 && selectedIndex < names.size())
+            outputDeviceBox_.setSelectedItemIndex(selectedIndex, juce::dontSendNotification);
+    }
+
+    void setBypassState(bool bypassed)
+    {
+        bypassToggle_.setToggleState(bypassed, juce::dontSendNotification);
+    }
+
+    void updateTelemetry(float cpuPercent, float latencyMs)
+    {
+        cpuLabel_.setText("CPU: " + juce::String(cpuPercent, 1) + " %", juce::dontSendNotification);
+        latencyLabel_.setText("Latencia: " + juce::String(latencyMs, 1) + " ms", juce::dontSendNotification);
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        g.fillAll(DashLookAndFeel::kBgDark);
+
+        for (const auto& card : cards_)
+        {
+            if (!card.isEmpty())
+            {
+                g.setColour(DashLookAndFeel::kBgCard);
+                g.fillRoundedRectangle(card.toFloat(), 10.0f);
+                g.setColour(DashLookAndFeel::kBorderSubtle);
+                g.drawRoundedRectangle(card.toFloat().reduced(0.5f), 10.0f, 1.0f);
+            }
+        }
+    }
+
+    void resized() override
+    {
+        auto area = getLocalBounds().reduced(24, 20);
+        const int maxCardWidth = juce::jmin(680, area.getWidth());
+        auto column = area.withSizeKeepingCentre(maxCardWidth, area.getHeight());
+
+        cards_[0] = column.removeFromTop(104);
+        column.removeFromTop(16);
+        cards_[1] = column.removeFromTop(96);
+        column.removeFromTop(16);
+        cards_[2] = column.removeFromTop(104);
+
+        auto c0 = cards_[0].reduced(20, 16);
+        deviceHeader_.setBounds(c0.removeFromTop(24));
+        c0.removeFromTop(10);
+        outputDeviceBox_.setBounds(c0.removeFromTop(36));
+
+        auto c1 = cards_[1].reduced(20, 16);
+        bypassHeader_.setBounds(c1.removeFromTop(24));
+        c1.removeFromTop(8);
+        bypassToggle_.setBounds(c1.removeFromTop(32));
+
+        auto c2 = cards_[2].reduced(20, 16);
+        telemetryHeader_.setBounds(c2.removeFromTop(24));
+        c2.removeFromTop(12);
+        const int halfW = c2.getWidth() / 2;
+        cpuLabel_.setBounds(c2.removeFromLeft(halfW));
+        latencyLabel_.setBounds(c2);
+    }
+
+private:
+    std::array<juce::Rectangle<int>, 3> cards_;
+
+    juce::Label        deviceHeader_;
+    juce::ComboBox     outputDeviceBox_;
+
+    juce::Label        bypassHeader_;
+    juce::ToggleButton bypassToggle_;
+
+    juce::Label        telemetryHeader_;
+    juce::Label        cpuLabel_;
+    juce::Label        latencyLabel_;
+};
+
+// ==============================================================================
+// MainComponent
+// ==============================================================================
 MainComponent::MainComponent()
 {
     setLookAndFeel(&dashLookAndFeel_);
 
-    // 1. Barra Lateral Izquierda Táctica (Sidebar)
-    sidebar_.onItemSelected = [this](int index) {
-        selectPanel(index);
-    };
-    addAndMakeVisible(sidebar_);
+    // 1. Inicializar parámetros estéreo y Limiter a -0.5 dBFS
+    graphParams_.preampDb = 0.0f;
+    graphParams_.bandGainsDb.fill(0.0f);
+    graphParams_.limiter.ceilingDb = dash::core::kDefaultCeilingDb;
+    graphParams_.limiter.bypass    = false;
+    graphParams_.bypassAll         = false;
 
-    // 2. Creación e inicialización de paneles modulares
-    dashboardPanel_     = std::make_unique<DashboardComponent>();
-    profilePanel_       = std::make_unique<ProfilePanel>();
-    audioEnginePanel_   = std::make_unique<AudioEnginePanel>();
-    dynamicsPanel_      = std::make_unique<DynamicsPanel>();
-    tacticalPanel_      = std::make_unique<TacticalProcessingPanel>();
-    equalizerPanel_     = std::make_unique<EqualizerPanel>();
-    spatialPanel_       = std::make_unique<SpatialAudioPanel>();
-    headphonePanel_     = std::make_unique<HeadphonePanel>();
-    benchmarkPanel_     = std::make_unique<BenchmarkPanel>();
-    systemStatusPanel_  = std::make_unique<SystemStatusPanel>();
-
-    addChildComponent(dashboardPanel_.get());
-    addChildComponent(profilePanel_.get());
-    addChildComponent(audioEnginePanel_.get());
-    addChildComponent(dynamicsPanel_.get());
-    addChildComponent(tacticalPanel_.get());
-    addChildComponent(equalizerPanel_.get());
-    addChildComponent(spatialPanel_.get());
-    addChildComponent(headphonePanel_.get());
-    addChildComponent(benchmarkPanel_.get());
-    addChildComponent(systemStatusPanel_.get());
-
-    // 3. Barra de estado inferior
-    addAndMakeVisible(statusBar_);
-
-    // 4. Inicialización del motor DSP y Backend de audio WASAPI
     audioGraph_ = std::make_unique<dash::core::AudioGraph>();
+    audioGraph_->prepare(kDefaultSampleRate, kDefaultBufferSize, 2);
+    audioGraph_->updateParameters(graphParams_);
+
     audioBackend_ = std::make_unique<dash::audio::JuceWasapiAudioBackend>();
-    std::string initBackendErr;
-    audioBackend_->initialize(&initBackendErr);
+    audioBackend_->initialize();
 
-    // 5. Cableado de callbacks entre componentes
-    dashboardPanel_->onActivateClicked = [this] { activateTacticalMode(); };
-    dashboardPanel_->onDeactivateClicked = [this] { deactivateAndRestoreAudio(); };
-    dashboardPanel_->onAutoConfigClicked = [this] { autoConfigureAudio(); };
+    // 2. Construir las 2 únicas pestañas de la interfaz
+    equalizerTab_ = std::make_unique<EqualizerTabComponent>();
+    settingsTab_  = std::make_unique<SettingsTabComponent>();
 
-    dashboardPanel_->onQuickProfileSelected = [this](const juce::String& name) {
-        if (name.containsIgnoreCase("Balanced"))
-            loadProfile("warzone-balanced-default");
-        else if (name.containsIgnoreCase("Immersive"))
-            loadProfile("warzone-immersive-default");
-        else if (name.containsIgnoreCase("Footsteps"))
-            loadProfile("warzone-footsteps-focus");
-        else
-            loadProfile("warzone-competitive-default");
+    equalizerTab_->onPreampChanged = [this](float preampDb) {
+        graphParams_.preampDb = juce::jlimit(-12.0f, 12.0f, preampDb);
+        syncDspParameters();
+        scheduleDebouncedApoSync();
     };
 
-    dashboardPanel_->onQuickControlsChanged = [this](float gun, float stepsDb, float ambGuard, float makeupGainDb, bool spatialEnabled) {
-        currentProfile_.dspParams.transient.gun = juce::jlimit(0.0f, 1.0f, gun);
-        currentProfile_.dspParams.equalizer.footstepsDb = stepsDb;
-        currentProfile_.dspParams.ambience.ambGuar = juce::jlimit(0.0f, 1.0f, ambGuard);
-        currentProfile_.dspParams.dynamics.makeupGainDb = juce::jlimit(0.0f, 12.0f, makeupGainDb);
-        currentProfile_.enableSpatial = spatialEnabled;
-        scheduleDebouncedInjection();
-    };
-
-    dashboardPanel_->onDisplayModeChanged = [this](DashboardComponent::DisplayMode mode) {
-        if (mode == DashboardComponent::DisplayMode::Advanced)
+    equalizerTab_->onBandChanged = [this](size_t bandIdx, float gainDb) {
+        if (bandIdx < graphParams_.bandGainsDb.size())
         {
-            selectPanel(3); // Navegación directa a vista avanzada de Dinámica
+            graphParams_.bandGainsDb[bandIdx] = juce::jlimit(-12.0f, 12.0f, gainDb);
+            syncDspParameters();
+            scheduleDebouncedApoSync();
         }
     };
 
-    dashboardPanel_->onChainNodeClicked = [this](int nodeIndex) {
-        switch (nodeIndex)
+    equalizerTab_->onResetClicked = [this] {
+        resetAllEqAndPreamp();
+    };
+
+    settingsTab_->onOutputDeviceSelected = [this](int index) {
+        if (index >= 0 && static_cast<size_t>(index) < outputEndpoints_.size())
         {
-            case 0: selectPanel(2); break; // INPUT -> Motor & WASAPI
-            case 1: selectPanel(5); break; // HEADROOM -> EQ / Preamp
-            case 2: selectPanel(3); break; // DYNAMICS -> Dinámica BS.1770
-            case 3: selectPanel(4); break; // TRANSIENT -> Táctico (Disparos)
-            case 4: selectPanel(4); break; // AMBIENCE -> Táctico (Ruido)
-            case 5: selectPanel(6); break; // SPATIAL -> Audio Espacial 3D
-            case 6: selectPanel(5); break; // EQUALIZER -> Ecualizador
-            case 7: selectPanel(4); break; // LIMITER -> Táctico (Limiter)
-            case 8: selectPanel(7); break; // OUTPUT -> Auriculares
-            default: break;
+            const auto& ep = outputEndpoints_[static_cast<size_t>(index)];
+            selectedDeviceName_   = ep.friendlyName;
+            selectedEndpointGuid_ = wideToNarrowAscii(ep.endpointGuid);
+
+            if (!ep.id.empty() && ep.id.front() == L'{')
+                policyManager_.setDefaultEndpoint(ep.id);
+
+            restartAudioStream();
+            scheduleDebouncedApoSync();
         }
     };
 
-    audioEnginePanel_->onEndpointChanged = [this](const std::wstring& endpointId) {
-        auto endpoints = policyManager_.enumerateActiveRenderEndpoints();
-        for (const auto& ep : endpoints)
-        {
-            if (ep.id == endpointId)
-            {
-                dashboardPanel_->setDeviceName(juce::String(ep.friendlyName.c_str()));
-                statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Endpoint activo: ") + juce::String(ep.friendlyName.c_str()));
-                break;
-            }
-        }
+    settingsTab_->onBypassToggled = [this](bool bypassed) {
+        graphParams_.bypassAll = bypassed;
+        if (audioBackend_)
+            audioBackend_->setBypass(bypassed);
+        equalizerTab_->setBypassedVisualState(bypassed);
+        syncDspParameters();
+        scheduleDebouncedApoSync();
     };
 
-    headphonePanel_->onHeadphoneModelChanged = [this](const juce::String& model) {
-        currentProfile_.headphone.model = model.toStdString();
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Auricular seleccionado: ") + model);
-        scheduleDebouncedInjection();
-    };
+    tabs_.setTabBarDepth(44);
+    tabs_.setOutline(0);
+    tabs_.addTab("ECUALIZADOR", DashLookAndFeel::kBgDark, equalizerTab_.get(), false);
+    tabs_.addTab("AJUSTES",     DashLookAndFeel::kBgDark, settingsTab_.get(),  false);
+    addAndMakeVisible(tabs_);
 
-    headphonePanel_->onCompensationChanged = [this](bool applyCompensation, const std::vector<dash::core::ParametricBandParameters>& bands) {
-        currentProfile_.dspParams.useParametricEq = applyCompensation;
-        if (applyCompensation && !bands.empty())
-        {
-            for (size_t i = 0; i < currentProfile_.dspParams.parametricBands.size(); ++i)
-            {
-                if (i < bands.size())
-                    currentProfile_.dspParams.parametricBands[i] = bands[i];
-                else
-                    currentProfile_.dspParams.parametricBands[i].enabled = false;
-            }
-        }
-        equalizerPanel_->setParameters(
-            currentProfile_.dspParams.equalizer,
-            currentProfile_.dspParams.useParametricEq,
-            currentProfile_.dspParams.parametricBands);
-        if (audioGraph_)
-            audioGraph_->updateParameters(currentProfile_.dspParams);
-        scheduleDebouncedInjection();
-        statusBar_.setStatusMessage(applyCompensation ?
-            juce::String::fromUTF8(u8"Compensación acústica de auriculares activada") :
-            juce::String::fromUTF8(u8"Compensación acústica desactivada"));
-    };
+    // 3. Detectar dispositivos de salida estéreo e iniciar motor WASAPI
+    populateOutputDevices();
+    restartAudioStream();
+    scheduleDebouncedApoSync();
 
-    audioEnginePanel_->onFormatConfigChanged = [this](double sampleRate, int /*bufferSize*/, int numChannels) {
-        currentProfile_.audio.sampleRate = sampleRate;
-        juce::String layoutStr = juce::String(numChannels) + juce::String::fromUTF8(u8" canales");
-        if (numChannels == 2) { layoutStr = juce::String::fromUTF8(u8"2.0 Estéreo (2 canales)"); currentProfile_.audio.channelLayout = "stereo"; }
-        else if (numChannels == 6) { layoutStr = "5.1 Surround (6 canales)"; currentProfile_.audio.channelLayout = "5.1"; }
-        else if (numChannels == 8) { layoutStr = "7.1 Surround (8 canales)"; currentProfile_.audio.channelLayout = "7.1"; }
-        else if (numChannels == 12) { layoutStr = "7.1.4 Inmersivo (12 canales)"; currentProfile_.audio.channelLayout = "7.1.4"; }
-        else if (numChannels == 16) { layoutStr = "9.1.6 Espacial (16 canales)"; currentProfile_.audio.channelLayout = "9.1.6"; }
-        dashboardPanel_->setFormatInfo(sampleRate, layoutStr);
-        scheduleDebouncedInjection();
-    };
-
-    profilePanel_->onProfileSelected = [this](const std::string& profileId) {
-        loadProfile(profileId);
-    };
-
-    profilePanel_->onProfileSaved = [this](const dash::profile::AudioProfile& p) {
-        currentProfile_ = p;
-        scheduleDebouncedInjection();
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Perfil '") + juce::String(p.name) + juce::String::fromUTF8(u8"' guardado correctamente."));
-    };
-
-    dynamicsPanel_->onParametersChanged = [this](const dash::core::DynamicsParameters& p) {
-        currentProfile_.dspParams.dynamics = p;
-        scheduleDebouncedInjection();
-    };
-
-    tacticalPanel_->onParametersChanged = [this](
-        const dash::core::TransientParameters& t,
-        const dash::core::AmbienceParameters& a,
-        const dash::core::LimiterParameters& l) {
-        currentProfile_.dspParams.transient = t;
-        currentProfile_.dspParams.ambience  = a;
-        currentProfile_.dspParams.limiter   = l;
-        scheduleDebouncedInjection();
-    };
-
-    equalizerPanel_->onParametersChanged = [this](
-        const dash::core::EQParameters& eq,
-        bool useP,
-        const std::array<dash::core::ParametricBandParameters, dash::core::ParametricEQProcessor::kMaxBands>& bands) {
-        currentProfile_.dspParams.equalizer = eq;
-        currentProfile_.dspParams.useParametricEq = useP;
-        currentProfile_.dspParams.parametricBands = bands;
-        scheduleDebouncedInjection();
-    };
-
-    spatialPanel_->onParametersChanged = [this](const dash::spatial::SpatialProcessorParameters& s) {
-        DBG(juce::String::fromUTF8(u8"[MainComponent] Sincronizando AudioGraph con spatialMix = ") + juce::String(s.spatialMix, 2));
-        currentProfile_.spatialParams = s;
-        currentProfile_.dspParams.spatial = s;
-        currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || s.bypass;
-        if (audioGraph_)
-            audioGraph_->updateParameters(currentProfile_.dspParams);
-        scheduleDebouncedInjection();
-    };
-
-    // 6. Seleccionar panel inicial (INICIO)
-    selectPanel(0);
-
-    // 7. Cargar perfil inicial por defecto
-    loadProfile("warzone-competitive-default");
-
-    // 8. Verificación estricta de dependencias y bloqueo absoluto si falta algo
-    checkDependenciesAndSetupWizard();
-
-    // 9. Establecer tamaño nominal tras instanciar y cablear todos los subcomponentes
-    setSize(1160, 800);
-
-    // Iniciar temporizador de telemetría a 30 Hz
-    startTimerHz(30);
+    setSize(960, 580);
+    startTimerHz(20);
 }
 
 MainComponent::~MainComponent()
 {
     stopTimer();
-    if (isProfileActive_)
-    {
-        deactivateAndRestoreAudio();
-    }
+
+    if (audioBackend_)
+        audioBackend_->shutdown();
+
+    const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
+    if (dash::audio::ApoConfigManager::hasManagedSection(apoConfigPath))
+        dash::audio::ApoConfigManager::removeManagedSection(apoConfigPath);
+
+    tabs_.clearTabs();
     setLookAndFeel(nullptr);
-}
-
-void MainComponent::selectPanel(int panelIndex)
-{
-    currentPanelIndex_ = juce::jlimit(0, 9, panelIndex);
-    sidebar_.setSelectedItem(currentPanelIndex_);
-
-    if (dashboardPanel_)    dashboardPanel_->setVisible(currentPanelIndex_ == 0);
-    if (profilePanel_)      profilePanel_->setVisible(currentPanelIndex_ == 1);
-    if (audioEnginePanel_)  audioEnginePanel_->setVisible(currentPanelIndex_ == 2);
-    if (dynamicsPanel_)     dynamicsPanel_->setVisible(currentPanelIndex_ == 3);
-    if (tacticalPanel_)     tacticalPanel_->setVisible(currentPanelIndex_ == 4);
-    if (equalizerPanel_)    equalizerPanel_->setVisible(currentPanelIndex_ == 5);
-    if (spatialPanel_)      spatialPanel_->setVisible(currentPanelIndex_ == 6);
-    if (headphonePanel_)    headphonePanel_->setVisible(currentPanelIndex_ == 7);
-    if (benchmarkPanel_)    benchmarkPanel_->setVisible(currentPanelIndex_ == 8);
-    if (systemStatusPanel_) systemStatusPanel_->setVisible(currentPanelIndex_ == 9);
-
-    resized();
 }
 
 void MainComponent::paint(juce::Graphics& g)
 {
-    // Fondo Slate Carbón Mate de la referencia (#1E2026)
     g.fillAll(DashLookAndFeel::kBgDark);
 }
 
 void MainComponent::resized()
 {
-    const int sidebarW = 208;
-    const int statusH  = 30;
-
-    sidebar_.setBounds(0, 0, sidebarW, getHeight());
-    statusBar_.setBounds(sidebarW, getHeight() - statusH, getWidth() - sidebarW, statusH);
-
-    const auto contentBounds = juce::Rectangle<int>(sidebarW, 0, getWidth() - sidebarW, getHeight() - statusH);
-
-    if (dashboardPanel_)    dashboardPanel_->setBounds(contentBounds);
-    if (profilePanel_)      profilePanel_->setBounds(contentBounds);
-    if (audioEnginePanel_)  audioEnginePanel_->setBounds(contentBounds);
-    if (dynamicsPanel_)     dynamicsPanel_->setBounds(contentBounds);
-    if (tacticalPanel_)     tacticalPanel_->setBounds(contentBounds);
-    if (equalizerPanel_)    equalizerPanel_->setBounds(contentBounds);
-    if (spatialPanel_)      spatialPanel_->setBounds(contentBounds);
-    if (headphonePanel_)    headphonePanel_->setBounds(contentBounds);
-    if (benchmarkPanel_)    benchmarkPanel_->setBounds(contentBounds);
-    if (systemStatusPanel_) systemStatusPanel_->setBounds(contentBounds);
-
-    if (onboardingWizard_ && onboardingWizard_->isVisible())
-    {
-        onboardingWizard_->setBounds(getLocalBounds());
-        onboardingWizard_->toFront(true);
-    }
+    tabs_.setBounds(getLocalBounds());
 }
 
 void MainComponent::timerCallback()
 {
-    // Manejo de inyección aplazada (debounced)
-    if (needsInjection_)
+    if (needsApoSync_)
     {
-        if (++debounceCounter_ >= 3) // ~100 ms a 30 FPS
+        if (++debounceCounter_ >= 2)
         {
-            needsInjection_ = false;
+            needsApoSync_    = false;
             debounceCounter_ = 0;
-            executeConfigInjection();
+            executeApoSync();
         }
     }
 
-    // Telemetría en tiempo real del motor DSP y Backend WASAPI
-    if (isProfileActive_ && audioBackend_ && audioBackend_->getState() == dash::audio::AudioBackendState::Running)
+    if (settingsTab_ && audioBackend_)
     {
-        const float latMs = audioBackend_->getCurrentLatencyMs();
-        const float cpu = audioBackend_->getCpuUsage();
+        const auto state = audioBackend_->getState();
+        const bool active = (state == dash::audio::AudioBackendState::Running ||
+                             state == dash::audio::AudioBackendState::Bypassed);
 
-        const float reportedLat = (latMs > 0.0f) ? latMs : static_cast<float>((512.0 * 1000.0) / (currentProfile_.audio.sampleRate > 0.0 ? currentProfile_.audio.sampleRate : 48000.0));
+        const float cpuPercent = active ? audioBackend_->getCpuUsage() : 0.0f;
+        float latencyMs        = active ? audioBackend_->getCurrentLatencyMs() : 0.0f;
+        if (active && latencyMs <= 0.0f)
+            latencyMs = static_cast<float>((kDefaultBufferSize * 1000.0) / kDefaultSampleRate);
 
-        if (dashboardPanel_)
-        {
-            dashboardPanel_->setLatencyMs(reportedLat);
-            dashboardPanel_->setCpuPercent(cpu);
-        }
-        sidebar_.setEngineStatus(true, reportedLat, cpu);
-
-        // Telemetría real de clipping y limitador desde AudioGraph
-        if (audioGraph_)
-        {
-            const float limiterReduction = audioGraph_->getLimiterReductionDb();
-            statusBar_.setClippingDetected(limiterReduction > 0.05f);
-        }
-
-        // Actualizar estados de bypass de los nodos en el Dashboard
-        if (dashboardPanel_)
-        {
-            dashboardPanel_->setNodeBypassState(1, currentProfile_.dspParams.bypassAll);
-            dashboardPanel_->setNodeBypassState(2, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.dynamics.bypass);
-            dashboardPanel_->setNodeBypassState(3, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.transient.bypass);
-            dashboardPanel_->setNodeBypassState(4, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.ambience.bypass);
-            dashboardPanel_->setNodeBypassState(5, currentProfile_.dspParams.bypassAll || !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass);
-            dashboardPanel_->setNodeBypassState(6, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.equalizer.bypass);
-            dashboardPanel_->setNodeBypassState(7, currentProfile_.dspParams.bypassAll || currentProfile_.dspParams.limiter.bypass);
-        }
-    }
-    else
-    {
-        sidebar_.setEngineStatus(false, 0.0f, 0.0f);
-        statusBar_.setClippingDetected(false);
+        settingsTab_->updateTelemetry(cpuPercent, latencyMs);
     }
 }
 
-void MainComponent::loadProfile(const std::string& profileId)
+void MainComponent::populateOutputDevices()
 {
-    std::string err;
-    if (profileRepo_.loadProfileById(profileId, currentProfile_, &err))
+    outputEndpoints_.clear();
+    juce::StringArray names;
+    int defaultIdx = 0;
+
+    const auto mmEndpoints = policyManager_.enumerateActiveRenderEndpoints();
+    if (!mmEndpoints.empty())
     {
-        syncAllPanelsWithProfile();
-        statusBar_.setActiveProfileName(juce::String(currentProfile_.name));
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Perfil '") + juce::String(currentProfile_.name) + juce::String::fromUTF8(u8"' cargado."));
-        scheduleDebouncedInjection();
+        for (size_t i = 0; i < mmEndpoints.size(); ++i)
+        {
+            OutputEndpointEntry entry;
+            entry.id           = mmEndpoints[i].id;
+            entry.friendlyName = mmEndpoints[i].friendlyName;
+            entry.endpointGuid = mmEndpoints[i].endpointGuid;
+            outputEndpoints_.push_back(entry);
+
+            names.add(juce::String(entry.friendlyName.c_str()));
+            if (mmEndpoints[i].isDefaultConsole || mmEndpoints[i].isDefaultMultimedia)
+                defaultIdx = static_cast<int>(i);
+        }
     }
-    else
+    else if (audioBackend_)
     {
-        // Si no se encuentra en disco, iniciar nominal
-        currentProfile_.resetToDefaults();
-        syncAllPanelsWithProfile();
+        const auto backendDevs = audioBackend_->enumerateRenderDevices();
+        for (size_t i = 0; i < backendDevs.size(); ++i)
+        {
+            OutputEndpointEntry entry;
+            entry.id           = backendDevs[i].id;
+            entry.friendlyName = backendDevs[i].friendlyName;
+            entry.endpointGuid.clear();
+            outputEndpoints_.push_back(entry);
+
+            names.add(juce::String(entry.friendlyName.c_str()));
+            if (backendDevs[i].isDefault)
+                defaultIdx = static_cast<int>(i);
+        }
     }
+
+    if (!outputEndpoints_.empty())
+    {
+        const auto& chosen = outputEndpoints_[static_cast<size_t>(defaultIdx)];
+        selectedDeviceName_   = chosen.friendlyName;
+        selectedEndpointGuid_ = wideToNarrowAscii(chosen.endpointGuid);
+    }
+
+    if (settingsTab_)
+        settingsTab_->setDeviceList(names, outputEndpoints_.empty() ? -1 : defaultIdx);
 }
 
-void MainComponent::syncAllPanelsWithProfile()
+void MainComponent::restartAudioStream()
 {
-    if (dashboardPanel_)
-    {
-        dashboardPanel_->updateQuickControls(
-            currentProfile_.dspParams.transient.gun,
-            currentProfile_.dspParams.equalizer.footstepsDb,
-            currentProfile_.dspParams.ambience.ambGuar,
-            currentProfile_.dspParams.dynamics.makeupGainDb,
-            currentProfile_.enableSpatial
-        );
-    }
+    if (!audioBackend_ || !audioGraph_)
+        return;
 
-    if (profilePanel_)      profilePanel_->setLoadedProfile(currentProfile_);
-    if (dynamicsPanel_)     dynamicsPanel_->setParameters(currentProfile_.dspParams.dynamics);
-    if (tacticalPanel_)
-    {
-        tacticalPanel_->setParameters(
-            currentProfile_.dspParams.transient,
-            currentProfile_.dspParams.ambience,
-            currentProfile_.dspParams.limiter
-        );
-    }
-    if (equalizerPanel_)
-    {
-        equalizerPanel_->setParameters(
-            currentProfile_.dspParams.equalizer,
-            currentProfile_.dspParams.useParametricEq,
-            currentProfile_.dspParams.parametricBands
-        );
-    }
-    if (spatialPanel_)      spatialPanel_->setParameters(currentProfile_.spatialParams);
-    if (headphonePanel_)
-    {
-        headphonePanel_->setSelectedModelId(juce::String(currentProfile_.headphone.model));
-        headphonePanel_->setCompensationEnabled(currentProfile_.dspParams.useParametricEq);
-    }
+    audioGraph_->prepare(kDefaultSampleRate, kDefaultBufferSize, 2);
+    audioGraph_->updateParameters(graphParams_);
 
-    currentProfile_.dspParams.spatial = currentProfile_.spatialParams;
-    currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass;
+    dash::audio::AudioBackendConfig cfg;
+    cfg.deviceId         = selectedDeviceName_;
+    cfg.sampleRate       = kDefaultSampleRate;
+    cfg.bufferSize       = kDefaultBufferSize;
+    cfg.numChannels      = 2;
+    cfg.numInputChannels = 2;
+    cfg.exclusiveMode    = false;
 
+    audioBackend_->start(
+        cfg,
+        [this](float* const* channels, int numChannels, int numSamples) {
+            if (audioGraph_)
+                audioGraph_->process(channels, numChannels, numSamples);
+        },
+        nullptr);
+
+    audioBackend_->setBypass(graphParams_.bypassAll);
+}
+
+void MainComponent::syncDspParameters()
+{
     if (audioGraph_)
-    {
-        audioGraph_->updateParameters(currentProfile_.dspParams);
-    }
+        audioGraph_->updateParameters(graphParams_);
 }
 
-void MainComponent::scheduleDebouncedInjection()
+void MainComponent::resetAllEqAndPreamp()
 {
-    needsInjection_ = true;
+    graphParams_.preampDb = 0.0f;
+    graphParams_.bandGainsDb.fill(0.0f);
+
+    if (equalizerTab_)
+        equalizerTab_->setValues(0.0f, graphParams_.bandGainsDb);
+
+    syncDspParameters();
+    scheduleDebouncedApoSync();
+}
+
+void MainComponent::scheduleDebouncedApoSync()
+{
+    needsApoSync_    = true;
     debounceCounter_ = 0;
 }
 
-void MainComponent::executeConfigInjection()
+void MainComponent::executeApoSync()
 {
-    currentProfile_.dspParams.spatial = currentProfile_.spatialParams;
-    currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass;
-
-    if (audioGraph_)
-    {
-        audioGraph_->updateParameters(currentProfile_.dspParams);
-    }
-
-    if (!isProfileActive_)
+    const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
+    std::error_code ec;
+    if (!std::filesystem::exists(apoConfigPath.parent_path(), ec))
         return;
 
-    dash::audio::ApoChainConfig config;
-    config.profileName = currentProfile_.name;
-    config.preampDb    = static_cast<double>(currentProfile_.dspParams.headroomDb + currentProfile_.dspParams.dynamics.makeupGainDb);
+    dash::audio::ApoChainConfig apoCfg;
+    apoCfg.targetEndpointGuid = selectedEndpointGuid_;
+    apoCfg.preampDb           = static_cast<double>(graphParams_.preampDb);
+    apoCfg.bypass             = graphParams_.bypassAll;
 
-    // 1. Supresor de Transitorios
-    config.enableTransientSuppressor = !currentProfile_.dspParams.bypassAll && !currentProfile_.dspParams.transient.bypass;
-    config.gunVolume    = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.transient.gun));
-    config.gunSteps     = static_cast<int>(std::round(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.transient.steps)));
-    config.gunFrontOnly = currentProfile_.dspParams.transient.front ? 1 : 0;
-    config.gunRestore   = static_cast<int>(std::round(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.transient.restore)));
-    config.gunBypass    = currentProfile_.dspParams.transient.bypass ? 1 : 0;
+    for (size_t i = 0; i < graphParams_.bandGainsDb.size(); ++i)
+        apoCfg.bandGainsDb[i] = static_cast<double>(graphParams_.bandGainsDb[i]);
 
-    // 2. Compresor Dinámico Híbrido BS.1770
-    config.enableLoudnessCompressor = !currentProfile_.dspParams.bypassAll && !currentProfile_.dspParams.dynamics.bypass;
-    config.compAmount  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.amount));
-    config.compTarget  = juce::jlimit(0.0, 1.0, (static_cast<double>(currentProfile_.dspParams.dynamics.targetLufs) + 28.0) / 36.0);
-    config.compRelease = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.releaseNorm));
-    config.compDetRel  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.detRelNorm));
-    config.compLimRel  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.limRelNorm));
-    config.compScLow   = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.scLowNorm));
-    config.compScHigh  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.dynamics.scHighNorm));
-
-    // 3. Protector Ambiental Multibanda
-    config.enableAmbienceGuard = !currentProfile_.dspParams.bypassAll && !currentProfile_.dspParams.ambience.bypass;
-    config.ambGuard   = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.ambGuar));
-    config.ambDistant = currentProfile_.dspParams.ambience.distant ? 1 : 0;
-    config.ambTarget  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.target));
-    config.ambRelease = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.release));
-    config.ambDetRel  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.detRel));
-    config.ambScLow   = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.scLow));
-    config.ambScHigh  = static_cast<double>(juce::jlimit(0.0f, 1.0f, currentProfile_.dspParams.ambience.scHigh));
-    config.ambBandMod = currentProfile_.dspParams.ambience.bandMod ? 1 : 0;
-
-    // 4. Ecualizador Gráfico de 31 Bandas y HeSuVi
-    config.enableGraphicEq = !currentProfile_.dspParams.bypassAll && !currentProfile_.dspParams.equalizer.bypass;
-    config.footstepsEqDb   = static_cast<double>(currentProfile_.dspParams.equalizer.footstepsDb);
-    config.bassEqDb        = static_cast<double>(currentProfile_.dspParams.equalizer.bassDb);
-    config.enableHeSuVi    = !currentProfile_.dspParams.bypassAll && currentProfile_.enableSpatial && !currentProfile_.spatialParams.bypass;
-
-    std::string err;
-    const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
-    const std::string directives = dash::audio::ApoConfigInjector::buildConfigContent(config, apoConfigPath);
-    if (dash::audio::ApoConfigManager::injectManagedSection(apoConfigPath, directives, &err) == dash::audio::ApoConfigResult::Success)
-    {
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Configuración Equalizer APO sincronizada."));
-    }
-    else
-    {
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Aviso APO: ") + juce::String(err), true);
-    }
-}
-
-void MainComponent::activateTacticalMode()
-{
-    // Verificación de seguridad: no permitir activación si faltan dependencias críticas
-    const auto depStatus = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
-    if (!depStatus.hasEqualizerApo || !depStatus.hasVbAudioCable)
-    {
-        statusBar_.setStatusMessage(
-            juce::String::fromUTF8(u8"⚠️ ACCIÓN REQUERIDA: Faltan dependencias para iniciar"),
-            true
-        );
-        checkDependenciesAndSetupWizard();
-        return;
-    }
-
-    // Guardar dispositivo físico real antes de conmutar (Altavoces/Auriculares, ignorando virtual cables)
-    auto activeDevices = policyManager_.enumerateActiveRenderEndpoints();
-    for (const auto& dev : activeDevices)
-    {
-        const bool isCable = dev.friendlyName.find(L"CABLE") != std::wstring::npos ||
-                             dev.friendlyName.find(L"VB-Audio") != std::wstring::npos;
-        if (!isCable)
-        {
-            if (originalEndpointId_.empty() || dev.isDefaultConsole)
-            {
-                originalEndpointId_ = dev.id;
-                originalEndpointFriendlyName_ = dev.friendlyName;
-                dashboardPanel_->setDeviceName(juce::String(dev.friendlyName.c_str()));
-            }
-        }
-    }
-
-    // 1. Sincronizar parámetros con el grafo de audio
-    currentProfile_.dspParams.spatial = currentProfile_.spatialParams;
-    currentProfile_.dspParams.spatial.bypass = !currentProfile_.enableSpatial || currentProfile_.spatialParams.bypass;
-
-    const double sr = currentProfile_.audio.sampleRate > 0.0 ? currentProfile_.audio.sampleRate : 48000.0;
-    int ch = 2;
-    if (currentProfile_.audio.channelLayout == "7.1") ch = 8;
-    else if (currentProfile_.audio.channelLayout == "5.1") ch = 6;
-    else if (currentProfile_.audio.channelLayout == "7.1.4") ch = 12;
-    else if (currentProfile_.audio.channelLayout == "9.1.6") ch = 16;
-
-    if (audioGraph_)
-    {
-        audioGraph_->prepare(sr, 512, ch);
-        audioGraph_->updateParameters(currentProfile_.dspParams);
-    }
-
-    // 2. Iniciar backend WASAPI Full-Duplex
-    if (audioBackend_)
-    {
-        dash::audio::AudioBackendConfig cfg;
-        cfg.sampleRate = sr;
-        cfg.bufferSize = 512;
-        cfg.numChannels = 2; // Auriculares físicos de salida son siempre estéreo (2 canales)
-        cfg.numInputChannels = ch; // Entrada virtual captura los canales del juego (hasta 8 canales 7.1)
-        if (!originalEndpointFriendlyName_.empty())
-        {
-            cfg.deviceId = originalEndpointFriendlyName_;
-        }
-
-        std::string startErr;
-        const bool started = audioBackend_->start(
-            cfg,
-            [this](float* const* channels, int numChannels, int numSamples) {
-                if (audioGraph_)
-                {
-                    audioGraph_->process(channels, numChannels, numSamples);
-                }
-            },
-            [this](dash::audio::AudioBackendState state, const std::string& msg) {
-                if (state == dash::audio::AudioBackendState::Error || state == dash::audio::AudioBackendState::DeviceDisconnected)
-                {
-                    juce::MessageManager::callAsync([this, state, msg] {
-                        isProfileActive_ = false;
-                        dashboardPanel_->setEngineRunning(false);
-                        sidebar_.setEngineStatus(false, 0.0f, 0.0f);
-                        statusBar_.setEngineStatus(state == dash::audio::AudioBackendState::DeviceDisconnected
-                                                       ? juce::String::fromUTF8(u8"MOTOR: DISPOSITIVO DESCONECTADO")
-                                                       : juce::String::fromUTF8(u8"MOTOR: ERROR"),
-                                                   false);
-                        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Aviso WASAPI: ") + juce::String(msg), true);
-                    });
-                }
-            },
-            &startErr);
-
-        if (!started)
-        {
-            isProfileActive_ = false;
-            dashboardPanel_->setEngineRunning(false);
-            sidebar_.setEngineStatus(false, 0.0f, 0.0f);
-            statusBar_.setEngineStatus(juce::String::fromUTF8(u8"MOTOR: ERROR DE INICIALIZACIÓN"), false);
-            statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Fallo al iniciar WASAPI: ") + juce::String(startErr), true);
-            return;
-        }
-    }
-
-    isProfileActive_ = true;
-    dashboardPanel_->setEngineRunning(true);
-    sidebar_.setEngineStatus(true, (float)((512.0 * 1000.0) / sr), 0.5f);
-    statusBar_.setEngineStatus(juce::String::fromUTF8(u8"MOTOR: ACTIVO [WASAPI / C++ DSP]"), true);
-
-    executeConfigInjection();
-    statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Modo Táctico activado con éxito."));
-}
-
-void MainComponent::deactivateAndRestoreAudio()
-{
-    isProfileActive_ = false;
-    dashboardPanel_->setEngineRunning(false);
-    sidebar_.setEngineStatus(false, 0.0f, 0.0f);
-    statusBar_.setEngineStatus(juce::String::fromUTF8(u8"MOTOR: DETENIDO"), false);
-
-    if (audioBackend_)
-    {
-        audioBackend_->stop();
-    }
-
-    std::string err;
-    const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
-    const auto remRes = dash::audio::ApoConfigManager::removeManagedSection(apoConfigPath, &err);
-
-    if (!originalEndpointId_.empty())
-    {
-        policyManager_.setDefaultEndpoint(originalEndpointId_);
-    }
-
-    if (remRes == dash::audio::ApoConfigResult::Success || remRes == dash::audio::ApoConfigResult::FileNotFound)
-    {
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Audio original de Windows restaurado."));
-    }
-    else
-    {
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Aviso al restaurar APO: ") + juce::String(err), true);
-    }
-}
-
-void MainComponent::checkDependenciesAndSetupWizard()
-{
-    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
-    const bool missingCritical = !status.hasEqualizerApo || !status.hasVbAudioCable;
-
-    if (missingCritical)
-    {
-        // 1. Bloqueo Absoluto: Deshabilitar barra lateral
-        sidebar_.setEnabled(false);
-
-        // 2. Instanciar y posicionar Asistente a pantalla completa por encima de todo
-        if (!onboardingWizard_)
-            onboardingWizard_ = std::make_unique<OnboardingWizard>();
-
-        onboardingWizard_->updateStatus(status);
-
-        onboardingWizard_->onAutoInstallRequested = [this] {
-            startAutoInstall();
-        };
-
-        onboardingWizard_->onManualDownloadRequested = [this] {
-            dash::audio::SystemDependencyChecker::openOfficialDownloadLinks();
-        };
-
-        onboardingWizard_->onRecheckRequested = [this] {
-            recheckDependencies();
-        };
-
-        onboardingWizard_->onDismissWizard = [this] {
-            dismissWizard();
-        };
-
-        addAndMakeVisible(onboardingWizard_.get());
-        onboardingWizard_->setBounds(getLocalBounds());
-        onboardingWizard_->toFront(true);
-        dashboardPanel_->setTutorialVisible(false);
-
-        // 3. Barra de estado inferior en color rojo con advertencia crítica
-        statusBar_.setStatusMessage(
-            juce::String::fromUTF8(u8"⚠️ ACCIÓN REQUERIDA: Faltan dependencias para iniciar"),
-            true
-        );
-    }
-    else
-    {
-        sidebar_.setEnabled(true);
-        dismissWizard();
-        dashboardPanel_->setTutorialVisible(true);
-    }
-}
-
-void MainComponent::dismissWizard()
-{
-    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
-    const bool isReady = status.hasEqualizerApo && status.hasVbAudioCable;
-
-    if (isReady)
-    {
-        if (onboardingWizard_)
-        {
-            removeChildComponent(onboardingWizard_.get());
-            onboardingWizard_.reset();
-        }
-        sidebar_.setEnabled(true);
-        dashboardPanel_->setTutorialVisible(true);
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Sistema preparado para procesamiento táctico."), false);
-    }
-    else
-    {
-        // Si faltan dependencias críticas, se mantiene el bloqueo de la interfaz
-        if (onboardingWizard_)
-        {
-            onboardingWizard_->toFront(true);
-        }
-        sidebar_.setEnabled(false);
-        dashboardPanel_->setTutorialVisible(false);
-        statusBar_.setStatusMessage(
-            juce::String::fromUTF8(u8"⚠️ ACCIÓN REQUERIDA: Faltan dependencias para iniciar"),
-            true
-        );
-    }
-    resized();
-}
-
-void MainComponent::recheckDependencies()
-{
-    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
-    const bool isReady = status.hasEqualizerApo && status.hasVbAudioCable;
-
-    if (onboardingWizard_)
-    {
-        onboardingWizard_->updateStatus(status);
-    }
-
-    if (isReady)
-    {
-        sidebar_.setEnabled(true);
-        dismissWizard();
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Dependencias verificadas correctamente."), false);
-    }
-    else
-    {
-        sidebar_.setEnabled(false);
-        if (onboardingWizard_)
-        {
-            onboardingWizard_->setBounds(getLocalBounds());
-            onboardingWizard_->toFront(true);
-        }
-        statusBar_.setStatusMessage(
-            juce::String::fromUTF8(u8"⚠️ ACCIÓN REQUERIDA: Faltan dependencias para iniciar"),
-            true
-        );
-    }
-}
-
-void MainComponent::startAutoInstall()
-{
-    if (onboardingWizard_)
-    {
-        onboardingWizard_->setInstallingState(true, juce::String::fromUTF8(u8"Descargando instaladores oficiales a %TEMP%..."));
-    }
-
-    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
-
-    // Ejecución en segundo plano para mantener la reactividad visual de la interfaz
-    std::thread([this, status] {
-        std::string finalMessage;
-        dash::audio::SystemDependencyChecker::downloadAndInstallDependencies(
-            status,
-            &finalMessage,
-            [this](const std::string& msg, bool isError) {
-                juce::MessageManager::callAsync([this, msg, isError] {
-                    if (onboardingWizard_)
-                        onboardingWizard_->setInstallingState(true, juce::String(msg.c_str()));
-                    statusBar_.setStatusMessage(juce::String(msg.c_str()), isError);
-                });
-            });
-
-        juce::MessageManager::callAsync([this, finalMessage] {
-            if (onboardingWizard_)
-            {
-                onboardingWizard_->setInstallingState(false, juce::String(finalMessage.c_str()));
-                recheckDependencies();
-            }
-
-            juce::AlertWindow::showMessageBoxAsync(
-                juce::AlertWindow::InfoIcon,
-                juce::String::fromUTF8(u8"Instalación de Drivers"),
-                juce::String(finalMessage.c_str()),
-                juce::String::fromUTF8(u8"Entendido"));
-        });
-    }).detach();
-}
-
-void MainComponent::autoConfigureAudio()
-{
-    const auto status = dash::audio::SystemDependencyChecker::inspectSystem(policyManager_);
-    std::wstring cableEndpointId = status.detectedCableEndpointId;
-
-    if (cableEndpointId.empty())
-    {
-        const auto endpoints = policyManager_.enumerateActiveRenderEndpoints();
-        for (const auto& ep : endpoints)
-        {
-            std::wstring lower = ep.friendlyName;
-            std::transform(lower.begin(), lower.end(), lower.begin(), ::towlower);
-            if (lower.find(L"cable input") != std::wstring::npos ||
-                lower.find(L"hi-fi cable") != std::wstring::npos ||
-                lower.find(L"vb-audio") != std::wstring::npos)
-            {
-                cableEndpointId = ep.id;
-                break;
-            }
-        }
-    }
-
-    if (!cableEndpointId.empty())
-    {
-        std::string err;
-        if (policyManager_.setDefaultEndpoint(cableEndpointId, &err))
-        {
-            statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Audio redirigido a VB-Cable exitosamente."));
-
-            // Actualizar el nombre mostrado en el dashboard
-            const auto endpoints = policyManager_.enumerateActiveRenderEndpoints();
-            for (const auto& ep : endpoints)
-            {
-                if (ep.id == cableEndpointId)
-                {
-                    dashboardPanel_->setDeviceName(juce::String(ep.friendlyName.c_str()));
-                    break;
-                }
-            }
-        }
-        else
-        {
-            statusBar_.setStatusMessage(juce::String::fromUTF8(u8"Fallo al cambiar endpoint: ") + juce::String(err), true);
-        }
-    }
-    else
-    {
-        statusBar_.setStatusMessage(juce::String::fromUTF8(u8"No se encontró 'CABLE Input'. Por favor instala VB-Cable primero."), true);
-    }
+    const std::string directives = dash::audio::ApoConfigInjector::buildConfigContent(apoCfg, apoConfigPath);
+    dash::audio::ApoConfigManager::injectManagedSection(apoConfigPath, directives);
 }
 
 } // namespace dash::ui

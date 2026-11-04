@@ -3,7 +3,6 @@
 #include <juce_dsp/juce_dsp.h>
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <cmath>
 
@@ -12,15 +11,14 @@ namespace dash::core
 
 struct LimiterProcessor::Impl
 {
-    double sampleRate       = 48000.0;
-    int    maxBlockSize     = 512;
-    size_t activeChannels   = 2;
+    double sampleRate     = 48000.0;
+    int    maxBlockSize   = 512;
+    size_t activeChannels = 2;
     LimiterParameters params {};
 
-    float ceilingLin    = 0.94406088f; // -0.5 dBFS
-    float releaseCoeff  = 0.999f;
-    float gainLin       = 1.0f;
-    float lfeGainLin    = 1.0f;
+    float ceilingLin   = 0.94406088f; // -0.5 dBFS
+    float releaseCoeff = 0.999f;
+    float gainLin      = 1.0f;
 
     std::atomic<float> telemetryGainLin { 1.0f };
 
@@ -65,8 +63,7 @@ void LimiterProcessor::prepare(double sampleRate, int maximumBlockSize, int numC
 
 void LimiterProcessor::reset() noexcept
 {
-    impl_->gainLin    = 1.0f;
-    impl_->lfeGainLin = 1.0f;
+    impl_->gainLin = 1.0f;
     impl_->telemetryGainLin.store(1.0f, std::memory_order_relaxed);
 }
 
@@ -93,7 +90,6 @@ float LimiterProcessor::computeSampleGainLinear(float peakAmplitude) noexcept
     if (peakAmplitude > impl_->ceilingLin && peakAmplitude > 1.0e-12f)
         desiredGain = impl_->ceilingLin / peakAmplitude;
 
-    // Ataque estricto de muestra exacta (<= evita liberar ganancia ante muestras idénticas que sobrepasan el techo)
     if (desiredGain <= impl_->gainLin)
         impl_->gainLin = desiredGain;
     else
@@ -128,35 +124,22 @@ void LimiterProcessor::process(float* const* channelPointers, int numChannels, i
 
     if (impl_->params.bypass)
     {
-        impl_->gainLin    = 1.0f;
-        impl_->lfeGainLin = 1.0f;
+        impl_->gainLin = 1.0f;
         impl_->telemetryGainLin.store(1.0f, std::memory_order_relaxed);
         return;
     }
 
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
-    const bool isSurround = (activeCh >= 6);
-    constexpr size_t kLfeChannelIdx = 3;
+    const float ceiling   = impl_->ceilingLin;
 
     for (int i = 0; i < numSamples; ++i)
     {
         float mainPeak = 0.0f;
-        float lfePeak  = 0.0f;
-
         for (size_t ch = 0; ch < activeCh; ++ch)
         {
-            if (channelPointers[ch] == nullptr)
-                continue;
-
-            const float absSample = std::abs(channelPointers[ch][i]);
-
-            if (isSurround && ch == kLfeChannelIdx && !impl_->params.includeLfeInPeakLink)
+            if (channelPointers[ch] != nullptr)
             {
-                if (absSample > lfePeak)
-                    lfePeak = absSample;
-            }
-            else
-            {
+                const float absSample = std::abs(channelPointers[ch][i]);
                 if (absSample > mainPeak)
                     mainPeak = absSample;
             }
@@ -164,29 +147,11 @@ void LimiterProcessor::process(float* const* channelPointers, int numChannels, i
 
         const float gMain = computeSampleGainLinear(mainPeak);
 
-        // Limitación independiente del canal LFE si no está enlazado a los canales principales
-        float gLfe = gMain;
-        if (isSurround && !impl_->params.includeLfeInPeakLink)
-        {
-            float desiredLfe = 1.0f;
-            if (lfePeak > impl_->ceilingLin && lfePeak > 1.0e-12f)
-                desiredLfe = impl_->ceilingLin / lfePeak;
-
-            if (desiredLfe <= impl_->lfeGainLin)
-                impl_->lfeGainLin = desiredLfe;
-            else
-                impl_->lfeGainLin = impl_->releaseCoeff * impl_->lfeGainLin + (1.0f - impl_->releaseCoeff) * 1.0f;
-
-            gLfe = impl_->lfeGainLin;
-        }
-
-        const float ceiling = impl_->ceilingLin;
         for (size_t ch = 0; ch < activeCh; ++ch)
         {
             if (channelPointers[ch] != nullptr)
             {
-                const float g = (isSurround && ch == kLfeChannelIdx && !impl_->params.includeLfeInPeakLink) ? gLfe : gMain;
-                const float limitedSample = channelPointers[ch][i] * g;
+                const float limitedSample = channelPointers[ch][i] * gMain;
                 channelPointers[ch][i] = std::clamp(limitedSample, -ceiling, ceiling);
             }
         }

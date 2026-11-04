@@ -7,14 +7,6 @@ add_library(DashAudioCore STATIC
     AudioGraph.cpp
     LimiterProcessor.h
     LimiterProcessor.cpp
-    DynamicsProcessor.h
-    DynamicsProcessor.cpp
-    TransientProcessor.h
-    TransientProcessor.cpp
-    AmbienceProcessor.h
-    AmbienceProcessor.cpp
-    EQProcessor.h
-    EQProcessor.cpp
     ParametricEQProcessor.h
     ParametricEQProcessor.cpp
 )
@@ -49,15 +41,13 @@ target_compile_definitions(DashAudioCore
         JUCE_DISPLAY_SPLASH_SCREEN=0
 )
 
-# Propagamos juce::juce_dsp como INTERFACE hacia los binarios finales (App y Plugins)
-# para evitar compilar las unidades de traducción de JUCE por duplicado (error MSVC LNK2005).
 target_link_libraries(DashAudioCore
-    PUBLIC
-        DashAudioSpatial
     PRIVATE
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
     INTERFACE
+        juce::juce_core
+        juce::juce_audio_basics
         juce::juce_dsp
 )

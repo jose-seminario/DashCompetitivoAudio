@@ -14,7 +14,6 @@ if(MSVC)
 endif()
 
 # Descarga automática y determinista de JUCE mediante FetchContent
-# (Si ya tienes JUCE local, puedes pasar -DJUCE_SOURCE_DIR="C:/Ruta/A/JUCE")
 set(JUCE_SOURCE_DIR "" CACHE PATH "Ruta opcional a una copia local del repositorio JUCE")
 
 if(JUCE_SOURCE_DIR AND EXISTS "${JUCE_SOURCE_DIR}/CMakeLists.txt")
@@ -32,25 +31,17 @@ else()
     FetchContent_MakeAvailable(JUCE)
 endif()
 
-# 0. Motor DSP Central Independiente (Librería Estática C++20)
+# 1. Motor DSP Estéreo de 6 Bandas + Limitador (Librería Estática C++20)
 add_subdirectory(DashAudioCore)
 
-# 0.1 Motor de Audio Espacial y Renderizador Binaural HRTF (Hasta 16 Canales)
-add_subdirectory(DashAudioSpatial)
-
-# 1. Aplicación Principal de Escritorio (Orquestador COM + Inyector Equalizer APO + UI JUCE)
+# 2. Aplicación Principal de Escritorio (Ecualizador Táctico Estéreo JUCE)
 add_subdirectory(App)
 
-# 2. Motores DSP Nativos (Plugins VST3 / Standalone de optimización táctica)
-add_subdirectory(Plugins/LoudnessCompressor)
-add_subdirectory(Plugins/TransientSuppressor)
-add_subdirectory(Plugins/AmbienceGuard)
-
-# 2.1 Suite Automatizada de Pruebas Unitarias y de Integración (CTest)
+# 3. Suite Automatizada de Pruebas Unitarias y de Integración (CTest)
 enable_testing()
 add_subdirectory(Tests)
 
-# 3. Target opcional de empaquetado NSIS (DashCompetitivoAudio-setup.exe)
+# 4. Target opcional de empaquetado NSIS (DashCompetitivoAudio-setup.exe)
 find_program(MAKENSIS_EXECUTABLE
     NAMES makensis
     HINTS
@@ -76,8 +67,5 @@ if(MAKENSIS_EXECUTABLE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Installer/install
     )
     add_dependencies(PackageInstaller
         DashCompetitivoAudio
-        LoudnessCompressor_VST3
-        TransientSuppressor_VST3
-        AmbienceGuard_VST3
     )
 endif()

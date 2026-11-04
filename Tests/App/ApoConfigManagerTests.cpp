@@ -1,12 +1,5 @@
 /**
- * DashCompetitivoAudio - Suite de Pruebas Unitarias para ApoConfigManager y ApoConfigInjector
- *
- * Cobertura de pruebas preparadas:
- *  1. Inyección no destructiva: Preservación de directivas preexistentes en config.txt.
- *  2. Generación atómica y respaldo (.dash_backup): Escritura segura sin destruir filtros ajenos.
- *  3. Verificación de delimitadores canónicos (kBeginMarker / kEndMarker).
- *  4. Remoción de sección administrada: Limpieza segura sin alterar configuraciones del usuario.
- *  5. Idempotencia ante inyecciones repetidas.
+ * DashCompetitivoAudio - Suite de Pruebas Unitarias para ApoConfigManager y ApoConfigInjector (6 Bandas Biquad)
  */
 
 #include <Core/ApoConfigManager.h>
@@ -30,7 +23,6 @@ void testApoConfigManagerNonDestructiveInjection()
 
     const auto configFile = tempDir / "config.txt";
 
-    // 1. Simular un config.txt preexistente del usuario con ecualizaciones previas
     {
         std::ofstream out(configFile, std::ios::binary | std::ios::trunc);
         out << "# Ecualización previa del usuario\r\n";
@@ -38,20 +30,21 @@ void testApoConfigManagerNonDestructiveInjection()
     }
 
     ApoChainConfig chain;
-    chain.profileName               = "Warzone Competitive";
-    chain.preampDb                  = -6.0;
-    chain.enableTransientSuppressor = true;
-    chain.gunVolume                 = 0.45;
-    chain.enableLoudnessCompressor  = true;
-    chain.compAmount                = 0.60;
-    chain.compTarget                = ( -16.0 + 28.0 ) / 36.0;
-    chain.enableAmbienceGuard       = true;
-    chain.ambGuard                  = 0.85;
-    chain.enableGraphicEq           = true;
-    chain.footstepsEqDb             = 2.0;
-    chain.bassEqDb                  = 1.0;
+    chain.preampDb    = -3.5;
+    chain.bandGainsDb = { -2.0, -1.0, 0.5, 3.5, 4.0, -2.5 };
+    chain.bypass      = false;
 
     const std::string directives = ApoConfigInjector::buildConfigContent(chain, configFile);
+
+    // Verificar las 6 directivas Biquad LS / PK / HS y ausencia total de Copy/HeSuVi
+    assert(directives.find("Copy:") == std::string::npos);
+    assert(directives.find("HeSuVi") == std::string::npos);
+    assert(directives.find("Filter 1: ON LS Fc 60 Hz Gain -2 dB") != std::string::npos);
+    assert(directives.find("Filter 2: ON LS Fc 150 Hz Gain -1 dB") != std::string::npos);
+    assert(directives.find("Filter 3: ON PK Fc 400 Hz Gain 0.5 dB Q 1") != std::string::npos);
+    assert(directives.find("Filter 4: ON PK Fc 1500 Hz Gain 3.5 dB Q 1.2") != std::string::npos);
+    assert(directives.find("Filter 5: ON PK Fc 3500 Hz Gain 4 dB Q 1.2") != std::string::npos);
+    assert(directives.find("Filter 6: ON HS Fc 8000 Hz Gain -2.5 dB") != std::string::npos);
 
     std::string err;
     const ApoConfigResult res = ApoConfigManager::injectManagedSection(configFile, directives, &err);
@@ -60,7 +53,6 @@ void testApoConfigManagerNonDestructiveInjection()
     assert(ApoConfigManager::hasManagedSection(configFile));
     assert(ApoConfigManager::hasBackup(configFile));
 
-    // 2. Verificar que el archivo config.txt conserva las líneas del usuario y el bloque gestionado
     {
         std::ifstream in(configFile, std::ios::binary);
         std::string content((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
@@ -68,10 +60,10 @@ void testApoConfigManagerNonDestructiveInjection()
         assert(content.find("GraphicEQ: 100 0; 1000 2; 10000 -1") != std::string::npos);
         assert(content.find(ApoConfigManager::kBeginMarker) != std::string::npos);
         assert(content.find(ApoConfigManager::kEndMarker) != std::string::npos);
-        assert(content.find("Preamp: -6 dB") != std::string::npos);
+        assert(content.find("Preamp: -3.5 dB") != std::string::npos);
+        assert(content.find("Filter 4: ON PK Fc 1500 Hz Gain 3.5 dB Q 1.2") != std::string::npos);
     }
 
-    // 3. Remoción de sección gestionada: debe retirar el bloque de Dash sin borrar las líneas del usuario
     const ApoConfigResult removeRes = ApoConfigManager::removeManagedSection(configFile, &err);
     assert(removeRes == ApoConfigResult::Success);
     assert(!ApoConfigManager::hasManagedSection(configFile));
@@ -83,7 +75,6 @@ void testApoConfigManagerNonDestructiveInjection()
         assert(content.find(ApoConfigManager::kBeginMarker) == std::string::npos);
     }
 
-    // Limpieza
     std::error_code ec;
     std::filesystem::remove_all(tempDir, ec);
 }
@@ -98,10 +89,9 @@ void testApoConfigManagerIdempotence()
     const auto configFile = tempDir / "config.txt";
 
     ApoChainConfig chain;
-    chain.footstepsEqDb = 1.5;
+    chain.bandGainsDb[3] = 2.5;
     const std::string directives = ApoConfigInjector::buildConfigContent(chain, configFile);
 
-    // Llamadas repetidas no deben duplicar el marcador administrado en config.txt
     assert(ApoConfigManager::injectManagedSection(configFile, directives) == ApoConfigResult::Success);
     assert(ApoConfigManager::injectManagedSection(configFile, directives) == ApoConfigResult::Success);
 
@@ -129,24 +119,18 @@ void testEndpointGuidExtraction()
 {
     using namespace dash::audio;
 
-    // 1. Formato estándar MMDevice de Windows:
-    // "{0.0.0.00000000}.{c48a7312-32b4-4b51-9efb-3375cb474c10}" -> "{c48a7312-32b4-4b51-9efb-3375cb474c10}"
     const std::wstring mmDeviceId = L"{0.0.0.00000000}.{c48a7312-32b4-4b51-9efb-3375cb474c10}";
     const std::wstring extracted = AudioPolicyManager::extractEndpointGuid(mmDeviceId);
     assert(extracted == L"{c48a7312-32b4-4b51-9efb-3375cb474c10}");
 
-    // 2. Dispositivo que ya viene como GUID aislado:
     const std::wstring bareGuid = L"{c48a7312-32b4-4b51-9efb-3375cb474c10}";
     assert(AudioPolicyManager::extractEndpointGuid(bareGuid) == L"{c48a7312-32b4-4b51-9efb-3375cb474c10}");
 
-    // 3. Cadena sin llaves (ej. nombre amigable como fallback):
     const std::wstring friendlyName = L"Speakers (Realtek High Definition Audio)";
     assert(AudioPolicyManager::extractEndpointGuid(friendlyName) == friendlyName);
 
-    // 4. Cadena vacía:
     assert(AudioPolicyManager::extractEndpointGuid(L"").empty());
 
-    // 5. Inyección con directiva Device: en config.txt
     const auto tempDir = std::filesystem::temp_directory_path() / "DashApoGuidTest";
     std::filesystem::create_directories(tempDir);
     const auto configFile = tempDir / "config.txt";

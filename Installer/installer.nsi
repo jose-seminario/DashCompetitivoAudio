@@ -1,12 +1,6 @@
 ; ==============================================================================
 ; Dash Competitivo Audio - Script Oficial de Instalación Comercial (NSIS 3.x)
-; Reglas de Auditoría de Seguridad (Fase 7):
-;   1. Instalar ÚNICAMENTE archivos propios de DashCompetitivoAudio.
-;   2. NO instalar controladores de terceros automáticamente (cero drivers forzados).
-;   3. NO sobrescribir plugins ajenos en directorios VST compartidos.
-;   4. NO vaciar ni alterar las configuraciones preexistentes de Equalizer APO (config.txt).
-;   5. Preservar intactos los perfiles personales y calibraciones del usuario.
-;   6. Desinstalación segura y limpia: eliminar exclusivamente lo instalado por Dash.
+; Ecualizador Táctico Estéreo de 6 Bandas (Sin VST3, sin perfiles JSON externos)
 ; ==============================================================================
 
 Unicode True
@@ -34,24 +28,18 @@ SetCompressor /SOLID lzma
 Name "${APP_NAME} ${APP_VERSION}"
 OutFile "${OUT_FILE}"
 
-; Iconos oficiales del instalador y desinstalador (Calavera Táctica)
 Icon "icon.ico"
 UninstallIcon "icon.ico"
 !define MUI_ICON "icon.ico"
 !define MUI_UNICON "icon.ico"
 
-; Directorio de instalación por defecto ($PROGRAMFILES64\DashCompetitivoAudio)
 InstallDir "$PROGRAMFILES64\${APP_SHORT_KEY}"
 InstallDirRegKey HKLM "Software\${APP_SHORT_KEY}" "InstallLocation"
 
-; Solicitar permisos de Administrador (UAC) para registrar VST3 y claves de desinstalación
 RequestExecutionLevel admin
 
-BrandingText "${APP_NAME} v${APP_VERSION} - Tactical Audio Engine"
+BrandingText "${APP_NAME} v${APP_VERSION} - Tactical Stereo EQ"
 
-; ------------------------------------------------------------------------------
-; Configuración de Interfaz Moderna (MUI2)
-; ------------------------------------------------------------------------------
 !define MUI_ABORTWARNING
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${APP_EXE}"
 !define MUI_FINISHPAGE_RUN_TEXT "Iniciar ${APP_NAME}"
@@ -66,9 +54,6 @@ BrandingText "${APP_NAME} v${APP_VERSION} - Tactical Audio Engine"
 
 !insertmacro MUI_LANGUAGE "Spanish"
 
-; ------------------------------------------------------------------------------
-; Inicialización en 64 bits
-; ------------------------------------------------------------------------------
 Function .onInit
     ${If} ${RunningX64}
         SetRegView 64
@@ -87,75 +72,22 @@ FunctionEnd
 ; ------------------------------------------------------------------------------
 ; Sección Principal de Instalación
 ; ------------------------------------------------------------------------------
-Section "Aplicación Principal y Motores DSP VST3" SecCore
+Section "Ecualizador Táctico Estéreo" SecCore
     SectionIn RO
 
     SetShellVarContext all
 
-    ; 1. Instalar ejecutable propio en $PROGRAMFILES64\DashCompetitivoAudio
     SetOutPath "$INSTDIR"
     File "${BUILD_DIR}\App\DashCompetitivoAudio_artefacts\Release\${APP_EXE}"
 
-    ; 2. Instalar biblioteca comunitaria y esquemas propios
-    SetOutPath "$INSTDIR\Profiles\Schema"
-    File /nonfatal "..\Profiles\Schema\*.json"
-
-    SetOutPath "$INSTDIR\Profiles\Games\Warzone\Competitive"
-    File /nonfatal "..\Profiles\Games\Warzone\Competitive\*.json"
-    SetOutPath "$INSTDIR\Profiles\Games\Warzone\Balanced"
-    File /nonfatal "..\Profiles\Games\Warzone\Balanced\*.json"
-    SetOutPath "$INSTDIR\Profiles\Games\Warzone\Immersive"
-    File /nonfatal "..\Profiles\Games\Warzone\Immersive\*.json"
-
-    SetOutPath "$INSTDIR\Profiles\Headphones\Razer"
-    File /nonfatal "..\Profiles\Headphones\Razer\*.json"
-    SetOutPath "$INSTDIR\Profiles\Headphones\HyperX"
-    File /nonfatal "..\Profiles\Headphones\HyperX\*.json"
-    SetOutPath "$INSTDIR\Profiles\Headphones\Logitech"
-    File /nonfatal "..\Profiles\Headphones\Logitech\*.json"
-
-    SetOutPath "$INSTDIR\DashAudioDB\Presets"
-    File /nonfatal "..\DashAudioDB\Presets\*.json"
-    SetOutPath "$INSTDIR\DashAudioDB\Schema"
-    File /nonfatal "..\DashAudioDB\Schema\*.json"
-
-    ; 3. Despliegue de los 3 plugins .vst3 propios en recursos locales
-    SetOutPath "$INSTDIR\resources\apo-vst"
-    File /r "${BUILD_DIR}\Plugins\LoudnessCompressor\LoudnessCompressor_artefacts\Release\VST3\LoudnessCompressor.vst3"
-    File /r "${BUILD_DIR}\Plugins\TransientSuppressor\TransientSuppressor_artefacts\Release\VST3\TransientSuppressor.vst3"
-    File /r "${BUILD_DIR}\Plugins\AmbienceGuard\AmbienceGuard_artefacts\Release\VST3\AmbienceGuard.vst3"
-
-    ; 4. Despliegue en la carpeta estándar del sistema para VST3 (%COMMONPROGRAMFILES%\VST3)
-    CreateDirectory "$COMMONFILES64\VST3"
-    CopyFiles /SILENT "$INSTDIR\resources\apo-vst\LoudnessCompressor.vst3" "$COMMONFILES64\VST3"
-    CopyFiles /SILENT "$INSTDIR\resources\apo-vst\TransientSuppressor.vst3" "$COMMONFILES64\VST3"
-    CopyFiles /SILENT "$INSTDIR\resources\apo-vst\AmbienceGuard.vst3" "$COMMONFILES64\VST3"
-
-    ; 5. Si Equalizer APO está presente, copiar exclusivamente los 3 bundles propios en VSTPlugins
-    ReadRegStr $R0 HKLM "SOFTWARE\EqualizerAPO" "InstallPath"
-    ${If} $R0 == ""
-        StrCpy $R0 "$PROGRAMFILES64\EqualizerAPO"
-    ${EndIf}
-    StrCpy $R1 "$R0\VSTPlugins"
-    ${If} ${FileExists} "$R0"
-        CreateDirectory "$R1"
-        CopyFiles /SILENT "$INSTDIR\resources\apo-vst\LoudnessCompressor.vst3" "$R1"
-        CopyFiles /SILENT "$INSTDIR\resources\apo-vst\TransientSuppressor.vst3" "$R1"
-        CopyFiles /SILENT "$INSTDIR\resources\apo-vst\AmbienceGuard.vst3" "$R1"
-    ${EndIf}
-
-    ; 6. Claves de registro de usuario y de máquina
     WriteRegStr HKCU "Software\${APP_SHORT_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKCU "Software\${APP_SHORT_KEY}" "Version"         "${APP_VERSION}"
     WriteRegStr HKCU "Software\${APP_SHORT_KEY}" "Publisher"       "${APP_COMPANY}"
-    WriteRegStr HKCU "Software\${APP_SHORT_KEY}" "ApoVstDir"       "$R1"
 
     WriteRegStr HKLM "SOFTWARE\${APP_SHORT_KEY}" "InstallLocation" "$INSTDIR"
     WriteRegStr HKLM "SOFTWARE\${APP_SHORT_KEY}" "Version"         "${APP_VERSION}"
     WriteRegStr HKLM "SOFTWARE\${APP_SHORT_KEY}" "Publisher"       "${APP_COMPANY}"
-    WriteRegStr HKLM "SOFTWARE\${APP_SHORT_KEY}" "ApoVstDir"       "$R1"
 
-    ; Registro del Desinstalador oficial en Configuración de Windows
     WriteUninstaller "$INSTDIR\Uninstall.exe"
     WriteRegStr   HKLM "${UNINSTALL_KEY}" "DisplayName"          "${APP_NAME}"
     WriteRegStr   HKLM "${UNINSTALL_KEY}" "UninstallString"      "$\"$INSTDIR\Uninstall.exe$\""
@@ -166,7 +98,6 @@ Section "Aplicación Principal y Motores DSP VST3" SecCore
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoModify"             1
     WriteRegDWORD HKLM "${UNINSTALL_KEY}" "NoRepair"             1
 
-    ; 7. Accesos directos limpios
     SetOutPath "$INSTDIR"
     CreateDirectory "$SMPROGRAMS\${APP_NAME}"
     CreateShortcut  "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk" "$INSTDIR\${APP_EXE}"
@@ -180,7 +111,7 @@ SectionEnd
 Section "Uninstall"
     SetShellVarContext all
 
-    ; 0. Limpiar bloque administrado de Dash en config.txt de Equalizer APO sin alterar los filtros del usuario
+    ; Limpiar bloque administrado de Dash en config.txt de Equalizer APO sin alterar filtros ajenos
     ReadRegStr $R0 HKLM "SOFTWARE\EqualizerAPO" "InstallPath"
     ${If} $R0 == ""
         StrCpy $R0 "$PROGRAMFILES64\EqualizerAPO"
@@ -190,47 +121,14 @@ Section "Uninstall"
         nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$$p = ''$R2''; if (Test-Path $$p) { $$t = [System.IO.File]::ReadAllText($$p); $$r = [System.Text.RegularExpressions.Regex]::Replace($$t, ''(?s)\r?\n?# BEGIN DASHCOMPETITIVOAUDIO MANAGED BLOCK.*?# END DASHCOMPETITIVOAUDIO MANAGED BLOCK\r?\n?'', ''''); [System.IO.File]::WriteAllText($$p, $$r) }"'
     ${EndIf}
 
-    ; 1. Eliminar EXCLUSIVAMENTE los 3 bundles propios en EqualizerAPO\VSTPlugins (sin vaciar config.txt ni tocar otros plugins)
-    ReadRegStr $R1 HKLM "SOFTWARE\${APP_SHORT_KEY}" "ApoVstDir"
-    ${If} $R1 != ""
-        RMDir /r "$R1\LoudnessCompressor.vst3"
-        RMDir /r "$R1\TransientSuppressor.vst3"
-        RMDir /r "$R1\AmbienceGuard.vst3"
-        Delete "$R1\LoudnessCompressor.dll"
-        Delete "$R1\TransientSuppressor.dll"
-        Delete "$R1\AmbienceGuard.dll"
-    ${EndIf}
-
-    ; 2. Eliminar únicamente los bundles propios de %COMMONPROGRAMFILES%\VST3
-    RMDir /r "$COMMONFILES64\VST3\LoudnessCompressor.vst3"
-    RMDir /r "$COMMONFILES64\VST3\TransientSuppressor.vst3"
-    RMDir /r "$COMMONFILES64\VST3\AmbienceGuard.vst3"
-
-    ; 3. Eliminar accesos directos
     Delete "$DESKTOP\${APP_NAME}.lnk"
     Delete "$SMPROGRAMS\${APP_NAME}\${APP_NAME}.lnk"
     Delete "$SMPROGRAMS\${APP_NAME}\Desinstalar ${APP_NAME}.lnk"
     RMDir  "$SMPROGRAMS\${APP_NAME}"
 
-    ; 4. Eliminar ejecutables y recursos propios de la aplicación
-    RMDir /r "$INSTDIR\resources"
     Delete "$INSTDIR\${APP_EXE}"
     Delete "$INSTDIR\Uninstall.exe"
-
-    ; 5. Eliminar exclusivamente los perfiles y esquemas de fábrica distribuidos con la app
-    RMDir /r "$INSTDIR\Profiles\Schema"
-    RMDir /r "$INSTDIR\Profiles\Games"
-    RMDir /r "$INSTDIR\Profiles\Headphones"
-    RMDir "$INSTDIR\Profiles" ; Solo se borra si no contiene perfiles creados por el usuario
-
-    RMDir /r "$INSTDIR\DashAudioDB\Presets"
-    RMDir /r "$INSTDIR\DashAudioDB\Schema"
-    RMDir "$INSTDIR\DashAudioDB" ; Solo se borra si no contiene perfiles creados por el usuario
-
-    ; 6. Preservar intactos los perfiles personales del usuario en %LOCALAPPDATA%\DashCompetitivoAudio\Profiles
-    ; Se conserva intacta la carpeta de perfiles personales para no destruir las calibraciones del usuario
-
-    RMDir "$INSTDIR" ; Solo se borra si quedó vacía
+    RMDir  "$INSTDIR"
 
     DeleteRegKey HKCU "Software\${APP_SHORT_KEY}"
     DeleteRegKey HKLM "SOFTWARE\${APP_SHORT_KEY}"

@@ -1,19 +1,7 @@
 /**
- * DashCompetitivoAudio - Suite de Pruebas Unitarias para EQProcessor y ParametricEQProcessor
- *
- * Cobertura de pruebas preparadas:
- *  1. EQ Gráfico de 31 bandas ISO: Comprobación de curva base y modulación de Pasos (+dB @ 3.15k/6.3k) y Graves.
- *  2. Filtro Paramétrico Peaking: Realce acústico acotado en la frecuencia central configurada.
- *  3. Filtro High-Pass (12 dB/oct): Atenuación de subgraves a 40 Hz conservando frecuencias medias a 1 kHz.
- *  4. Filtro Low-Pass (12 dB/oct): Atenuación de agudos a 15 kHz.
- *  5. Filtro Notch (Trampa): Atenuación profunda (> 18 dB) en la frecuencia trampa con Q alto.
- *  6. Filtros Low-Shelf y High-Shelf: Elevación/corte de meseta uniforme en bandas extremas.
- *  7. Estabilidad Numérica: Cero NaN, Infinity o discontinuidades en DF2T.
- *
- * NOTA: Archivo de solo lectura/preparación; no se ejecuta en la terminal.
+ * DashCompetitivoAudio - Suite de Pruebas Unitarias para ParametricEQProcessor (6 Bandas Estéreo)
  */
 
-#include <DashAudioCore/EQProcessor.h>
 #include <DashAudioCore/ParametricEQProcessor.h>
 
 #include <cassert>
@@ -37,7 +25,7 @@ namespace
         return true;
     }
 
-    std::vector<float> generateSine(float freqHz, double sampleRate, size_t numSamples, float amp = 0.5f)
+    std::vector<float> generateSine(float freqHz, double sampleRate, size_t numSamples, float amp = 0.25f)
     {
         std::vector<float> buffer(numSamples);
         const float phaseInc = 2.0f * kPi * freqHz / static_cast<float>(sampleRate);
@@ -59,78 +47,91 @@ namespace
     }
 } // namespace
 
-void testGraphicEQ31Bands()
+void testSixBandDefaultConfiguration()
 {
-    const auto gains = dash::core::EQProcessor::computeBandGainsDb(3.0, 2.0);
-    assert(gains.size() == 31);
+    using namespace dash::core;
 
-    // Banda 22 (3150 Hz): base 1.6 + modulación de pasos
-    assert(gains[22] > 2.0);
-    // Banda 6 (80 Hz): base 2.0 + modulación de graves
-    assert(gains[6] > 2.0);
+    static_assert(ParametricEQProcessor::kMaxBands == 6);
+    static_assert(ParametricEQProcessor::kMaxChannels == 2);
+
+    ParametricEQProcessor eq;
+    eq.prepare(48000.0, 512, 2);
+
+    const auto b0 = eq.getBand(0);
+    const auto b1 = eq.getBand(1);
+    const auto b2 = eq.getBand(2);
+    const auto b3 = eq.getBand(3);
+    const auto b4 = eq.getBand(4);
+    const auto b5 = eq.getBand(5);
+
+    assert(b0.type == ParametricFilterType::LowShelf  && std::abs(b0.frequencyHz - 60.0f)   < 0.01f && std::abs(b0.q - 0.707f) < 0.01f);
+    assert(b1.type == ParametricFilterType::LowShelf  && std::abs(b1.frequencyHz - 150.0f)  < 0.01f && std::abs(b1.q - 0.707f) < 0.01f);
+    assert(b2.type == ParametricFilterType::Peaking   && std::abs(b2.frequencyHz - 400.0f)  < 0.01f && std::abs(b2.q - 1.0f)   < 0.01f);
+    assert(b3.type == ParametricFilterType::Peaking   && std::abs(b3.frequencyHz - 1500.0f) < 0.01f && std::abs(b3.q - 1.2f)   < 0.01f);
+    assert(b4.type == ParametricFilterType::Peaking   && std::abs(b4.frequencyHz - 3500.0f) < 0.01f && std::abs(b4.q - 1.2f)   < 0.01f);
+    assert(b5.type == ParametricFilterType::HighShelf && std::abs(b5.frequencyHz - 8000.0f) < 0.01f && std::abs(b5.q - 0.707f) < 0.01f);
 }
 
-void testParametricPeakingFilter()
+void testLowShelfAndPeakingBoost()
 {
     dash::core::ParametricEQProcessor eq;
-    eq.prepare(48000.0, 512, 1);
+    eq.prepare(48000.0, 512, 2);
 
-    dash::core::ParametricBandParameters band;
-    band.type = dash::core::ParametricFilterType::Peaking;
-    band.frequencyHz = 1000.0f;
-    band.gainDb = 6.0f; // +6 dB de realce
-    band.q = 1.0f;
-    band.enabled = true;
-    eq.setBand(0, band);
+    // Banda 4 (Pasos Agudos: Peaking 3500 Hz) +6 dB
+    eq.setBandGainDb(4, 6.0f);
 
-    auto signal = generateSine(1000.0f, 48000.0, 4800, 0.2f);
-    const float inputRms = computeRms(signal.data(), signal.size());
+    auto left  = generateSine(3500.0f, 48000.0, 4800, 0.2f);
+    auto right = generateSine(3500.0f, 48000.0, 4800, 0.2f);
+    const float inRms = computeRms(left.data() + 1000, left.size() - 1000);
 
-    eq.processStatic(signal.data(), static_cast<int>(signal.size()));
+    float* chs[2] = { left.data(), right.data() };
+    eq.process(chs, 2, static_cast<int>(left.size()));
 
-    assert(isFiniteBuffer(signal.data(), signal.size()));
-    const float outputRms = computeRms(signal.data() + 1000, signal.size() - 1000);
-    // +6 dB equivale aproximadamente al doble de amplitud (~2x)
-    assert(outputRms > inputRms * 1.5f);
+    assert(isFiniteBuffer(left.data(), left.size()));
+    assert(isFiniteBuffer(right.data(), right.size()));
+
+    const float outRmsL = computeRms(left.data() + 1000, left.size() - 1000);
+    const float outRmsR = computeRms(right.data() + 1000, right.size() - 1000);
+    assert(outRmsL > inRms * 1.7f);
+    assert(outRmsR > inRms * 1.7f);
 }
 
-void testParametricHighPassFilter()
+void testHighShelfAttenuation()
 {
     dash::core::ParametricEQProcessor eq;
-    eq.prepare(48000.0, 512, 1);
+    eq.prepare(48000.0, 512, 2);
 
-    dash::core::ParametricBandParameters hp;
-    hp.type = dash::core::ParametricFilterType::HighPass;
-    hp.frequencyHz = 200.0f;
-    hp.q = 0.7071f;
-    hp.enabled = true;
-    eq.setBand(0, hp);
+    // Banda 5 (Disparos: HighShelf 8000 Hz) -9 dB
+    eq.setBandGainDb(5, -9.0f);
 
-    // Señal grave a 50 Hz debe ser fuertemente atenuada
-    auto subBass = generateSine(50.0f, 48000.0, 4800, 0.5f);
-    eq.processStatic(subBass.data(), static_cast<int>(subBass.size()));
+    auto highTone = generateSine(12000.0f, 48000.0, 4800, 0.4f);
+    const float inRms = computeRms(highTone.data() + 1000, highTone.size() - 1000);
 
-    const float subBassRms = computeRms(subBass.data() + 1000, subBass.size() - 1000);
-    assert(subBassRms < 0.15f); // Atenuación notable
+    eq.process(highTone.data(), static_cast<int>(highTone.size()));
+
+    assert(isFiniteBuffer(highTone.data(), highTone.size()));
+    const float outRms = computeRms(highTone.data() + 1000, highTone.size() - 1000);
+    assert(outRms < inRms * 0.55f);
 }
 
-void testParametricNotchFilter()
+void testStereoChannelIsolation()
 {
     dash::core::ParametricEQProcessor eq;
-    eq.prepare(48000.0, 512, 1);
+    eq.prepare(48000.0, 512, 2);
+    eq.setBandGainDb(0, 4.0f);
+    eq.setBandGainDb(3, 5.0f);
 
-    dash::core::ParametricBandParameters notch;
-    notch.type = dash::core::ParametricFilterType::Notch;
-    notch.frequencyHz = 1000.0f;
-    notch.q = 10.0f; // Q alto para rechazo agudo
-    notch.enabled = true;
-    eq.setBand(0, notch);
+    auto left = generateSine(1500.0f, 48000.0, 2048, 0.3f);
+    std::vector<float> right(2048, 0.0f);
 
-    auto sine1k = generateSine(1000.0f, 48000.0, 4800, 0.5f);
-    eq.processStatic(sine1k.data(), static_cast<int>(sine1k.size()));
+    float* chs[2] = { left.data(), right.data() };
+    eq.process(chs, 2, 2048);
 
-    const float notchRms = computeRms(sine1k.data() + 1000, sine1k.size() - 1000);
-    assert(notchRms < 0.05f); // Atenuación de al menos -20 dB
+    // Estéreo puro: el canal derecho en silencio no recibe crossfeed del izquierdo
+    for (float s : right)
+        assert(std::abs(s) < 1.0e-7f);
+
+    assert(computeRms(left.data() + 256, left.size() - 256) > 0.25f);
 }
 
 } // namespace dash::test

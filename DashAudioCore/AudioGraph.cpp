@@ -3,9 +3,8 @@
 #include <juce_dsp/juce_dsp.h>
 
 #include <algorithm>
-#include <array>
+#include <atomic>
 #include <cmath>
-#include <cstring>
 
 namespace dash::core
 {
@@ -17,24 +16,16 @@ struct AudioGraph::Impl
     int    activeChannels = 2;
 
     AudioGraphParameters params {};
-    std::atomic<bool>  bypassAll   { false };
-    std::atomic<float> headroomLin { 0.50118723f }; // -6 dBFS
+    std::atomic<bool>  bypassAll { false };
+    std::atomic<float> preampLin { 1.0f };
 
-    DynamicsProcessor               dynamics;
-    TransientProcessor              transient;
-    AmbienceProcessor               ambience;
-    dash::spatial::SpatialProcessor spatial;
-    EQProcessor                     equalizer;
-    ParametricEQProcessor           parametricEq;
-    LimiterProcessor                limiter;
+    ParametricEQProcessor parametricEq;
+    LimiterProcessor      limiter;
 
-    std::vector<float> spatialScratchL;
-    std::vector<float> spatialScratchR;
-
-    void updateHeadroom() noexcept
+    void updatePreamp() noexcept
     {
-        headroomLin.store(
-            juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 6.0f, params.headroomDb)),
+        preampLin.store(
+            juce::Decibels::decibelsToGain(juce::jlimit(-24.0f, 24.0f, params.preampDb)),
             std::memory_order_relaxed);
     }
 };
@@ -42,7 +33,7 @@ struct AudioGraph::Impl
 AudioGraph::AudioGraph()
     : impl_(std::make_unique<Impl>())
 {
-    impl_->updateHeadroom();
+    impl_->updatePreamp();
 }
 
 AudioGraph::~AudioGraph() = default;
@@ -59,29 +50,19 @@ void AudioGraph::prepare(double sampleRate, int maximumBlockSize, int numChannel
     impl_->maxBlockSize   = safeBlock;
     impl_->activeChannels = safeCh;
 
-    impl_->dynamics.prepare(safeSr, safeBlock, safeCh);
-    impl_->transient.prepare(safeSr, safeBlock, safeCh);
-    impl_->ambience.prepare(safeSr, safeBlock, safeCh);
-    impl_->spatial.prepare(safeSr, safeBlock);
-    constexpr size_t kMaxSpatialScratch = 8192;
-    const size_t scratchCapacity = std::max(kMaxSpatialScratch, static_cast<size_t>(safeBlock));
-    impl_->spatialScratchL.assign(scratchCapacity, 0.0f);
-    impl_->spatialScratchR.assign(scratchCapacity, 0.0f);
-    impl_->equalizer.prepare(safeSr, safeBlock, safeCh);
     impl_->parametricEq.prepare(safeSr, safeBlock, safeCh);
     impl_->limiter.prepare(safeSr, safeBlock, safeCh);
 
-    impl_->updateHeadroom();
+    impl_->updatePreamp();
+    for (size_t b = 0; b < ParametricEQProcessor::kMaxBands; ++b)
+        impl_->parametricEq.setBandGainDb(b, impl_->params.bandGainsDb[b]);
+
+    impl_->limiter.updateParameters(impl_->params.limiter);
     reset();
 }
 
 void AudioGraph::reset() noexcept
 {
-    impl_->dynamics.reset();
-    impl_->transient.reset();
-    impl_->ambience.reset();
-    impl_->spatial.reset();
-    impl_->equalizer.reset();
     impl_->parametricEq.reset();
     impl_->limiter.reset();
 }
@@ -90,25 +71,34 @@ void AudioGraph::updateParameters(const AudioGraphParameters& parameters) noexce
 {
     impl_->params = parameters;
     impl_->bypassAll.store(parameters.bypassAll, std::memory_order_relaxed);
-    impl_->updateHeadroom();
-
-    impl_->dynamics.updateParameters(impl_->params.dynamics);
-    impl_->transient.updateParameters(impl_->params.transient);
-    impl_->ambience.updateParameters(impl_->params.ambience);
-    impl_->spatial.updateParameters(impl_->params.spatial);
-    impl_->equalizer.updateParameters(impl_->params.equalizer);
+    impl_->updatePreamp();
 
     for (size_t b = 0; b < ParametricEQProcessor::kMaxBands; ++b)
-        impl_->parametricEq.setBand(b, impl_->params.parametricBands[b]);
+        impl_->parametricEq.setBandGainDb(b, impl_->params.bandGainsDb[b]);
 
-
-    impl_->parametricEq.setBypass(!impl_->params.useParametricEq);
+    impl_->parametricEq.setBypass(false);
     impl_->limiter.updateParameters(impl_->params.limiter);
 }
 
 const AudioGraphParameters& AudioGraph::getParameters() const noexcept
 {
     return impl_->params;
+}
+
+void AudioGraph::setBandGainDb(size_t bandIndex, float gainDb) noexcept
+{
+    if (bandIndex >= ParametricEQProcessor::kMaxBands)
+        return;
+
+    const float clamped = juce::jlimit(-12.0f, 12.0f, gainDb);
+    impl_->params.bandGainsDb[bandIndex] = clamped;
+    impl_->parametricEq.setBandGainDb(bandIndex, clamped);
+}
+
+void AudioGraph::setPreampDb(float preampDb) noexcept
+{
+    impl_->params.preampDb = juce::jlimit(-12.0f, 12.0f, preampDb);
+    impl_->updatePreamp();
 }
 
 void AudioGraph::setBypass(bool enabled) noexcept
@@ -127,7 +117,6 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     if (channelPointers == nullptr || numChannels <= 0 || numSamples <= 0)
         return;
 
-    // Si la cadena completa está en bypass, el audio pasa intacto sin procesamiento
     if (impl_->bypassAll.load(std::memory_order_relaxed))
         return;
 
@@ -136,9 +125,9 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
     const size_t activeCh = static_cast<size_t>(std::min(numChannels, static_cast<int>(kMaxChannels)));
     const int safeCh      = static_cast<int>(activeCh);
 
-    // 1. Etapa de Margen Dinámico / Entrada (Headroom)
-    const float hGain = impl_->headroomLin.load(std::memory_order_relaxed);
-    if (std::abs(hGain - 1.0f) > 1.0e-3f)
+    // 1. Etapa de Ganancia Previa (Preamp)
+    const float pGain = impl_->preampLin.load(std::memory_order_relaxed);
+    if (std::abs(pGain - 1.0f) > 1.0e-4f)
     {
         for (size_t ch = 0; ch < activeCh; ++ch)
         {
@@ -146,128 +135,16 @@ void AudioGraph::process(float* const* channelPointers, int numChannels, int num
             if (chData != nullptr)
             {
                 for (int i = 0; i < numSamples; ++i)
-                    chData[i] *= hGain;
+                    chData[i] *= pGain;
             }
         }
     }
 
-    // 2. Compresor Dinámico Híbrido (ITU-R BS.1770-4 Upward + Downward)
-    impl_->dynamics.process(channelPointers, safeCh, numSamples);
+    // 2. Ecualizador Táctico Estéreo de 6 Bandas
+    impl_->parametricEq.process(channelPointers, safeCh, numSamples);
 
-    // 3. Supresor de Transitorios de Disparo (Canal Central / Gun Crack)
-    impl_->transient.process(channelPointers, safeCh, numSamples);
-
-    // Detección de Disparo: Si hay una reducción transitoria severa (< -2.0 dB),
-    // disparar Ducking Inverso en el ecualizador para elevar pasos (+6 dB en 3.8 kHz durante 300 ms)
-    if (impl_->transient.getLastReductionDb() < -2.0f)
-    {
-        impl_->parametricEq.triggerGunshotFootstepBoost(6.0f, 300.0f);
-    }
-
-    // 4. Protector de Frecuencias Ambientales (Multibanda 350 Hz - 2.5 kHz)
-    impl_->ambience.process(channelPointers, safeCh, numSamples);
-
-    // 5. Procesador Acústico Espacial 3D (Renderizado Binaural / Escenario Sonoro)
-    if (!impl_->params.spatial.bypass && safeCh >= 2 && channelPointers[0] != nullptr && channelPointers[1] != nullptr)
-    {
-        const int scratchCap = static_cast<int>(impl_->spatialScratchL.size());
-        int samplesProcessed = 0;
-
-        while (samplesProcessed < numSamples)
-        {
-            const int chunkSize = std::min(numSamples - samplesProcessed, scratchCap);
-
-            // Preparar punteros de canales desplazados para el fragmento actual
-            std::array<const float*, kMaxChannels> chunkInputs {};
-            for (size_t ch = 0; ch < activeCh; ++ch)
-            {
-                chunkInputs[ch] = (channelPointers[ch] != nullptr) ? (channelPointers[ch] + samplesProcessed) : nullptr;
-            }
-
-            impl_->spatial.processBinaural(
-                chunkInputs.data(),
-                safeCh,
-                impl_->spatialScratchL.data(),
-                impl_->spatialScratchR.data(),
-                chunkSize);
-
-            std::memcpy(channelPointers[0] + samplesProcessed, impl_->spatialScratchL.data(), static_cast<size_t>(chunkSize) * sizeof(float));
-            std::memcpy(channelPointers[1] + samplesProcessed, impl_->spatialScratchR.data(), static_cast<size_t>(chunkSize) * sizeof(float));
-
-            // Si la entrada traía canales surround (>2), ya fueron plegados al espacio binaural estéreo;
-            // limpiamos los canales remanentes para evitar interferencias.
-            for (size_t ch = 2; ch < activeCh; ++ch)
-            {
-                if (channelPointers[ch] != nullptr)
-                    std::memset(channelPointers[ch] + samplesProcessed, 0, static_cast<size_t>(chunkSize) * sizeof(float));
-            }
-
-            samplesProcessed += chunkSize;
-        }
-    }
-
-    else if (safeCh > 2 && channelPointers[0] != nullptr && channelPointers[1] != nullptr)
-    {
-        // Plegado Estéreo Canónico ITU-R de Respaldo:
-        // Si el motor 3D está en bypass pero la fuente es multicanal (7.1/5.1), pliega
-        // canales traseros (BL, BR), laterales (SL, SR) y central (FC) a L y R.
-        // Garantiza que pasos y disparos por la espalda NUNCA se silencien a 0.
-        // Matriz Táctica Competitiva con Sangrado Acústico Contralateral (Crossfeed):
-        // 1. El canal opuesto NUNCA se silencia (evita sordera direccional sin girar la cámara)
-        // 2. Canales traseros (BL, BR) reforzados (0.85x ipsi / 0.40x contra) para presencia total en la espalda
-        // 3. Canales laterales (SL, SR) con 1.0x ipsi / 0.25x contra para percepción periférica continua
-        constexpr float kCenter = 0.7071f;
-        constexpr float kSideIpsi = 1.0f;
-        constexpr float kSideContra = 0.25f;
-        constexpr float kRearIpsi = 0.85f;
-        constexpr float kRearContra = 0.40f;
-
-        const float* fc = (safeCh > 2) ? channelPointers[2] : nullptr;
-        const float* bl = (safeCh > 4) ? channelPointers[4] : nullptr;
-        const float* br = (safeCh > 5) ? channelPointers[5] : nullptr;
-        const float* sl = (safeCh > 6) ? channelPointers[6] : nullptr;
-        const float* sr = (safeCh > 7) ? channelPointers[7] : nullptr;
-
-        for (int i = 0; i < numSamples; ++i)
-        {
-            const float sFC = (fc != nullptr) ? fc[i] : 0.0f;
-            const float sBL = (bl != nullptr) ? bl[i] : 0.0f;
-            const float sBR = (br != nullptr) ? br[i] : 0.0f;
-            const float sSL = (sl != nullptr) ? sl[i] : 0.0f;
-            const float sSR = (sr != nullptr) ? sr[i] : 0.0f;
-
-            channelPointers[0][i] += kCenter * sFC + (kSideIpsi * sSL) + (kSideContra * sSR) + (kRearIpsi * sBL) + (kRearContra * sBR);
-            channelPointers[1][i] += kCenter * sFC + (kSideIpsi * sSR) + (kSideContra * sSL) + (kRearIpsi * sBR) + (kRearContra * sBL);
-        }
-
-        for (size_t ch = 2; ch < activeCh; ++ch)
-        {
-            if (channelPointers[ch] != nullptr)
-                std::memset(channelPointers[ch], 0, static_cast<size_t>(numSamples) * sizeof(float));
-        }
-    }
-
-    // 6. Ecualización Acústica (31 Bandas ISO y/o Paramétrica de precisión)
-    // Tras el plegado (binaural 3D o downmix estéreo), sólo circulan 2 canales (L/R) por las etapas finales.
-    const int postSpatialCh = (safeCh >= 2) ? 2 : safeCh;
-
-    // 6. Ecualización Acústica Canónica y Calibración
-    // 6.1. Calibración Acústica de Auriculares (AutoEQ) - Corrección de hardware previa
-    impl_->parametricEq.setBypass(!impl_->params.useParametricEq);
-
-    impl_->parametricEq.processStatic(channelPointers, postSpatialCh, numSamples);
-
-    // 6.2. Ecualización Estática de Usuario (31 Bandas ISO) - Preferencias tonales del jugador
-    impl_->equalizer.process(channelPointers, postSpatialCh, numSamples);
-
-    // 6.3. Ducking Inverso Anti-Disparos (+6 dB pasos a 3.8 kHz) - Realce dinámico táctico
-    impl_->parametricEq.processDynamic(channelPointers, postSpatialCh, numSamples);
-
-
-
-
-    // 7. Limitador de Picos de Muestra Exacta (-0.5 dBFS)
-    impl_->limiter.process(channelPointers, postSpatialCh, numSamples);
+    // 3. Sample Peak Limiter (-0.5 dBFS) de latencia cero
+    impl_->limiter.process(channelPointers, safeCh, numSamples);
 }
 
 void AudioGraph::process(float* buffer, int numSamples) noexcept
@@ -285,41 +162,6 @@ void AudioGraph::process(std::vector<float>& buffer) noexcept
         return;
 
     process(buffer.data(), static_cast<int>(buffer.size()));
-}
-
-float AudioGraph::getLufs() const noexcept
-{
-    return impl_->dynamics.getCurrentLufs();
-}
-
-float AudioGraph::getDynamicsGainDb() const noexcept
-{
-    return impl_->dynamics.getCurrentGainDb();
-}
-
-float AudioGraph::getTransientReductionDb() const noexcept
-{
-    return impl_->transient.getLastReductionDb();
-}
-
-float AudioGraph::getAmbienceGainDb() const noexcept
-{
-    return impl_->ambience.getCurrentGainDb();
-}
-
-float AudioGraph::getStationarityIndex() const noexcept
-{
-    return impl_->ambience.getStationarityIndex();
-}
-
-bool AudioGraph::isSpatialActive() const noexcept
-{
-    return !impl_->params.spatial.bypass;
-}
-
-float AudioGraph::getDynamicFootstepBoostDb() const noexcept
-{
-    return impl_->parametricEq.getDynamicFootstepBoostDb();
 }
 
 float AudioGraph::getLimiterReductionDb() const noexcept

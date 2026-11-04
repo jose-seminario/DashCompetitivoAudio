@@ -6,15 +6,12 @@ namespace dash::ui
 {
 
 /**
- * Tema Visual Táctico Profesional (DashLookAndFeel).
+ * Tema Visual Táctico Estilo Consola de Audio (DashLookAndFeel).
  *
- * Basado en la estética Soft Dark / Neon Coral Capsule:
- *  - Paleta Slate carbón mate (#1E2026, #16181D)
- *  - Degradado Coral Neón / Sunset Red (#FF5C6C -> #FF384D)
- *  - Faders verticales y horizontales en cápsula con perilla 3D
- *  - Switches toggle tipo pastilla/cápsula moderna
- *  - Botones y campos de búsqueda redondeados (pill shape)
- *  - Tipografía minimalista basada en Segoe UI
+ * Diseñado específicamente para el Ecualizador Táctico Estéreo de 6 Bandas:
+ *  - Faders verticales de consola de mezcla (carril oscuro hundido, marcas de nivel en dB,
+ *    barra de neón luminosa y capuchón táctil con línea central).
+ *  - Pestañas limpias de alto contraste ("ECUALIZADOR" y "AJUSTES").
  */
 class DashLookAndFeel : public juce::LookAndFeel_V4
 {
@@ -22,24 +19,19 @@ public:
     DashLookAndFeel();
     ~DashLookAndFeel() override = default;
 
-    // Colores semánticos del sistema (Paleta Soft Dark / Neon Coral de referencia)
-    static inline const juce::Colour kBgDark          { 0xff1e2026 }; // Fondo de ventana carbón mate
-    static inline const juce::Colour kBgCard          { 0xff16181d }; // Fondo de tarjetas oscuras
-    static inline const juce::Colour kBgCardElevated  { 0xff252831 }; // Fondo elevado / faders / inputs
-    static inline const juce::Colour kBorderSubtle    { 0xff2e323c }; // Bordes sutiles
-    static inline const juce::Colour kBorderFocus     { 0xffff4d61 }; // Borde activo en coral
-    static inline const juce::Colour kTextMain        { 0xffffffff }; // Texto blanco primario
-    static inline const juce::Colour kTextMuted       { 0xff8e95a5 }; // Texto gris secundario
-    static inline const juce::Colour kAccentCoral     { 0xffff384d }; // Rojo coral / Sunset primario
-    static inline const juce::Colour kAccentCoralLight{ 0xffff5c6c }; // Coral brillante superior
-    static inline const juce::Colour kAccentCyan      { 0xff06b6d4 }; // Acento cian táctico secundario
-    static inline const juce::Colour kAccentBlue      { 0xff0284c7 }; // Acento azul
-    static inline const juce::Colour kSuccessEmerald  { 0xff10b981 }; // Éxito / Activo
-    static inline const juce::Colour kWarningAmber    { 0xfff59e0b }; // Alerta / Advertencia
-    static inline const juce::Colour kDangerCrimson   { 0xffef4444 }; // Peligro / Bypass
-    static inline const juce::Colour kPillWhite       { 0xffffffff }; // Blanco cápsula
-    static inline const juce::Colour kPillTrackLight  { 0xffe2e5ec }; // Pista clara para faders
-    static inline const juce::Colour kPillTrackDark   { 0xff272a33 }; // Pista oscura para faders
+    static inline const juce::Colour kBgDark          { 0xff12141a }; // Fondo principal consola oscura
+    static inline const juce::Colour kBgCard          { 0xff191c24 }; // Panel de canal / tarjeta
+    static inline const juce::Colour kBgCardElevated  { 0xff222733 }; // Controles elevados
+    static inline const juce::Colour kSlotRecessed    { 0xff0b0d12 }; // Carril hundido del fader
+    static inline const juce::Colour kBorderSubtle    { 0xff2c3240 }; // Bordes sutiles
+    static inline const juce::Colour kBorderFocus     { 0xff06b6d4 }; // Borde activo neón cian
+    static inline const juce::Colour kTextMain        { 0xfff3f4f6 }; // Texto blanco nítido
+    static inline const juce::Colour kTextMuted       { 0xff8b93a7 }; // Texto secundario técnico
+    static inline const juce::Colour kAccentCyan      { 0xff06b6d4 }; // Neón cian primario
+    static inline const juce::Colour kAccentCyanGlow  { 0xff22d3ee }; // Neón cian brillante
+    static inline const juce::Colour kAccentCoral     { 0xffff384d }; // Neón coral (atenuación / bypass)
+    static inline const juce::Colour kAccentCoralLight{ 0xffff5c6c }; // Coral luminoso
+    static inline const juce::Colour kSuccessEmerald  { 0xff10b981 }; // Estado activo
 
     void drawLinearSlider(
         juce::Graphics& g,
@@ -48,14 +40,6 @@ public:
         float minSliderPos,
         float maxSliderPos,
         juce::Slider::SliderStyle style,
-        juce::Slider& slider) override;
-
-    void drawRotarySlider(
-        juce::Graphics& g,
-        int x, int y, int width, int height,
-        float sliderPosProportional,
-        float rotaryStartAngle,
-        float rotaryEndAngle,
         juce::Slider& slider) override;
 
     void drawToggleButton(
@@ -91,6 +75,20 @@ public:
         const juce::String& shortcutKeyText,
         const juce::Drawable* icon,
         const juce::Colour* textColour) override;
+
+    void drawTabButton(
+        juce::TabBarButton& button,
+        juce::Graphics& g,
+        bool isMouseOver,
+        bool isMouseDown) override;
+
+    int getTabButtonBestWidth(juce::TabBarButton& button, int tabDepth) override;
+
+    void drawTabAreaBehindFrontButton(
+        juce::TabbedButtonBar& bar,
+        juce::Graphics& g,
+        int w,
+        int h) override;
 
     juce::Font getTextButtonFont(juce::TextButton& button, int buttonHeight) override;
     juce::Font getTabButtonFont(juce::TabBarButton& button, float height) override;

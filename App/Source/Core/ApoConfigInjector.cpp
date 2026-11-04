@@ -1,13 +1,12 @@
 #include "ApoConfigInjector.h"
-#include <DashAudioCore/EQProcessor.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstdlib>
 #include <fstream>
 #include <iomanip>
 #include <sstream>
-#include <utility>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -18,15 +17,7 @@ namespace dash::audio
 
 namespace
 {
-    std::string formatFixed6(double value)
-    {
-        std::ostringstream oss;
-        oss.imbue(std::locale::classic());
-        oss << std::fixed << std::setprecision(6) << value;
-        return oss.str();
-    }
-
-    std::string formatCompact(double value, int maxDecimals = 6)
+    std::string formatCompact(double value, int maxDecimals = 2)
     {
         std::ostringstream oss;
         oss.imbue(std::locale::classic());
@@ -44,6 +35,18 @@ namespace
         if (str == "-0" || str.empty())
             return "0";
         return str;
+    }
+
+    const char* apoFilterTypeCode(dash::core::ParametricFilterType type) noexcept
+    {
+        using dash::core::ParametricFilterType;
+        switch (type)
+        {
+            case ParametricFilterType::LowShelf:  return "LS";
+            case ParametricFilterType::HighShelf: return "HS";
+            case ParametricFilterType::Peaking:
+            default:                              return "PK";
+        }
     }
 
 #ifdef _WIN32
@@ -136,114 +139,44 @@ std::filesystem::path ApoConfigInjector::getDefaultApoConfigPath()
     return baseDir / "EqualizerAPO" / "config" / "config.txt";
 }
 
-std::string ApoConfigInjector::resolveHeSuViIncludePath(
-    const std::filesystem::path& configFilePath,
-    const std::string& customOverride)
-{
-    if (!customOverride.empty())
-        return customOverride;
-
-    std::error_code ec;
-    const std::filesystem::path effectiveConfig = configFilePath.empty()
-        ? getDefaultApoConfigPath()
-        : configFilePath;
-
-    const auto configDir = effectiveConfig.parent_path();
-
-    // 1. Ruta estándar relativa a <EqualizerAPO>\config\: "HeSuVi\hesuvi.txt"
-    if (!configDir.empty() && std::filesystem::exists(configDir / "HeSuVi" / "hesuvi.txt", ec))
-        return kDefaultHeSuViInclude;
-
-    // 2. Búsqueda dinámica en %LOCALAPPDATA%\DashCompetitivoAudio\HeSuVi\hesuvi.txt (fallback empaquetado)
-#ifdef _WIN32
-    char* localAppData = nullptr;
-    size_t len = 0;
-    if (_dupenv_s(&localAppData, &len, "LOCALAPPDATA") == 0 && localAppData != nullptr)
-    {
-        const std::filesystem::path localHeSuVi =
-            std::filesystem::path(localAppData) / "DashCompetitivoAudio" / "HeSuVi" / "hesuvi.txt";
-        std::free(localAppData);
-
-        if (std::filesystem::exists(localHeSuVi, ec))
-            return localHeSuVi.string();
-    }
-
-    const auto regDir = queryEqualizerApoRegistryDir();
-    if (!regDir.empty())
-    {
-        const auto regHeSuVi = regDir / "config" / "HeSuVi" / "hesuvi.txt";
-        if (std::filesystem::exists(regHeSuVi, ec))
-        {
-            if (regDir / "config" == configDir)
-                return kDefaultHeSuViInclude;
-            return regHeSuVi.string();
-        }
-    }
-#endif
-
-    // Por defecto emite siempre la directiva estándar "Include: HeSuVi\hesuvi.txt"
-    return kDefaultHeSuViInclude;
-}
-
-std::string ApoConfigInjector::buildGraphicEqDirective(double footstepsDb, double bassDb)
-{
-    if (std::abs(footstepsDb - 1.6) < 1.0e-4 && std::abs(bassDb - 1.5) < 1.0e-4)
-        return kTacticalGraphicEq;
-
-    const auto gains = dash::core::EQProcessor::computeBandGainsDb(footstepsDb, bassDb);
-
-    std::ostringstream out;
-    out.imbue(std::locale::classic());
-    out << "GraphicEQ: ";
-
-    for (size_t i = 0; i < dash::core::EQProcessor::kNumBands; ++i)
-    {
-        if (i > 0)
-            out << "; ";
-        out << dash::core::EQProcessor::kIsoFrequencyLabels[i] << " " << formatCompact(gains[i], 2);
-    }
-
-    return out.str();
-}
-
 std::string ApoConfigInjector::buildConfigContent(
     const ApoChainConfig& config,
-    const std::filesystem::path& targetConfigFilePath)
+    const std::filesystem::path& /*targetConfigFilePath*/)
 {
     std::ostringstream out;
     out.imbue(std::locale::classic());
 
-    out << "# DASH_COMPETITIVO_AUDIO_GRAPH: v1.0 (" << config.profileName << ")\r\n";
+    out << "# DASH_COMPETITIVO_AUDIO_STEREO_EQ_6BANDS\r\n";
 
     if (!config.targetEndpointGuid.empty())
     {
         out << "Device: " << config.targetEndpointGuid << "\r\n";
     }
 
-    // 1. Ganancia Previa (Headroom anti-clipping)
-    out << "Preamp: " << formatCompact(config.preampDb) << " dB\r\n";
+    const double effectivePreamp = config.bypass
+        ? 0.0
+        : std::clamp(config.preampDb, -12.0, 12.0);
+    out << "Preamp: " << formatCompact(effectivePreamp) << " dB\r\n";
 
-    // Nota de Arquitectura: Los procesadores dinámicos, de transitorios y espaciales
-    // se ejecutan nativamente en la aplicación C++ mediante el backend WASAPI Full-Duplex.
-    // Equalizer APO se reserva exclusivamente para Preamp, Ecualización Gráfica y HeSuVi.
+    const auto defaults = dash::core::ParametricEQProcessor::getDefaultBands();
+    const char* stateToken = config.bypass ? "OFF" : "ON";
 
-    // 2. Ecualización Gráfica Acústica de 31 Bandas
-    if (config.enableGraphicEq)
+    for (size_t i = 0; i < dash::core::ParametricEQProcessor::kMaxBands; ++i)
     {
-        out << buildGraphicEqDirective(config.footstepsEqDb, config.bassEqDb) << "\r\n";
-    }
+        const auto& band = defaults[i];
+        const double gainDb = std::clamp(config.bandGainsDb[i], -12.0, 12.0);
+        const char* typeCode = apoFilterTypeCode(band.type);
 
-    // 3. Virtualización Binaural Convolutiva HRIR (7.1 -> Estéreo vía HeSuVi)
-    if (config.enableHeSuVi)
-    {
-        const std::string hesuviInclude = resolveHeSuViIncludePath(targetConfigFilePath, config.hesuviIncludePath);
-        out << "Include: " << hesuviInclude << "\r\n";
-    }
-    else
-    {
-        // Plegado Estéreo 7.1 de Respaldo: garantiza que canales traseros (RL, RR) y laterales (SL, SR)
-        // se sumen a la salida estéreo si HeSuVi está inactivo.
-        out << "Copy: L=L+0.15*R+0.7071*C+1.0*SL+0.25*SR+0.85*RL+0.40*RR R=R+0.15*L+0.7071*C+1.0*SR+0.25*SL+0.85*RR+0.40*RL\r\n";
+        out << "Filter " << (i + 1) << ": " << stateToken << " " << typeCode
+            << " Fc " << formatCompact(static_cast<double>(band.frequencyHz), 1) << " Hz"
+            << " Gain " << formatCompact(gainDb, 2) << " dB";
+
+        if (band.type == dash::core::ParametricFilterType::Peaking)
+        {
+            out << " Q " << formatCompact(static_cast<double>(band.q), 3);
+        }
+
+        out << "\r\n";
     }
 
     return out.str();

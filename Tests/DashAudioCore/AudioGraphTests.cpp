@@ -1,23 +1,11 @@
 /**
- * DashCompetitivoAudio - Suite de Pruebas Unitarias para AudioGraph
- *
- * Cobertura de pruebas preparadas:
- *  1. Cadena Canónica Completa: Procesamiento secuencial sin cuelgues ni NaN.
- *  2. Margen Dinámico Headroom (-6 dB inicial): Señal a 1.0 atenuada a 0.5 antes de los bloques no lineales.
- *  3. Modo Bypass Global: Identidad binaria muestra a muestra.
- *  4. Compatibilidad Multicanal: Pruebas con 1 canal (Mono), 2 (Estéreo), 6 (5.1) y 8 (7.1).
- *  5. Variación de Sample Rates: 44.1 kHz, 48 kHz, 88.2 kHz, 96 kHz y 192 kHz.
- *  6. Variación de Tamaños de Bloque: 32, 64, 128, 256, 512, 1024 y 2048 muestras.
- *  7. Telemetría de Todos los Procesadores: Verificación de lecturas coherentes de LUFS y reducciones.
- *
- * NOTA: Archivo de solo lectura/preparación; no se ejecuta en la terminal.
+ * DashCompetitivoAudio - Suite de Pruebas Unitarias para AudioGraph (Estéreo 6 Bandas + Limitador)
  */
 
 #include <DashAudioCore/AudioGraph.h>
 
 #include <cassert>
 #include <cmath>
-#include <cstdio>
 #include <vector>
 
 namespace dash::test
@@ -37,7 +25,7 @@ namespace
         return true;
     }
 
-    std::vector<float> generateSineWave(float freqHz, double sampleRate, size_t numSamples, float amp = 0.5f)
+    std::vector<float> generateSineWave(float freqHz, double sampleRate, size_t numSamples, float amp = 0.25f)
     {
         std::vector<float> buffer(numSamples);
         const float phaseInc = 2.0f * kPi * freqHz / static_cast<float>(sampleRate);
@@ -49,42 +37,106 @@ namespace
         }
         return buffer;
     }
+
+    float computeRms(const float* data, size_t size)
+    {
+        double sum = 0.0;
+        for (size_t i = 0; i < size; ++i)
+            sum += static_cast<double>(data[i] * data[i]);
+        return static_cast<float>(std::sqrt(sum / static_cast<double>(size)));
+    }
 } // namespace
 
-void testAudioGraphFullProcessing()
+void testAudioGraphStereoSixBandProcessing()
 {
     dash::core::AudioGraph graph;
     graph.prepare(48000.0, 512, 2);
 
     dash::core::AudioGraphParameters params;
-    params.headroomDb = -6.0f;
-    params.bypassAll  = false;
+    params.preampDb = 0.0f;
+    params.bandGainsDb = { -2.0f, -1.0f, 0.0f, 4.5f, 5.5f, -3.0f };
+    params.bypassAll = false;
     graph.updateParameters(params);
 
-    auto left  = generateSineWave(1000.0f, 48000.0, 2048, 0.4f);
-    auto right = generateSineWave(1000.0f, 48000.0, 2048, 0.4f);
-    float* channels[2] = { left.data(), right.data() };
+    // Tono en la banda de Pasos Medios (1500 Hz) debe realzarse limpiamente en estéreo
+    auto left  = generateSineWave(1500.0f, 48000.0, 2048, 0.2f);
+    auto right = generateSineWave(1500.0f, 48000.0, 2048, 0.2f);
+    const float inRms = computeRms(left.data() + 512, left.size() - 512);
 
+    float* channels[2] = { left.data(), right.data() };
     graph.process(channels, 2, 2048);
 
     assert(isFiniteBuffer(left.data(), 2048));
     assert(isFiniteBuffer(right.data(), 2048));
-    assert(graph.getLufs() > -50.0f);
+
+    const float outRmsL = computeRms(left.data() + 512, left.size() - 512);
+    const float outRmsR = computeRms(right.data() + 512, right.size() - 512);
+    assert(outRmsL > inRms * 1.4f);
+    assert(outRmsR > inRms * 1.4f);
+}
+
+void testAudioGraphStereoChannelIsolation()
+{
+    dash::core::AudioGraph graph;
+    graph.prepare(48000.0, 512, 2);
+    graph.setBandGainDb(4, 6.0f); // Pasos Agudos 3500 Hz
+
+    auto left = generateSineWave(3500.0f, 48000.0, 1024, 0.2f);
+    std::vector<float> right(1024, 0.0f);
+    float* channels[2] = { left.data(), right.data() };
+
+    graph.process(channels, 2, 1024);
+
+    // Sin 3D ni crossfeed: el canal opuesto permanece 100% independiente
+    for (float s : right)
+        assert(std::abs(s) < 1.0e-7f);
+}
+
+void testAudioGraphLimiterProtection()
+{
+    dash::core::AudioGraph graph;
+    graph.prepare(48000.0, 512, 2);
+
+    graph.setPreampDb(12.0f);
+    graph.setBandGainDb(3, 12.0f);
+
+    auto left  = generateSineWave(1500.0f, 48000.0, 2048, 0.8f);
+    auto right = generateSineWave(1500.0f, 48000.0, 2048, 0.8f);
+    float* channels[2] = { left.data(), right.data() };
+
+    graph.process(channels, 2, 2048);
+
+    // El LimiterProcessor (-0.5 dBFS ~= 0.944061 lineal) impide el clipping digital
+    constexpr float kCeilingLin = 0.944062f;
+    for (size_t i = 0; i < 2048; ++i)
+    {
+        assert(std::abs(left[i])  <= kCeilingLin + 1.0e-5f);
+        assert(std::abs(right[i]) <= kCeilingLin + 1.0e-5f);
+    }
+    assert(graph.getLimiterReductionDb() < -1.0f);
 }
 
 void testAudioGraphBypassAll()
 {
     dash::core::AudioGraph graph;
-    graph.prepare(48000.0, 512, 1);
+    graph.prepare(48000.0, 512, 2);
+    graph.setPreampDb(6.0f);
+    graph.setBandGainDb(0, 6.0f);
     graph.setBypass(true);
 
-    auto signal = generateSineWave(1000.0f, 48000.0, 1024, 0.7f);
-    auto copy   = signal;
+    auto left  = generateSineWave(1000.0f, 48000.0, 1024, 0.7f);
+    auto right = generateSineWave(2000.0f, 48000.0, 1024, 0.5f);
+    const auto copyL = left;
+    const auto copyR = right;
 
-    graph.process(signal.data(), 1024);
+    float* channels[2] = { left.data(), right.data() };
+    graph.process(channels, 2, 1024);
 
     for (size_t i = 0; i < 1024; ++i)
-        assert(std::abs(signal[i] - copy[i]) < 1.0e-7f);
+    {
+        assert(std::abs(left[i]  - copyL[i]) < 1.0e-7f);
+        assert(std::abs(right[i] - copyR[i]) < 1.0e-7f);
+    }
 }
 
 void testAudioGraphSampleRateAndBlockSizeVariations()
@@ -98,102 +150,19 @@ void testAudioGraphSampleRateAndBlockSizeVariations()
         for (int bs : blockSizes)
         {
             graph.prepare(sr, bs, 2);
-            std::vector<float> l(bs, 0.1f);
-            std::vector<float> r(bs, 0.1f);
+            graph.setBandGainDb(1, 3.0f);
+            graph.setBandGainDb(4, 4.0f);
+
+            std::vector<float> l(static_cast<size_t>(bs), 0.1f);
+            std::vector<float> r(static_cast<size_t>(bs), 0.1f);
             float* chs[2] = { l.data(), r.data() };
 
             graph.process(chs, 2, bs);
 
-            assert(isFiniteBuffer(l.data(), bs));
-            assert(isFiniteBuffer(r.data(), bs));
+            assert(isFiniteBuffer(l.data(), static_cast<size_t>(bs)));
+            assert(isFiniteBuffer(r.data(), static_cast<size_t>(bs)));
         }
     }
-}
-
-void testAudioGraphMultichannelSurround()
-{
-    dash::core::AudioGraph graph;
-    graph.prepare(48000.0, 512, 8); // 7.1 Surround
-
-    std::vector<std::vector<float>> channels(8, std::vector<float>(512, 0.2f));
-    std::vector<float*> pointers(8);
-    for (size_t i = 0; i < 8; ++i)
-        pointers[i] = channels[i].data();
-
-    graph.process(pointers.data(), 8, 512);
-
-    for (size_t i = 0; i < 8; ++i)
-        assert(isFiniteBuffer(channels[i].data(), 512));
-}
-
-void testAudioGraph16ChannelsImmersive()
-{
-    dash::core::AudioGraph graph;
-    graph.prepare(48000.0, 512, 16); // 9.1.6 Inmersivo (16 canales)
-
-    std::vector<std::vector<float>> channels(16);
-    for (size_t i = 0; i < 16; ++i)
-        channels[i] = generateSineWave(1000.0f, 48000.0, 512, 0.2f);
-    std::vector<float*> pointers(16);
-    for (size_t i = 0; i < 16; ++i)
-        pointers[i] = channels[i].data();
-
-    graph.process(pointers.data(), 16, 512);
-
-    for (size_t i = 0; i < 16; ++i)
-        assert(isFiniteBuffer(channels[i].data(), 512));
-
-    // Tras el procesamiento espacial de la cadena, los canales L y R frontales contienen la mezcla activa
-    float maxEnergyL = 0.0f;
-    float maxEnergyR = 0.0f;
-    for (size_t i = 0; i < 512; ++i)
-    {
-        maxEnergyL = std::max(maxEnergyL, std::abs(channels[0][i]));
-        maxEnergyR = std::max(maxEnergyR, std::abs(channels[1][i]));
-    }
-    assert(maxEnergyL > 0.01f);
-    assert(maxEnergyR > 0.01f);
-}
-
-void testAudioGraphDynamicGunshotFootstepBoost()
-{
-    dash::core::AudioGraph graph;
-    graph.prepare(48000.0, 512, 2);
-
-    dash::core::AudioGraphParameters params;
-    params.headroomDb = 0.0f;
-    params.transient.gun = 0.85f; // Alta atenuación ante disparos
-    graph.updateParameters(params);
-
-    // 1. Antes de disparo, la ganancia de ducking inverso debe ser 0.0 dB
-    assert(graph.getDynamicFootstepBoostDb() < 0.1f);
-
-    // 2. Simular un disparo impulsivo fuerte (crack de alta frecuencia y amplitud 0.9f)
-    std::vector<float> gunshotL(512, 0.0f);
-    std::vector<float> gunshotR(512, 0.0f);
-    for (size_t i = 0; i < 64; ++i)
-    {
-        const float val = ((i % 2 == 0) ? 0.9f : -0.9f);
-        gunshotL[i] = val;
-        gunshotR[i] = val;
-    }
-    float* gunshotPtrs[2] = { gunshotL.data(), gunshotR.data() };
-
-    graph.process(gunshotPtrs, 2, 512);
-
-    // 3. Tras el transitorio severo, TransientProcessor detecta el disparo y activa el boost en ParametricEQ
-    const float boostDb = graph.getDynamicFootstepBoostDb();
-    if (boostDb <= 0.5f)
-    {
-        const bool processInvoked = (boostDb > 0.01f);
-        std::fprintf(stderr, "\n[FAILURE DIAGNOSTIC AudioGraphTests line 184]\n");
-        std::fprintf(stderr, "  graph.getDynamicFootstepBoostDb() = %.4f dB (expected > 0.5f dB)\n", boostDb);
-        std::fprintf(stderr, "  Simulated gunshot: amplitude = 0.9f, duration = 64 samples (alternating +-0.9f crack)\n");
-        std::fprintf(stderr, "  Inverse ducking parameters: target = +6.0 dB, duration = 300 ms, band = 3800 Hz peaking\n");
-        std::fprintf(stderr, "  parametricEq.processDynamic() active in block: %s\n\n", processInvoked ? "true" : "false");
-    }
-
-    assert(boostDb > 0.5f);
 }
 
 } // namespace dash::test

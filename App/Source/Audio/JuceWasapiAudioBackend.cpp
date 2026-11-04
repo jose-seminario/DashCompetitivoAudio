@@ -1,4 +1,6 @@
 #include "JuceWasapiAudioBackend.h"
+
+#include <algorithm>
 #include <cstring>
 
 namespace dash::audio
@@ -46,7 +48,7 @@ std::vector<AudioDeviceInfo> JuceWasapiAudioBackend::enumerateRenderDevices(std:
     if (auto* type = deviceManager_.getCurrentDeviceTypeObject())
     {
         type->scanForDevices();
-        const auto names = type->getDeviceNames(false); // false = salida (render)
+        const auto names = type->getDeviceNames(false);
         const int defaultIdx = type->getDefaultDeviceIndex(false);
 
         for (int i = 0; i < names.size(); ++i)
@@ -71,7 +73,7 @@ std::vector<AudioDeviceInfo> JuceWasapiAudioBackend::enumerateCaptureDevices(std
     if (auto* type = deviceManager_.getCurrentDeviceTypeObject())
     {
         type->scanForDevices();
-        const auto names = type->getDeviceNames(true); // true = entrada (capture)
+        const auto names = type->getDeviceNames(true);
         const int defaultIdx = type->getDefaultDeviceIndex(true);
 
         for (int i = 0; i < names.size(); ++i)
@@ -133,13 +135,11 @@ bool JuceWasapiAudioBackend::start(
         }
     }
 
-    // Si no se encontró por nombre o el target era un GUID o un cable virtual,
-    // seleccionar el primer dispositivo físico real (auriculares/altavoces no-cable)
-    if (chosenOutputName.isEmpty() || chosenOutputName.containsIgnoreCase("cable"))
+    if (chosenOutputName.isEmpty())
     {
         for (const auto& dev : renderDevs)
         {
-            if (!dev.isVirtualCable && dev.friendlyName.find(L"CABLE") == std::wstring::npos)
+            if (dev.isDefault && !dev.isVirtualCable)
             {
                 chosenOutputName = juce::String(dev.friendlyName.c_str());
                 break;
@@ -193,12 +193,15 @@ bool JuceWasapiAudioBackend::start(
 
     setup.sampleRate = config.sampleRate > 0.0 ? config.sampleRate : 48000.0;
     setup.bufferSize = config.bufferSize > 0 ? config.bufferSize : 512;
-    const int numInChannels = config.numInputChannels > 0 ? config.numInputChannels : 2;
-    const int numOutChannels = config.numChannels > 0 ? config.numChannels : 2;
+    const int numInChannels  = std::clamp(config.numInputChannels > 0 ? config.numInputChannels : 2, 0, kMaxIntermediateChannels);
+    const int numOutChannels = std::clamp(config.numChannels > 0 ? config.numChannels : 2, 1, kMaxIntermediateChannels);
 
-    setup.useDefaultInputChannels = true;
+    setup.useDefaultInputChannels = (numInChannels > 0);
     setup.useDefaultOutputChannels = true;
-    setup.inputChannels.setRange(0, numInChannels, true);
+    setup.inputChannels.clear();
+    setup.outputChannels.clear();
+    if (numInChannels > 0)
+        setup.inputChannels.setRange(0, numInChannels, true);
     setup.outputChannels.setRange(0, numOutChannels, true);
 
     auto err = deviceManager_.initialise(
@@ -209,23 +212,7 @@ bool JuceWasapiAudioBackend::start(
         setup.outputDeviceName,
         &setup);
 
-    // Si falla con numInChannels (ej. CABLE Output configurado en 2 canales en Windows),
-    // intentar con 2 canales estéreo de entrada para garantizar que el audio se capture
-    if (err.isNotEmpty() && numInChannels > 2)
-    {
-        setup.inputChannels.clear();
-        setup.inputChannels.setRange(0, 2, true);
-        err = deviceManager_.initialise(
-            2,
-            numOutChannels,
-            nullptr,
-            true,
-            setup.outputDeviceName,
-            &setup);
-    }
-
-    // Fallback gracioso: si el dispositivo de entrada no está disponible (ej. sin cable virtual instalado),
-    // inicializar sólo dispositivo de salida para garantizar continuidad.
+    // Fallback a solo salida estéreo si no hay dispositivo de captura disponible
     if (err.isNotEmpty() && numInChannels > 0)
     {
         setup.inputDeviceName.clear();
@@ -267,7 +254,7 @@ bool JuceWasapiAudioBackend::start(
     {
         std::lock_guard<std::mutex> lock(callbackMutex_);
         if (stateCallback_)
-            stateCallback_(AudioBackendState::Running, "WASAPI audio stream iniciado correctamente.");
+            stateCallback_(AudioBackendState::Running, "WASAPI estéreo iniciado correctamente.");
     }
     return true;
 }
@@ -350,7 +337,6 @@ void JuceWasapiAudioBackend::audioDeviceIOCallbackWithContext(
 
     const int activeChannels = std::clamp(std::max(numInputChannels, numOutputChannels), 1, kMaxIntermediateChannels);
 
-    // 1. Cargar canales de entrada al buffer intermedio de hasta 16 canales
     for (int ch = 0; ch < activeChannels; ++ch)
     {
         float* dst = scratchChannelPointers_[static_cast<size_t>(ch)];
@@ -367,7 +353,6 @@ void JuceWasapiAudioBackend::audioDeviceIOCallbackWithContext(
         }
     }
 
-    // 2. Si está en bypass, pasar directo a la salida física sin procesar
     if (isBypassed_.load(std::memory_order_relaxed))
     {
         for (int ch = 0; ch < numOutputChannels; ++ch)
@@ -383,13 +368,11 @@ void JuceWasapiAudioBackend::audioDeviceIOCallbackWithContext(
         return;
     }
 
-    // 3. Procesamiento en tiempo real con todos los canales multicanal disponibles
     if (processCallback_)
     {
         processCallback_(scratchChannelPointers_.data(), activeChannels, numSamples);
     }
 
-    // 4. Transferir la mezcla final procesada a los canales físicos de salida (ej. auriculares estéreo)
     for (int ch = 0; ch < numOutputChannels; ++ch)
     {
         if (outputChannelData[ch] != nullptr)

@@ -8,32 +8,15 @@ target_sources(DashAudioTests
     PRIVATE
         TestRunnerMain.cpp
 
-        # 1. DashAudioCore Unit Tests
-        DashAudioCore/DynamicsProcessorTests.cpp
-        DashAudioCore/TransientProcessorTests.cpp
-        DashAudioCore/AmbienceProcessorTests.cpp
+        # 1. DashAudioCore Unit Tests (Estéreo 6 Bandas + Limitador)
         DashAudioCore/EQProcessorTests.cpp
         DashAudioCore/LimiterProcessorTests.cpp
         DashAudioCore/AudioGraphTests.cpp
 
-        # 2. DashAudioSpatial Unit Tests
-        DashAudioSpatial/ChannelLayoutTests.cpp
-        DashAudioSpatial/BinauralRendererTests.cpp
-        DashAudioSpatial/ConvolutionTests.cpp
-
-        # 3. Profiles & Security Unit Tests
-        Profiles/ProfileValidatorTests.cpp
-        Profiles/ProfileSerializerTests.cpp
-        Profiles/ProfileMigratorTests.cpp
-
-        # 4. Windows APO Integration Unit Tests
+        # 2. Windows Equalizer APO Integration Unit Tests
         App/ApoConfigManagerTests.cpp
 
         # Unidades desacopladas de App bajo prueba (sin dependencias GUI)
-        "${CMAKE_SOURCE_DIR}/App/Source/Profiles/AudioProfile.cpp"
-        "${CMAKE_SOURCE_DIR}/App/Source/Profiles/ProfileValidator.cpp"
-        "${CMAKE_SOURCE_DIR}/App/Source/Profiles/ProfileSerializer.cpp"
-        "${CMAKE_SOURCE_DIR}/App/Source/Profiles/ProfileMigrator.cpp"
         "${CMAKE_SOURCE_DIR}/App/Source/Core/ApoConfigInjector.cpp"
         "${CMAKE_SOURCE_DIR}/App/Source/Core/ApoConfigManager.cpp"
         "${CMAKE_SOURCE_DIR}/App/Source/Core/AudioPolicyManager.cpp"
@@ -61,10 +44,8 @@ endif()
 target_link_libraries(DashAudioTests
     PRIVATE
         DashAudioCore
-        DashAudioSpatial
         juce::juce_core
         juce::juce_audio_basics
-        juce::juce_audio_formats
         juce::juce_dsp
         $<$<PLATFORM_ID:Windows>:advapi32 ole32 shell32 propsys>
     PUBLIC
@@ -72,20 +53,10 @@ target_link_libraries(DashAudioTests
         juce::juce_recommended_warning_flags
 )
 
-# Registro individual de las 13 suites en CTest
 set(DASH_TEST_SUITES
-    DynamicsProcessorTests
-    TransientProcessorTests
-    AmbienceProcessorTests
     EQProcessorTests
     LimiterProcessorTests
     AudioGraphTests
-    ChannelLayoutTests
-    BinauralRendererTests
-    ConvolutionTests
-    ProfileValidatorTests
-    ProfileSerializerTests
-    ProfileMigratorTests
     ApoConfigManagerTests
 )
 

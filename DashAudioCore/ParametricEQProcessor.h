@@ -29,21 +29,49 @@ enum class ParametricFilterType
 struct ParametricBandParameters
 {
     float frequencyHz          = 1000.0f; // [20.0 .. 20000.0 Hz]
-    float gainDb               = 0.0f;    // [-24.0 .. +24.0 dB] (solo para Peaking y Shelves)
-    float q                    = 0.7071f; // [0.1 .. 18.0] Factor de calidad / Resonancia
+    float gainDb               = 0.0f;    // [-12.0 .. +12.0 dB]
+    float q                    = 0.707f;  // [0.1 .. 18.0] Factor de calidad
     ParametricFilterType type  = ParametricFilterType::Peaking;
     bool  enabled              = true;
 };
 
 /**
- * Ecualizador Paramétrico Multicanal de Precisión (ParametricEQProcessor).
- * Soporta hasta 16 canales simultáneos (kMaxSupportedChannels = 16).
+ * Ecualizador Táctico Estéreo de 6 Bandas (ParametricEQProcessor).
+ *
+ * Bandas configuradas por defecto:
+ *  - Banda 0 (Sub-Bajos):    LowShelf  60 Hz   (Q = 0.707)
+ *  - Banda 1 (Bajos):        LowShelf  150 Hz  (Q = 0.707)
+ *  - Banda 2 (Cuerpo):       Peaking   400 Hz  (Q = 1.0)
+ *  - Banda 3 (Pasos Medios): Peaking   1500 Hz (Q = 1.2)
+ *  - Banda 4 (Pasos Agudos): Peaking   3500 Hz (Q = 1.2)
+ *  - Banda 5 (Disparos):     HighShelf 8000 Hz (Q = 0.707)
  */
 class ParametricEQProcessor
 {
 public:
-    static constexpr size_t kMaxBands    = 10;
+    static constexpr size_t kMaxBands    = 6;
     static constexpr size_t kMaxChannels = kMaxSupportedChannels;
+
+    static constexpr std::array<const char*, kMaxBands> kBandNames {
+        "Sub-Bajos",
+        "Bajos",
+        "Cuerpo",
+        "Pasos Medios",
+        "Pasos Agudos",
+        "Disparos"
+    };
+
+    [[nodiscard]] static constexpr std::array<ParametricBandParameters, kMaxBands> getDefaultBands() noexcept
+    {
+        return {{
+            { 60.0f,   0.0f, 0.707f, ParametricFilterType::LowShelf,  true },
+            { 150.0f,  0.0f, 0.707f, ParametricFilterType::LowShelf,  true },
+            { 400.0f,  0.0f, 1.0f,   ParametricFilterType::Peaking,   true },
+            { 1500.0f, 0.0f, 1.2f,   ParametricFilterType::Peaking,   true },
+            { 3500.0f, 0.0f, 1.2f,   ParametricFilterType::Peaking,   true },
+            { 8000.0f, 0.0f, 0.707f, ParametricFilterType::HighShelf, true }
+        }};
+    }
 
     ParametricEQProcessor();
     ~ParametricEQProcessor();
@@ -56,33 +84,19 @@ public:
 
     void prepare(double sampleRate, int maximumBlockSize, int numChannels = 2);
     void reset() noexcept;
+    void resetBandsToDefaults() noexcept;
 
     void setBand(size_t bandIndex, const ParametricBandParameters& params) noexcept;
+    void setBandGainDb(size_t bandIndex, float gainDb) noexcept;
     [[nodiscard]] ParametricBandParameters getBand(size_t bandIndex) const noexcept;
 
     void setBypass(bool bypass) noexcept;
     [[nodiscard]] bool isBypassed() const noexcept;
 
-    /** Activa el realce dinámico temporal de frecuencias de pasos (Ducking Inverso Anti-Disparos). */
-    void triggerGunshotFootstepBoost(float boostDb = 6.0f, float durationMs = 300.0f) noexcept;
-    [[nodiscard]] float getDynamicFootstepBoostDb() const noexcept;
-    [[nodiscard]] bool isDynamicFootstepBoostActive() const noexcept;
-
-    /** Procesa solo las bandas paramétricas estáticas (AutoEQ). */
-    void processStatic(float* buffer, int numSamples) noexcept;
-    void processStatic(std::vector<float>& buffer) noexcept;
-    void processStatic(float* const* channelPointers, int numChannels, int numSamples) noexcept;
-
-    /** Procesa solo el Ducking Inverso dinámico anti-disparos (+6 dB pasos a 3.8 kHz). */
-    void processDynamic(float* buffer, int numSamples) noexcept;
-    void processDynamic(std::vector<float>& buffer) noexcept;
-    void processDynamic(float* const* channelPointers, int numChannels, int numSamples) noexcept;
-
-
-
-
-
-
+    /** Procesa las 6 bandas tácticas estáticas en estéreo (1 o 2 canales) sin asignaciones dinámicas. */
+    void process(float* buffer, int numSamples) noexcept;
+    void process(std::vector<float>& buffer) noexcept;
+    void process(float* const* channelPointers, int numChannels, int numSamples) noexcept;
 
 private:
     struct Impl;
