@@ -199,7 +199,7 @@ private:
 };
 
 // ==============================================================================
-// Pestaña 2: "AJUSTES" (Salida, Bypass, Telemetría y Auto-Configurar APO)
+// Pestaña 2: "AJUSTES" (Salida, Bypass, Telemetría, Auto-Configurar y Restaurar APO)
 // ==============================================================================
 class MainComponent::SettingsTabComponent final : public juce::Component
 {
@@ -207,6 +207,7 @@ public:
     std::function<void(int)>  onOutputDeviceSelected;
     std::function<void(bool)> onBypassToggled;
     std::function<void()>     onAutoConfigApoClicked;
+    std::function<void()>     onRestoreApoClicked;
 
     SettingsTabComponent()
     {
@@ -265,8 +266,15 @@ public:
         };
         addAndMakeVisible(autoConfigButton_);
 
+        restoreApoButton_.setButtonText(juce::String::fromUTF8("Restaurar APO Original"));
+        restoreApoButton_.onClick = [this] {
+            if (onRestoreApoClicked)
+                onRestoreApoClicked();
+        };
+        addAndMakeVisible(restoreApoButton_);
+
         autoConfigStatusLabel_.setText(
-            juce::String::fromUTF8("Escribe las 6 bandas tácticas y el Preamp directamente en config.txt de Equalizer APO."),
+            juce::String::fromUTF8("Escribe las 6 bandas tácticas en config.txt o restaura tu configuración original desde config.txt.bak."),
             juce::dontSendNotification);
         autoConfigStatusLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
         autoConfigStatusLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
@@ -352,7 +360,12 @@ public:
         auto c3 = cards_[3].reduced(18, 12);
         apoHeader_.setBounds(c3.removeFromTop(22));
         c3.removeFromTop(8);
-        autoConfigButton_.setBounds(c3.removeFromTop(36));
+        auto btnRow = c3.removeFromTop(36);
+        const int btnGap = 12;
+        const int btnW   = (btnRow.getWidth() - btnGap) / 2;
+        autoConfigButton_.setBounds(btnRow.removeFromLeft(btnW));
+        btnRow.removeFromLeft(btnGap);
+        restoreApoButton_.setBounds(btnRow);
         c3.removeFromTop(4);
         autoConfigStatusLabel_.setBounds(c3.removeFromTop(20));
     }
@@ -372,6 +385,7 @@ private:
 
     juce::Label        apoHeader_;
     juce::TextButton   autoConfigButton_;
+    juce::TextButton   restoreApoButton_;
     juce::Label        autoConfigStatusLabel_;
 };
 
@@ -538,12 +552,14 @@ MainComponent::MainComponent()
 {
     setLookAndFeel(&dashLookAndFeel_);
 
-    // 1. Inicializar parámetros estéreo y Limiter a -0.5 dBFS
+    // 1. Inicializar parámetros estéreo, cargar ajustes guardados y configurar Limiter a -0.5 dBFS
     graphParams_.preampDb = 0.0f;
     graphParams_.bandGainsDb.fill(0.0f);
     graphParams_.limiter.ceilingDb = dash::core::kLimiterCeilingDb;
     graphParams_.limiter.bypass    = false;
     graphParams_.bypassAll         = false;
+
+    loadPersistedSettings();
 
     audioGraph_ = std::make_unique<dash::core::AudioGraph>();
     audioGraph_->prepare(kDefaultSampleRate, kDefaultBufferSize, 2);
@@ -552,9 +568,13 @@ MainComponent::MainComponent()
     audioBackend_ = std::make_unique<dash::audio::JuceWasapiAudioBackend>();
     audioBackend_->initialize();
 
-    // 2. Construir pestañas de la interfaz
+    // 2. Construir pestañas de la interfaz y aplicar estado persistente cargado
     equalizerTab_ = std::make_unique<EqualizerTabComponent>();
     settingsTab_  = std::make_unique<SettingsTabComponent>();
+
+    equalizerTab_->setValues(graphParams_.preampDb, graphParams_.bandGainsDb);
+    equalizerTab_->setBypassedVisualState(graphParams_.bypassAll);
+    settingsTab_->setBypassState(graphParams_.bypassAll);
 
     equalizerTab_->onPreampChanged = [this](float preampDb) {
         graphParams_.preampDb = juce::jlimit(
@@ -563,6 +583,7 @@ MainComponent::MainComponent()
             preampDb);
         syncDspParameters();
         scheduleDebouncedApoSync();
+        scheduleDebouncedSettingsSave();
     };
 
     equalizerTab_->onBandChanged = [this](size_t bandIdx, float gainDb) {
@@ -574,6 +595,7 @@ MainComponent::MainComponent()
                 gainDb);
             syncDspParameters();
             scheduleDebouncedApoSync();
+            scheduleDebouncedSettingsSave();
         }
     };
 
@@ -603,6 +625,7 @@ MainComponent::MainComponent()
         equalizerTab_->setBypassedVisualState(bypassed);
         syncDspParameters();
         scheduleDebouncedApoSync();
+        savePersistedSettings();
     };
 
     settingsTab_->onAutoConfigApoClicked = [this] {
@@ -619,6 +642,57 @@ MainComponent::MainComponent()
                 ? juce::String::fromUTF8("No se pudo escribir config.txt. Verifica que Equalizer APO esté instalado.")
                 : juce::String::fromUTF8(err.c_str());
             settingsTab_->setAutoConfigStatus(msg, true);
+        }
+    };
+
+    settingsTab_->onRestoreApoClicked = [this] {
+        needsApoSync_    = false;
+        debounceCounter_ = 0;
+
+        if (!dash::audio::ApoConfigManager::isApoInstalled())
+        {
+            const juce::String notInstalledMsg = juce::String::fromUTF8(
+                "Equalizer APO no está instalado en el sistema.");
+            settingsTab_->setAutoConfigStatus(notInstalledMsg, true);
+            juce::AlertWindow::showMessageBoxAsync(
+                juce::MessageBoxIconType::WarningIcon,
+                juce::String::fromUTF8("Equalizer APO no detectado"),
+                notInstalledMsg,
+                "OK",
+                this);
+            return;
+        }
+
+        std::string err;
+        const auto res = dash::audio::ApoConfigManager::restoreOriginalConfig(&err);
+        if (res == dash::audio::ApoConfigResult::Success)
+        {
+            const juce::String okMsg = juce::String::fromUTF8(
+                "¡APO original restaurado con éxito desde config.txt.bak!");
+            settingsTab_->setAutoConfigStatus(okMsg, false);
+
+            juce::AlertWindow::showMessageBoxAsync(
+                juce::MessageBoxIconType::InfoIcon,
+                juce::String::fromUTF8("APO Original Restaurado"),
+                juce::String::fromUTF8(
+                    "Se restauró exitosamente tu archivo config.txt original a partir de config.txt.bak.\n"
+                    "Equalizer APO ha recargado automáticamente la configuración original."),
+                "OK",
+                this);
+        }
+        else
+        {
+            const juce::String failMsg = err.empty()
+                ? juce::String::fromUTF8("No se encontró config.txt.bak o no se pudo restaurar config.txt.")
+                : juce::String::fromUTF8(err.c_str());
+            settingsTab_->setAutoConfigStatus(failMsg, true);
+
+            juce::AlertWindow::showMessageBoxAsync(
+                juce::MessageBoxIconType::WarningIcon,
+                juce::String::fromUTF8("No se pudo restaurar APO"),
+                failMsg,
+                "OK",
+                this);
         }
     };
 
@@ -649,6 +723,7 @@ MainComponent::MainComponent()
 MainComponent::~MainComponent()
 {
     stopTimer();
+    savePersistedSettings();
 
     if (audioBackend_)
         audioBackend_->shutdown();
@@ -722,6 +797,14 @@ void MainComponent::timerCallback()
             needsApoSync_    = false;
             debounceCounter_ = 0;
             executeApoSync();
+        }
+    }
+
+    if (needsSettingsSave_)
+    {
+        if (++settingsSaveDebounceCounter_ >= 4)
+        {
+            savePersistedSettings();
         }
     }
 
@@ -833,6 +916,37 @@ void MainComponent::resetAllEqAndPreamp()
 
     syncDspParameters();
     scheduleDebouncedApoSync();
+    savePersistedSettings();
+}
+
+void MainComponent::loadPersistedSettings()
+{
+    dash::audio::AppPersistedSettings loaded;
+    if (dash::audio::AppSettingsStore::load(loaded))
+    {
+        graphParams_.preampDb    = loaded.preampDb;
+        graphParams_.bandGainsDb = loaded.bandGainsDb;
+        graphParams_.bypassAll   = loaded.bypass;
+    }
+}
+
+void MainComponent::savePersistedSettings()
+{
+    needsSettingsSave_           = false;
+    settingsSaveDebounceCounter_ = 0;
+
+    dash::audio::AppPersistedSettings snapshot;
+    snapshot.preampDb    = graphParams_.preampDb;
+    snapshot.bandGainsDb = graphParams_.bandGainsDb;
+    snapshot.bypass      = graphParams_.bypassAll;
+
+    dash::audio::AppSettingsStore::save(snapshot);
+}
+
+void MainComponent::scheduleDebouncedSettingsSave()
+{
+    needsSettingsSave_           = true;
+    settingsSaveDebounceCounter_ = 0;
 }
 
 void MainComponent::scheduleDebouncedApoSync()

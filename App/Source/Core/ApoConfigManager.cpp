@@ -33,6 +33,28 @@ namespace
             || std::filesystem::exists(installDir / "DeviceSelector.exe", ec)
             || std::filesystem::exists(installDir / "Editor.exe", ec);
     }
+
+    std::string stripManagedBlockFromContent(const std::string& content)
+    {
+        const size_t beginPos = content.find(ApoConfigManager::kBeginMarker);
+        const size_t endPos   = content.find(ApoConfigManager::kEndMarker);
+
+        if (beginPos == std::string::npos || endPos == std::string::npos || endPos <= beginPos)
+            return content;
+
+        size_t cutStart = beginPos;
+        if (cutStart >= 2 && content[cutStart - 2] == '\r' && content[cutStart - 1] == '\n')
+            cutStart -= 2;
+        else if (cutStart >= 1 && content[cutStart - 1] == '\n')
+            cutStart -= 1;
+
+        const size_t afterEnd = endPos + std::string(ApoConfigManager::kEndMarker).length();
+        size_t nextValid = afterEnd;
+        if (nextValid < content.size() && content[nextValid] == '\r') ++nextValid;
+        if (nextValid < content.size() && content[nextValid] == '\n') ++nextValid;
+
+        return content.substr(0, cutStart) + content.substr(nextValid);
+    }
 } // namespace
 
 bool ApoConfigManager::readFullFile(
@@ -69,6 +91,12 @@ bool ApoConfigManager::createBackupIfNeeded(
 {
     const std::filesystem::path backupPath = originalPath.string() + kBackupExt;
     std::error_code ec;
+
+    const auto parentDir = originalPath.parent_path();
+    if (!parentDir.empty() && !std::filesystem::exists(parentDir, ec))
+    {
+        std::filesystem::create_directories(parentDir, ec);
+    }
 
     if (!std::filesystem::exists(backupPath, ec))
     {
@@ -126,9 +154,18 @@ ApoConfigResult ApoConfigManager::injectManagedSection(
         if (!readFullFile(configPath, &existingContent, outError))
             return ApoConfigResult::PermissionDenied;
 
-        if (existingContent.find(kBeginMarker) == std::string::npos)
+        if (!hasBackup(configPath))
         {
-            if (!createBackupIfNeeded(configPath, existingContent, outError))
+            const std::string cleanOriginal = stripManagedBlockFromContent(existingContent);
+            if (!createBackupIfNeeded(configPath, cleanOriginal, outError))
+                return ApoConfigResult::BackupFailed;
+        }
+    }
+    else
+    {
+        if (!hasBackup(configPath))
+        {
+            if (!createBackupIfNeeded(configPath, "", outError))
                 return ApoConfigResult::BackupFailed;
         }
     }
@@ -268,7 +305,7 @@ ApoConfigResult ApoConfigManager::removeManagedSection(
     return ApoConfigResult::Success;
 }
 
-ApoConfigResult ApoConfigManager::restoreOriginalBackup(
+ApoConfigResult ApoConfigManager::restoreOriginalConfig(
     const std::filesystem::path& configPath,
     std::string* outError)
 {
@@ -281,19 +318,75 @@ ApoConfigResult ApoConfigManager::restoreOriginalBackup(
         return ApoConfigResult::FileNotFound;
     }
 
-    std::filesystem::copy_file(
-        backupPath,
-        configPath,
-        std::filesystem::copy_options::overwrite_existing,
-        ec);
+    std::string backupContent;
+    if (!readFullFile(backupPath, &backupContent, outError))
+        return ApoConfigResult::PermissionDenied;
 
-    if (ec)
+    const std::filesystem::path tempPath = configPath.string() + ".dash.restore.tmp";
     {
-        if (outError) *outError = "Fallo al restaurar backup: " + ec.message();
-        return ApoConfigResult::WriteFailed;
+        std::ofstream ofs(tempPath, std::ios::binary | std::ios::trunc);
+        if (!ofs)
+        {
+            if (outError) *outError = "Permiso denegado al preparar la restauración de config.txt.";
+            return ApoConfigResult::PermissionDenied;
+        }
+        ofs.write(backupContent.data(), static_cast<std::streamsize>(backupContent.size()));
+        ofs.flush();
     }
 
+#ifdef _WIN32
+    DWORD lastErr = 0;
+    bool moved = false;
+    for (int attempt = 1; attempt <= 3; ++attempt)
+    {
+        if (::MoveFileExW(tempPath.c_str(), configPath.c_str(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH))
+        {
+            moved = true;
+            break;
+        }
+        lastErr = ::GetLastError();
+        if (attempt < 3)
+            ::Sleep(static_cast<DWORD>(15 * attempt));
+    }
+
+    if (!moved)
+    {
+        std::error_code ecRemove;
+        std::filesystem::remove(tempPath, ecRemove);
+
+        if (lastErr == ERROR_ACCESS_DENIED)
+        {
+            if (outError) *outError = "Permiso denegado al restaurar config.txt desde config.txt.bak.";
+            return ApoConfigResult::PermissionDenied;
+        }
+
+        if (outError) *outError = "Fallo al restaurar config.txt (Código Win32: " + std::to_string(lastErr) + ").";
+        return ApoConfigResult::WriteFailed;
+    }
+#else
+    std::filesystem::rename(tempPath, configPath, ec);
+    if (ec)
+    {
+        std::error_code ecRemove;
+        std::filesystem::remove(tempPath, ecRemove);
+        if (outError) *outError = "Fallo al restaurar config.txt: " + ec.message();
+        return ApoConfigResult::WriteFailed;
+    }
+#endif
+
     return ApoConfigResult::Success;
+}
+
+ApoConfigResult ApoConfigManager::restoreOriginalConfig(std::string* outError)
+{
+    return restoreOriginalConfig(ApoConfigInjector::getDefaultApoConfigPath(), outError);
+}
+
+ApoConfigResult ApoConfigManager::restoreOriginalBackup(
+    const std::filesystem::path& configPath,
+    std::string* outError)
+{
+    return restoreOriginalConfig(configPath, outError);
 }
 
 } // namespace dash::audio

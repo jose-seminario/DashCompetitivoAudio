@@ -20,7 +20,7 @@ enum class ApoConfigResult
  *
  * Principios de seguridad:
  *  1. Conserva 100% de las directivas y filtros preexistentes del usuario.
- *  2. Realiza un backup previo (.dash_backup) antes de modificar el archivo original por primera vez.
+ *  2. Realiza un backup previo (config.txt.bak) antes de modificar el archivo original por primera vez.
  *  3. Inyecta y actualiza exclusivamente la sección delimitada entre marcadores:
  *       # BEGIN DASHCOMPETITIVOAUDIO MANAGED BLOCK
  *       ...
@@ -34,7 +34,7 @@ class ApoConfigManager
 public:
     static constexpr const char* kBeginMarker = "# BEGIN DASHCOMPETITIVOAUDIO MANAGED BLOCK";
     static constexpr const char* kEndMarker   = "# END DASHCOMPETITIVOAUDIO MANAGED BLOCK";
-    static constexpr const char* kBackupExt   = ".dash_backup";
+    static constexpr const char* kBackupExt   = ".bak";
 
     /**
      * Inyecta o actualiza el bloque de directivas de Dash respetando todo contenido externo.
@@ -52,7 +52,20 @@ public:
         std::string* outError = nullptr);
 
     /**
-     * Restaura el archivo original a partir del backup previo si existiera.
+     * Verifica si existe config.txt.bak y lo restaura atómicamente sobre config.txt.
+     */
+    static ApoConfigResult restoreOriginalConfig(
+        const std::filesystem::path& configPath,
+        std::string* outError = nullptr);
+
+    /**
+     * Verifica si existe config.txt.bak en la carpeta por defecto de Equalizer APO y lo restaura.
+     */
+    static ApoConfigResult restoreOriginalConfig(
+        std::string* outError = nullptr);
+
+    /**
+     * Alias compatible que delega en restoreOriginalConfig().
      */
     static ApoConfigResult restoreOriginalBackup(
         const std::filesystem::path& configPath,
@@ -64,7 +77,7 @@ public:
     static bool hasManagedSection(const std::filesystem::path& configPath);
 
     /**
-     * Comprueba si existe un archivo de respaldo (.dash_backup).
+     * Comprueba si existe un archivo de respaldo (config.txt.bak).
      */
     static bool hasBackup(const std::filesystem::path& configPath);
 

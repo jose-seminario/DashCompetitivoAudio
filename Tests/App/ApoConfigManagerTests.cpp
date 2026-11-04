@@ -2,11 +2,13 @@
  * DashCompetitivoAudio - Suite de Pruebas Unitarias para ApoConfigManager y ApoConfigInjector (6 Bandas Biquad ±18 dB)
  */
 
+#include <Core/AppSettingsStore.h>
 #include <Core/ApoConfigManager.h>
 #include <Core/ApoConfigInjector.h>
 #include <Core/AudioPolicyManager.h>
 
 #include <cassert>
+#include <cmath>
 #include <filesystem>
 #include <fstream>
 #include <string>
@@ -150,6 +152,106 @@ void testApoInstallationCheck()
     // Comprueba que la detección se ejecute de forma segura sin excepciones
     const bool installed = ApoConfigManager::isApoInstalled();
     (void)installed;
+}
+
+void testApoConfigRestoreBackup()
+{
+    using namespace dash::audio;
+
+    const auto tempDir = std::filesystem::temp_directory_path() / "DashApoRestoreBackupTest";
+    std::error_code ec;
+    std::filesystem::remove_all(tempDir, ec);
+    std::filesystem::create_directories(tempDir, ec);
+
+    const auto configFile = tempDir / "config.txt";
+    const auto backupFile = tempDir / "config.txt.bak";
+
+    const std::string originalContent =
+        "# Configuracion original intacta\r\n"
+        "Preamp: -2.5 dB\r\n"
+        "Filter 1: ON PK Fc 1000 Hz Gain 1.5 dB Q 1.41\r\n";
+
+    {
+        std::ofstream out(configFile, std::ios::binary | std::ios::trunc);
+        out.write(originalContent.data(), static_cast<std::streamsize>(originalContent.size()));
+    }
+
+    ApoChainConfig firstInjection;
+    firstInjection.preampDb    = 6.0;
+    firstInjection.bandGainsDb = { 4.0, -3.0, 2.0, 9.5, 11.0, -5.0 };
+
+    std::string err;
+    assert(ApoConfigManager::injectManagedSection(
+        configFile,
+        ApoConfigInjector::buildConfigContent(firstInjection, configFile),
+        &err) == ApoConfigResult::Success);
+
+    assert(std::filesystem::exists(backupFile, ec));
+    assert(ApoConfigManager::hasBackup(configFile));
+
+    // Una segunda inyección NO debe sobrescribir config.txt.bak
+    ApoChainConfig secondInjection;
+    secondInjection.preampDb    = -10.0;
+    secondInjection.bandGainsDb = { -12.0, 0.0, 0.0, 15.0, 18.0, -8.0 };
+    assert(ApoConfigManager::injectManagedSection(
+        configFile,
+        ApoConfigInjector::buildConfigContent(secondInjection, configFile),
+        &err) == ApoConfigResult::Success);
+
+    // Restaurar config.txt original desde config.txt.bak
+    err.clear();
+    const ApoConfigResult restoreRes = ApoConfigManager::restoreOriginalConfig(configFile, &err);
+    assert(restoreRes == ApoConfigResult::Success);
+    assert(err.empty());
+    assert(!ApoConfigManager::hasManagedSection(configFile));
+
+    {
+        std::ifstream in(configFile, std::ios::binary);
+        const std::string restoredBytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        assert(restoredBytes == originalContent);
+    }
+
+    std::filesystem::remove_all(tempDir, ec);
+}
+
+void testAppSettingsPersistence()
+{
+    using namespace dash::audio;
+
+    const auto tempDir = std::filesystem::temp_directory_path() / "DashSettingsPersistenceTest";
+    std::error_code ec;
+    std::filesystem::remove_all(tempDir, ec);
+    std::filesystem::create_directories(tempDir, ec);
+
+    const juce::File jsonFile(juce::String((tempDir / "DashAudioSettings.json").string()));
+
+    // Si no existe archivo, load devuelve false y valores neutros
+    AppPersistedSettings missingLoad;
+    assert(!AppSettingsStore::load(missingLoad, jsonFile));
+    assert(std::abs(missingLoad.preampDb) < 1e-5f);
+    assert(!missingLoad.bypass);
+
+    // Guardado y lectura completa + verificación de clamp a [-18, +18 dB]
+    AppPersistedSettings toSave;
+    toSave.preampDb    = -6.5f;
+    toSave.bandGainsDb = { -25.0f, -9.5f, 0.0f, 7.25f, 18.0f, 30.0f };
+    toSave.bypass      = true;
+
+    assert(AppSettingsStore::save(toSave, jsonFile));
+    assert(jsonFile.existsAsFile());
+
+    AppPersistedSettings loaded;
+    assert(AppSettingsStore::load(loaded, jsonFile));
+    assert(std::abs(loaded.preampDb - (-6.5f)) < 1e-4f);
+    assert(std::abs(loaded.bandGainsDb[0] - (-18.0f)) < 1e-4f);
+    assert(std::abs(loaded.bandGainsDb[1] - (-9.5f)) < 1e-4f);
+    assert(std::abs(loaded.bandGainsDb[2] - 0.0f) < 1e-4f);
+    assert(std::abs(loaded.bandGainsDb[3] - 7.25f) < 1e-4f);
+    assert(std::abs(loaded.bandGainsDb[4] - 18.0f) < 1e-4f);
+    assert(std::abs(loaded.bandGainsDb[5] - 18.0f) < 1e-4f);
+    assert(loaded.bypass == true);
+
+    std::filesystem::remove_all(tempDir, ec);
 }
 
 } // namespace dash::test

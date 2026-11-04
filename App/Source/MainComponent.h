@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "Theme/DashLookAndFeel.h"
+#include "Core/AppSettingsStore.h"
 #include "Core/AudioPolicyManager.h"
 #include "Core/ApoConfigInjector.h"
 #include "Core/ApoConfigManager.h"
@@ -56,6 +57,9 @@ private:
     void restartAudioStream();
     void syncDspParameters();
     void resetAllEqAndPreamp();
+    void loadPersistedSettings();
+    void savePersistedSettings();
+    void scheduleDebouncedSettingsSave();
     void scheduleDebouncedApoSync();
     bool executeApoSync(std::string* outError = nullptr);
     void checkApoInstallation(bool userInitiated = false);
@@ -71,8 +75,10 @@ private:
     std::wstring selectedDeviceName_;
     std::string  selectedEndpointGuid_;
 
-    bool needsApoSync_    = false;
-    int  debounceCounter_ = 0;
+    bool needsApoSync_                 = false;
+    int  debounceCounter_              = 0;
+    bool needsSettingsSave_            = false;
+    int  settingsSaveDebounceCounter_  = 0;
 
     std::unique_ptr<EqualizerTabComponent> equalizerTab_;
     std::unique_ptr<SettingsTabComponent>  settingsTab_;

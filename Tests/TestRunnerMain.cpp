@@ -39,6 +39,8 @@ namespace dash::test
     void testApoConfigManagerIdempotence();
     void testEndpointGuidExtraction();
     void testApoInstallationCheck();
+    void testApoConfigRestoreBackup();
+    void testAppSettingsPersistence();
 } // namespace dash::test
 
 int main(int argc, char* argv[])
@@ -75,6 +77,8 @@ int main(int argc, char* argv[])
             testApoConfigManagerIdempotence();
             testEndpointGuidExtraction();
             testApoInstallationCheck();
+            testApoConfigRestoreBackup();
+            testAppSettingsPersistence();
         }}
     };
 

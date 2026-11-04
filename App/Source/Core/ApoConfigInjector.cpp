@@ -191,6 +191,17 @@ bool ApoConfigInjector::writeConfigAtomically(
     std::string* outError,
     bool* outPermissionDenied)
 {
+    std::error_code ec;
+    const std::filesystem::path backupPath = configFilePath.string() + ".bak";
+    if (!std::filesystem::exists(backupPath, ec) && std::filesystem::exists(configFilePath, ec))
+    {
+        std::filesystem::copy_file(
+            configFilePath,
+            backupPath,
+            std::filesystem::copy_options::skip_existing,
+            ec);
+    }
+
     const std::string payload = buildConfigContent(config, configFilePath);
     return writeRawPayloadAtomically(configFilePath, payload, outError, outPermissionDenied);
 }

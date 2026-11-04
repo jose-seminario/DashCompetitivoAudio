@@ -17,6 +17,7 @@ target_sources(DashAudioTests
         App/ApoConfigManagerTests.cpp
 
         # Unidades desacopladas de App bajo prueba (sin dependencias GUI)
+        "${CMAKE_SOURCE_DIR}/App/Source/Core/AppSettingsStore.cpp"
         "${CMAKE_SOURCE_DIR}/App/Source/Core/ApoConfigInjector.cpp"
         "${CMAKE_SOURCE_DIR}/App/Source/Core/ApoConfigManager.cpp"
         "${CMAKE_SOURCE_DIR}/App/Source/Core/AudioPolicyManager.cpp"

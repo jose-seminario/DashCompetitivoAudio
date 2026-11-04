@@ -1,6 +1,10 @@
 #include <JuceHeader.h>
 #include "MainComponent.h"
 
+#include <functional>
+#include <memory>
+#include <utility>
+
 namespace
 {
 
@@ -98,7 +102,11 @@ public:
         quit();
     }
 
-    void anotherInstanceStarted(const juce::String&) override {}
+    void anotherInstanceStarted(const juce::String&) override
+    {
+        if (mainWindow_ != nullptr)
+            mainWindow_->restoreFromTray();
+    }
 
     class MainWindow final : public juce::DocumentWindow
     {
@@ -134,14 +142,94 @@ public:
             setIcon(skullIcon);
             setVisible(true);
             setIcon(skullIcon);
+
+#if JUCE_WINDOWS || JUCE_LINUX || JUCE_MAC
+            juce::Component::SafePointer<MainWindow> safeSelf(this);
+            trayIcon_ = std::make_unique<DashTrayIcon>(
+                skullIcon,
+                [safeSelf] {
+                    if (safeSelf != nullptr)
+                        safeSelf->restoreFromTray();
+                },
+                [] {
+                    if (auto* app = juce::JUCEApplication::getInstance())
+                        app->systemRequestedQuit();
+                });
+#endif
+        }
+
+        ~MainWindow() override
+        {
+#if JUCE_WINDOWS || JUCE_LINUX || JUCE_MAC
+            trayIcon_.reset();
+#endif
         }
 
         void closeButtonPressed() override
         {
-            juce::JUCEApplication::getInstance()->systemRequestedQuit();
+            setVisible(false);
+        }
+
+        void restoreFromTray()
+        {
+            juce::Process::makeForegroundProcess();
+            setMinimised(false);
+            setVisible(true);
+            toFront(true);
         }
 
     private:
+#if JUCE_WINDOWS || JUCE_LINUX || JUCE_MAC
+        class DashTrayIcon final : public juce::SystemTrayIconComponent
+        {
+        public:
+            DashTrayIcon(
+                const juce::Image& iconImage,
+                std::function<void()> onOpenRequested,
+                std::function<void()> onQuitRequested)
+                : onOpenRequested_(std::move(onOpenRequested)),
+                  onQuitRequested_(std::move(onQuitRequested))
+            {
+                setIconImage(iconImage, iconImage);
+                setIconTooltip("Dash Competitivo Audio");
+            }
+
+            void mouseDown(const juce::MouseEvent&) override
+            {
+                juce::Process::makeForegroundProcess();
+
+                juce::PopupMenu menu;
+                menu.addItem(1, "Abrir Dash Audio");
+                menu.addSeparator();
+                menu.addItem(2, "Salir");
+
+                menu.showMenuAsync(
+                    juce::PopupMenu::Options(),
+                    [openCb = onOpenRequested_, quitCb = onQuitRequested_](int result)
+                    {
+                        if (result == 1 && openCb)
+                            openCb();
+                        else if (result == 2 && quitCb)
+                            quitCb();
+                    });
+            }
+
+            void mouseDoubleClick(const juce::MouseEvent&) override
+            {
+                if (onOpenRequested_)
+                    onOpenRequested_();
+            }
+
+        private:
+            std::function<void()> onOpenRequested_;
+            std::function<void()> onQuitRequested_;
+
+            JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(DashTrayIcon)
+        };
+
+        std::unique_ptr<DashTrayIcon> trayIcon_;
+#endif
+
         JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainWindow)
     };
 
