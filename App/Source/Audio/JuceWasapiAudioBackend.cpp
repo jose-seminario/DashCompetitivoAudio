@@ -121,7 +121,7 @@ bool JuceWasapiAudioBackend::start(
 
     if (!config.deviceId.empty())
     {
-        juce::String target = juce::String::fromUTF8(config.deviceId.c_str());
+        juce::String target(config.deviceId.c_str());
         for (const auto& dev : renderDevs)
         {
             juce::String dName = juce::String(dev.friendlyName.c_str());
@@ -162,7 +162,7 @@ bool JuceWasapiAudioBackend::start(
 
     if (!config.inputDeviceId.empty())
     {
-        juce::String target = juce::String::fromUTF8(config.inputDeviceId.c_str());
+        juce::String target(config.inputDeviceId.c_str());
         for (const auto& dev : captureDevs)
         {
             juce::String dName = juce::String(dev.friendlyName.c_str());

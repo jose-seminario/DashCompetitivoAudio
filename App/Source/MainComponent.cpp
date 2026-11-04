@@ -524,7 +524,7 @@ void MainComponent::activateTacticalMode()
         cfg.numInputChannels = ch; // Entrada virtual captura los canales del juego (hasta 8 canales 7.1)
         if (!originalEndpointFriendlyName_.empty())
         {
-            cfg.deviceId = juce::String(originalEndpointFriendlyName_.c_str()).toStdString();
+            cfg.deviceId = originalEndpointFriendlyName_;
         }
 
         std::string startErr;
