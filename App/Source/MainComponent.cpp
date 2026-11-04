@@ -480,15 +480,20 @@ void MainComponent::activateTacticalMode()
         return;
     }
 
-    // Guardar dispositivo actual antes de conmutar
+    // Guardar dispositivo físico real antes de conmutar (Altavoces/Auriculares, ignorando virtual cables)
     auto activeDevices = policyManager_.enumerateActiveRenderEndpoints();
     for (const auto& dev : activeDevices)
     {
-        if (dev.isDefaultConsole)
+        const bool isCable = dev.friendlyName.find(L"CABLE") != std::wstring::npos ||
+                             dev.friendlyName.find(L"VB-Audio") != std::wstring::npos;
+        if (!isCable)
         {
-            originalEndpointId_ = dev.id;
-            dashboardPanel_->setDeviceName(juce::String(dev.friendlyName.c_str()));
-            break;
+            if (originalEndpointId_.empty() || dev.isDefaultConsole)
+            {
+                originalEndpointId_ = dev.id;
+                originalEndpointFriendlyName_ = dev.friendlyName;
+                dashboardPanel_->setDeviceName(juce::String(dev.friendlyName.c_str()));
+            }
         }
     }
 
@@ -517,9 +522,9 @@ void MainComponent::activateTacticalMode()
         cfg.bufferSize = 512;
         cfg.numChannels = 2; // Auriculares físicos de salida son siempre estéreo (2 canales)
         cfg.numInputChannels = ch; // Entrada virtual captura los canales del juego (hasta 8 canales 7.1)
-        if (!originalEndpointId_.empty())
+        if (!originalEndpointFriendlyName_.empty())
         {
-            cfg.deviceId = originalEndpointId_;
+            cfg.deviceId = juce::String(originalEndpointFriendlyName_.c_str()).toStdString();
         }
 
         std::string startErr;

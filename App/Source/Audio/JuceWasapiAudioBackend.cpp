@@ -116,27 +116,79 @@ bool JuceWasapiAudioBackend::start(
     juce::AudioDeviceManager::AudioDeviceSetup setup;
     deviceManager_.getAudioDeviceSetup(setup);
 
+    const auto renderDevs = enumerateRenderDevices();
+    juce::String chosenOutputName;
+
     if (!config.deviceId.empty())
     {
-        setup.outputDeviceName = juce::String(config.deviceId.c_str());
+        juce::String target = juce::String::fromUTF8(config.deviceId.c_str());
+        for (const auto& dev : renderDevs)
+        {
+            juce::String dName = juce::String(dev.friendlyName.c_str());
+            if (dName.equalsIgnoreCase(target) || dName.containsIgnoreCase(target) || target.containsIgnoreCase(dName))
+            {
+                chosenOutputName = dName;
+                break;
+            }
+        }
     }
+
+    // Si no se encontró por nombre o el target era un GUID o un cable virtual,
+    // seleccionar el primer dispositivo físico real (auriculares/altavoces no-cable)
+    if (chosenOutputName.isEmpty() || chosenOutputName.containsIgnoreCase("cable"))
+    {
+        for (const auto& dev : renderDevs)
+        {
+            if (!dev.isVirtualCable && dev.friendlyName.find(L"CABLE") == std::wstring::npos)
+            {
+                chosenOutputName = juce::String(dev.friendlyName.c_str());
+                break;
+            }
+        }
+    }
+
+    if (chosenOutputName.isEmpty() && !renderDevs.empty())
+    {
+        chosenOutputName = juce::String(renderDevs[0].friendlyName.c_str());
+    }
+
+    if (chosenOutputName.isNotEmpty())
+    {
+        setup.outputDeviceName = chosenOutputName;
+    }
+
+    const auto captureDevs = enumerateCaptureDevices();
+    juce::String chosenInputName;
 
     if (!config.inputDeviceId.empty())
     {
-        setup.inputDeviceName = juce::String(config.inputDeviceId.c_str());
+        juce::String target = juce::String::fromUTF8(config.inputDeviceId.c_str());
+        for (const auto& dev : captureDevs)
+        {
+            juce::String dName = juce::String(dev.friendlyName.c_str());
+            if (dName.equalsIgnoreCase(target) || dName.containsIgnoreCase(target) || target.containsIgnoreCase(dName))
+            {
+                chosenInputName = dName;
+                break;
+            }
+        }
     }
-    else
+
+    if (chosenInputName.isEmpty())
     {
-        // Si no se especificó un dispositivo de entrada, buscamos un cable virtual disponible
-        const auto captureDevs = enumerateCaptureDevices();
         for (const auto& dev : captureDevs)
         {
             if (dev.isVirtualCable || dev.friendlyName.find(L"CABLE") != std::wstring::npos)
             {
-                setup.inputDeviceName = juce::String(dev.friendlyName.c_str());
+                chosenInputName = juce::String(dev.friendlyName.c_str());
                 break;
             }
         }
+    }
+
+    if (chosenInputName.isNotEmpty())
+    {
+        setup.inputDeviceName = chosenInputName;
     }
 
     setup.sampleRate = config.sampleRate > 0.0 ? config.sampleRate : 48000.0;
@@ -157,11 +209,27 @@ bool JuceWasapiAudioBackend::start(
         setup.outputDeviceName,
         &setup);
 
+    // Si falla con numInChannels (ej. CABLE Output configurado en 2 canales en Windows),
+    // intentar con 2 canales estéreo de entrada para garantizar que el audio se capture
+    if (err.isNotEmpty() && numInChannels > 2)
+    {
+        setup.inputChannels.clear();
+        setup.inputChannels.setRange(0, 2, true);
+        err = deviceManager_.initialise(
+            2,
+            numOutChannels,
+            nullptr,
+            true,
+            setup.outputDeviceName,
+            &setup);
+    }
+
     // Fallback gracioso: si el dispositivo de entrada no está disponible (ej. sin cable virtual instalado),
     // inicializar sólo dispositivo de salida para garantizar continuidad.
     if (err.isNotEmpty() && numInChannels > 0)
     {
         setup.inputDeviceName.clear();
+        setup.inputChannels.clear();
         err = deviceManager_.initialise(
             0,
             numOutChannels,

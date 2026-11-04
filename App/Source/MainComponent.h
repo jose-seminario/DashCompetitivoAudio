@@ -84,6 +84,7 @@ private:
     std::unique_ptr<dash::audio::JuceWasapiAudioBackend> audioBackend_;
 
     std::wstring originalEndpointId_;
+    std::wstring originalEndpointFriendlyName_;
     bool isProfileActive_ = false;
     bool needsInjection_  = false;
     int debounceCounter_  = 0;
