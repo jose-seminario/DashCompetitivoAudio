@@ -10,12 +10,6 @@ namespace dash::core
 {
 
 /**
- * Techo nominal predeterminado para el limitador de pico (-0.5 dBFS).
- */
-inline constexpr float kLimiterCeilingDb = -0.5f;
-inline constexpr float kDefaultCeilingDb = -0.5f;
-
-/**
  * Parámetros del Sample Peak Limiter (-0.5 dBFS).
  * Diseñado para latencia cero estricta (0 muestras / 0.0 ms) en estéreo competitivo.
  */
