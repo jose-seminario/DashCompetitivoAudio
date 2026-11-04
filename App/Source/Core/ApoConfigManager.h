@@ -71,6 +71,11 @@ public:
     static bool hasBackup(const std::filesystem::path& configPath);
 
     /**
+     * Comprueba si Equalizer APO se encuentra instalado en el sistema.
+     */
+    static bool isApoInstalled();
+
+    /**
      * Calcula un hash FNV-1a de 64 bits del contenido de un archivo en disco.
      */
     static uint64_t computeContentHash(const std::string& content) noexcept;

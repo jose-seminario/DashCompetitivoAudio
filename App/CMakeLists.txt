@@ -19,6 +19,7 @@ juce_add_gui_app(DashCompetitivoAudio
     BUNDLE_ID    "com.dashaudio.dashcompetitivo"
     ICON_BIG     "${CMAKE_CURRENT_SOURCE_DIR}/icon.png"
     ICON_SMALL   "${CMAKE_CURRENT_SOURCE_DIR}/icon.png"
+    UAC_LEVEL    requireAdministrator
 )
 
 juce_generate_juce_header(DashCompetitivoAudio)
@@ -58,6 +59,7 @@ target_compile_definitions(DashCompetitivoAudio
 
 if(MSVC)
     target_compile_options(DashCompetitivoAudio PRIVATE /utf-8)
+    target_link_options(DashCompetitivoAudio PRIVATE "/MANIFESTUAC:level='requireAdministrator' uiAccess='false'")
 endif()
 
 target_link_libraries(DashCompetitivoAudio

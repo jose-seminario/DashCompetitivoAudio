@@ -21,9 +21,10 @@ namespace dash::ui
 /**
  * Componente Principal del Ecualizador Táctico Estéreo de 6 Bandas (MainComponent).
  *
- * Interfaz minimalista compuesta estrictamente por 2 pestañas:
- *  1. "ECUALIZADOR": Fader vertical de Preamp + Reset a la izquierda y 6 faders verticales tácticos a la derecha.
- *  2. "AJUSTES": Selector de dispositivo de salida estéreo, Bypass global y telemetría básica (CPU / Latencia).
+ * Incluye:
+ *  - Detección de Equalizer APO con pantalla de bloqueo / tutorial si no está instalado.
+ *  - Interfaz de 2 pestañas ("ECUALIZADOR" y "AJUSTES").
+ *  - Botón de auto-configuración directa de Equalizer APO en la pestaña de Ajustes.
  */
 class MainComponent final
     : public juce::Component,
@@ -39,6 +40,7 @@ public:
 private:
     class EqualizerTabComponent;
     class SettingsTabComponent;
+    class ApoOnboardingOverlay;
 
     struct OutputEndpointEntry
     {
@@ -55,6 +57,7 @@ private:
     void resetAllEqAndPreamp();
     void scheduleDebouncedApoSync();
     void executeApoSync();
+    void checkApoInstallation();
 
     DashLookAndFeel dashLookAndFeel_;
 
@@ -72,6 +75,7 @@ private:
 
     std::unique_ptr<EqualizerTabComponent> equalizerTab_;
     std::unique_ptr<SettingsTabComponent>  settingsTab_;
+    std::unique_ptr<ApoOnboardingOverlay>  apoOverlay_;
     juce::TabbedComponent tabs_ { juce::TabbedButtonBar::TabsAtTop };
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)

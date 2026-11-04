@@ -40,7 +40,6 @@ public:
 
     EqualizerTabComponent()
     {
-        // Configuración del canal izquierdo: Preamp + Reset
         preampTitle_.setText("Preamp", juce::dontSendNotification);
         preampTitle_.setJustificationType(juce::Justification::centred);
         preampTitle_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
@@ -67,7 +66,6 @@ public:
         };
         addAndMakeVisible(resetButton_);
 
-        // Configuración de los 6 faders verticales tácticos
         for (size_t i = 0; i < kNumBands; ++i)
         {
             bandTitles_[i].setText(
@@ -143,7 +141,6 @@ public:
         area.removeFromLeft(14);
         rightCardBounds_ = area;
 
-        // Layout de tarjeta izquierda: Preamp + botón Reset
         auto leftInner = leftCardBounds_.reduced(12, 14);
         preampTitle_.setBounds(leftInner.removeFromTop(22));
         preampSubLabel_.setBounds(leftInner.removeFromTop(18));
@@ -154,7 +151,6 @@ public:
         preampSlider_.setBounds(leftInner);
         resetButton_.setBounds(resetArea.reduced(4, 0));
 
-        // Layout de consola derecha: 6 faders verticales grandes
         auto rightInner = rightCardBounds_.reduced(12, 14);
         const int stripWidth = rightInner.getWidth() / static_cast<int>(kNumBands);
 
@@ -200,16 +196,18 @@ private:
 };
 
 // ==============================================================================
-// Pestaña 2: "AJUSTES" (Selector de salida, Bypass global y Telemetría CPU/Latencia)
+// Pestaña 2: "AJUSTES" (Salida, Bypass, Telemetría y Auto-Configurar APO)
 // ==============================================================================
 class MainComponent::SettingsTabComponent final : public juce::Component
 {
 public:
     std::function<void(int)>  onOutputDeviceSelected;
     std::function<void(bool)> onBypassToggled;
+    std::function<void()>     onAutoConfigApoClicked;
 
     SettingsTabComponent()
     {
+        // 1. Selector de Dispositivo de Salida
         deviceHeader_.setText(juce::String::fromUTF8("Dispositivo de Salida (Estéreo 2.0)"), juce::dontSendNotification);
         deviceHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.5f).withStyle("Bold")));
         deviceHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
@@ -222,6 +220,7 @@ public:
         };
         addAndMakeVisible(outputDeviceBox_);
 
+        // 2. Control Maestro (Bypass)
         bypassHeader_.setText("Control Maestro", juce::dontSendNotification);
         bypassHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.5f).withStyle("Bold")));
         bypassHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
@@ -234,6 +233,7 @@ public:
         };
         addAndMakeVisible(bypassToggle_);
 
+        // 3. Telemetría en Tiempo Real
         telemetryHeader_.setText(juce::String::fromUTF8("Telemetría en Tiempo Real"), juce::dontSendNotification);
         telemetryHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.5f).withStyle("Bold")));
         telemetryHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
@@ -248,6 +248,26 @@ public:
         latencyLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(15.0f).withStyle("Bold")));
         latencyLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyanGlow);
         addAndMakeVisible(latencyLabel_);
+
+        // 4. Integración Directa con Equalizer APO
+        apoHeader_.setText(juce::String::fromUTF8("Integración con Equalizer APO"), juce::dontSendNotification);
+        apoHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.5f).withStyle("Bold")));
+        apoHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+        addAndMakeVisible(apoHeader_);
+
+        autoConfigButton_.setButtonText(juce::String::fromUTF8("Auto-Configurar APO"));
+        autoConfigButton_.onClick = [this] {
+            if (onAutoConfigApoClicked)
+                onAutoConfigApoClicked();
+        };
+        addAndMakeVisible(autoConfigButton_);
+
+        autoConfigStatusLabel_.setText(
+            juce::String::fromUTF8("Escribe las 6 bandas tácticas y el Preamp directamente en config.txt de Equalizer APO."),
+            juce::dontSendNotification);
+        autoConfigStatusLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.0f)));
+        autoConfigStatusLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
+        addAndMakeVisible(autoConfigStatusLabel_);
     }
 
     void setDeviceList(const juce::StringArray& names, int selectedIndex)
@@ -271,6 +291,14 @@ public:
         latencyLabel_.setText("Latencia: " + juce::String(latencyMs, 1) + " ms", juce::dontSendNotification);
     }
 
+    void setAutoConfigStatus(const juce::String& text, bool isError)
+    {
+        autoConfigStatusLabel_.setText(text, juce::dontSendNotification);
+        autoConfigStatusLabel_.setColour(
+            juce::Label::textColourId,
+            isError ? DashLookAndFeel::kAccentCoralLight : DashLookAndFeel::kSuccessEmerald);
+    }
+
     void paint(juce::Graphics& g) override
     {
         g.fillAll(DashLookAndFeel::kBgDark);
@@ -289,36 +317,45 @@ public:
 
     void resized() override
     {
-        auto area = getLocalBounds().reduced(24, 20);
-        const int maxCardWidth = juce::jmin(680, area.getWidth());
+        auto area = getLocalBounds().reduced(24, 16);
+        const int maxCardWidth = juce::jmin(700, area.getWidth());
         auto column = area.withSizeKeepingCentre(maxCardWidth, area.getHeight());
 
-        cards_[0] = column.removeFromTop(104);
-        column.removeFromTop(16);
-        cards_[1] = column.removeFromTop(96);
-        column.removeFromTop(16);
-        cards_[2] = column.removeFromTop(104);
+        cards_[0] = column.removeFromTop(98);
+        column.removeFromTop(12);
+        cards_[1] = column.removeFromTop(88);
+        column.removeFromTop(12);
+        cards_[2] = column.removeFromTop(94);
+        column.removeFromTop(12);
+        cards_[3] = column.removeFromTop(110);
 
-        auto c0 = cards_[0].reduced(20, 16);
-        deviceHeader_.setBounds(c0.removeFromTop(24));
-        c0.removeFromTop(10);
-        outputDeviceBox_.setBounds(c0.removeFromTop(36));
+        auto c0 = cards_[0].reduced(18, 12);
+        deviceHeader_.setBounds(c0.removeFromTop(22));
+        c0.removeFromTop(8);
+        outputDeviceBox_.setBounds(c0.removeFromTop(34));
 
-        auto c1 = cards_[1].reduced(20, 16);
-        bypassHeader_.setBounds(c1.removeFromTop(24));
-        c1.removeFromTop(8);
-        bypassToggle_.setBounds(c1.removeFromTop(32));
+        auto c1 = cards_[1].reduced(18, 12);
+        bypassHeader_.setBounds(c1.removeFromTop(22));
+        c1.removeFromTop(6);
+        bypassToggle_.setBounds(c1.removeFromTop(30));
 
-        auto c2 = cards_[2].reduced(20, 16);
-        telemetryHeader_.setBounds(c2.removeFromTop(24));
-        c2.removeFromTop(12);
+        auto c2 = cards_[2].reduced(18, 12);
+        telemetryHeader_.setBounds(c2.removeFromTop(22));
+        c2.removeFromTop(10);
         const int halfW = c2.getWidth() / 2;
         cpuLabel_.setBounds(c2.removeFromLeft(halfW));
         latencyLabel_.setBounds(c2);
+
+        auto c3 = cards_[3].reduced(18, 12);
+        apoHeader_.setBounds(c3.removeFromTop(22));
+        c3.removeFromTop(8);
+        autoConfigButton_.setBounds(c3.removeFromTop(36));
+        c3.removeFromTop(4);
+        autoConfigStatusLabel_.setBounds(c3.removeFromTop(20));
     }
 
 private:
-    std::array<juce::Rectangle<int>, 3> cards_;
+    std::array<juce::Rectangle<int>, 4> cards_;
 
     juce::Label        deviceHeader_;
     juce::ComboBox     outputDeviceBox_;
@@ -329,6 +366,168 @@ private:
     juce::Label        telemetryHeader_;
     juce::Label        cpuLabel_;
     juce::Label        latencyLabel_;
+
+    juce::Label        apoHeader_;
+    juce::TextButton   autoConfigButton_;
+    juce::Label        autoConfigStatusLabel_;
+};
+
+// ==============================================================================
+// Pantalla Bloqueante (Onboarding): Detección y Tutorial de Equalizer APO
+// ==============================================================================
+class MainComponent::ApoOnboardingOverlay final : public juce::Component
+{
+public:
+    std::function<void()> onVerifyRequested;
+
+    ApoOnboardingOverlay()
+    {
+        titleLabel_.setText(
+            juce::String::fromUTF8("EQUALIZER APO NO DETECTADO"),
+            juce::dontSendNotification);
+        titleLabel_.setJustificationType(juce::Justification::centred);
+        titleLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(18.0f).withStyle("Bold")));
+        titleLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kAccentCyanGlow);
+        addAndMakeVisible(titleLabel_);
+
+        descLabel_.setText(
+            juce::String::fromUTF8("Para usar este ecualizador táctico y procesar el audio nativo del juego, necesitas tener instalado Equalizer APO en Windows."),
+            juce::dontSendNotification);
+        descLabel_.setJustificationType(juce::Justification::centred);
+        descLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f)));
+        descLabel_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+        addAndMakeVisible(descLabel_);
+
+        stepsHeader_.setText(
+            juce::String::fromUTF8("Tutorial de Instalación en 3 Pasos:"),
+            juce::dontSendNotification);
+        stepsHeader_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(14.0f).withStyle("Bold")));
+        stepsHeader_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMain);
+        addAndMakeVisible(stepsHeader_);
+
+        step1Label_.setText(
+            juce::String::fromUTF8("1. Descarga e instala Equalizer APO (gratuito y de código abierto)."),
+            juce::dontSendNotification);
+        step1Label_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f)));
+        step1Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
+        addAndMakeVisible(step1Label_);
+
+        step2Label_.setText(
+            juce::String::fromUTF8("2. En la ventana del Configurator que abre el instalador, marca tus auriculares o altavoces."),
+            juce::dontSendNotification);
+        step2Label_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f)));
+        step2Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
+        addAndMakeVisible(step2Label_);
+
+        step3Label_.setText(
+            juce::String::fromUTF8("3. Reinicia tu PC para que Windows cargue el controlador de audio de APO."),
+            juce::dontSendNotification);
+        step3Label_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f)));
+        step3Label_.setColour(juce::Label::textColourId, DashLookAndFeel::kTextMuted);
+        addAndMakeVisible(step3Label_);
+
+        downloadButton_.setButtonText(juce::String::fromUTF8("Descargar APO (Web Oficial)"));
+        downloadButton_.onClick = [] {
+            juce::URL("https://sourceforge.net/projects/equalizerapo/").launchInDefaultBrowser();
+        };
+        addAndMakeVisible(downloadButton_);
+
+        verifyButton_.setButtonText(juce::String::fromUTF8("Ya lo instalé, verificar"));
+        verifyButton_.onClick = [this] {
+            if (onVerifyRequested)
+                onVerifyRequested();
+        };
+        addAndMakeVisible(verifyButton_);
+
+        statusLabel_.setText({}, juce::dontSendNotification);
+        statusLabel_.setJustificationType(juce::Justification::centred);
+        statusLabel_.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(12.5f).withStyle("Bold")));
+        addAndMakeVisible(statusLabel_);
+    }
+
+    void setStatusMessage(const juce::String& message, bool isError)
+    {
+        statusLabel_.setText(message, juce::dontSendNotification);
+        statusLabel_.setColour(
+            juce::Label::textColourId,
+            isError ? DashLookAndFeel::kAccentCoralLight : DashLookAndFeel::kSuccessEmerald);
+    }
+
+    void paint(juce::Graphics& g) override
+    {
+        // Fondo traslúcido para bloquear la vista inferior
+        g.fillAll(juce::Colour(0xee0e1117));
+
+        if (!cardBounds_.isEmpty())
+        {
+            g.setColour(DashLookAndFeel::kBgCard);
+            g.fillRoundedRectangle(cardBounds_.toFloat(), 12.0f);
+
+            g.setColour(DashLookAndFeel::kBorderSubtle);
+            g.drawRoundedRectangle(cardBounds_.toFloat().reduced(0.5f), 12.0f, 1.2f);
+
+            // Borde superior decorativo cian
+            g.setColour(DashLookAndFeel::kAccentCyanGlow);
+            g.fillRoundedRectangle(cardBounds_.getX() + 16.0f, cardBounds_.getY(), cardBounds_.getWidth() - 32.0f, 3.0f, 1.5f);
+        }
+
+        if (!tutorialBounds_.isEmpty())
+        {
+            g.setColour(DashLookAndFeel::kBgCardElevated);
+            g.fillRoundedRectangle(tutorialBounds_.toFloat(), 8.0f);
+            g.setColour(DashLookAndFeel::kBorderSubtle);
+            g.drawRoundedRectangle(tutorialBounds_.toFloat().reduced(0.5f), 8.0f, 1.0f);
+        }
+    }
+
+    void resized() override
+    {
+        const int cardW = juce::jlimit(420, 680, getWidth() - 48);
+        const int cardH = juce::jlimit(380, 480, getHeight() - 40);
+
+        cardBounds_ = getLocalBounds().withSizeKeepingCentre(cardW, cardH);
+        auto inner = cardBounds_.reduced(24, 22);
+
+        titleLabel_.setBounds(inner.removeFromTop(26));
+        inner.removeFromTop(8);
+        descLabel_.setBounds(inner.removeFromTop(38));
+        inner.removeFromTop(14);
+
+        tutorialBounds_ = inner.removeFromTop(140);
+        auto tutInner = tutorialBounds_.reduced(16, 12);
+        stepsHeader_.setBounds(tutInner.removeFromTop(22));
+        tutInner.removeFromTop(6);
+        step1Label_.setBounds(tutInner.removeFromTop(24));
+        step2Label_.setBounds(tutInner.removeFromTop(24));
+        step3Label_.setBounds(tutInner.removeFromTop(24));
+
+        inner.removeFromTop(18);
+
+        const int btnGap = 16;
+        const int btnW = (inner.getWidth() - btnGap) / 2;
+        auto btnArea = inner.removeFromTop(38);
+        downloadButton_.setBounds(btnArea.removeFromLeft(btnW));
+        btnArea.removeFromLeft(btnGap);
+        verifyButton_.setBounds(btnArea);
+
+        inner.removeFromTop(10);
+        statusLabel_.setBounds(inner.removeFromTop(24));
+    }
+
+private:
+    juce::Rectangle<int> cardBounds_;
+    juce::Rectangle<int> tutorialBounds_;
+
+    juce::Label      titleLabel_;
+    juce::Label      descLabel_;
+    juce::Label      stepsHeader_;
+    juce::Label      step1Label_;
+    juce::Label      step2Label_;
+    juce::Label      step3Label_;
+
+    juce::TextButton downloadButton_;
+    juce::TextButton verifyButton_;
+    juce::Label      statusLabel_;
 };
 
 // ==============================================================================
@@ -352,7 +551,7 @@ MainComponent::MainComponent()
     audioBackend_ = std::make_unique<dash::audio::JuceWasapiAudioBackend>();
     audioBackend_->initialize();
 
-    // 2. Construir las 2 únicas pestañas de la interfaz
+    // 2. Construir pestañas de la interfaz
     equalizerTab_ = std::make_unique<EqualizerTabComponent>();
     settingsTab_  = std::make_unique<SettingsTabComponent>();
 
@@ -399,16 +598,44 @@ MainComponent::MainComponent()
         scheduleDebouncedApoSync();
     };
 
+    settingsTab_->onAutoConfigApoClicked = [this] {
+        executeApoSync();
+        const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
+        std::error_code ec;
+        if (std::filesystem::exists(apoConfigPath, ec) || std::filesystem::exists(apoConfigPath.parent_path(), ec))
+        {
+            settingsTab_->setAutoConfigStatus(
+                juce::String::fromUTF8("¡APO auto-configurado con éxito con las 6 bandas tácticas!"),
+                false);
+        }
+        else
+        {
+            settingsTab_->setAutoConfigStatus(
+                juce::String::fromUTF8("Directivas generadas. Inicia Equalizer APO para activarlas en Windows."),
+                false);
+        }
+    };
+
     tabs_.setTabBarDepth(44);
     tabs_.setOutline(0);
     tabs_.addTab("ECUALIZADOR", DashLookAndFeel::kBgDark, equalizerTab_.get(), false);
     tabs_.addTab("AJUSTES",     DashLookAndFeel::kBgDark, settingsTab_.get(),  false);
     addAndMakeVisible(tabs_);
 
-    // 3. Detectar dispositivos de salida estéreo e iniciar motor WASAPI
+    // 3. Crear overlay de detección/bloqueo de Equalizer APO
+    apoOverlay_ = std::make_unique<ApoOnboardingOverlay>();
+    apoOverlay_->onVerifyRequested = [this] {
+        checkApoInstallation();
+    };
+    addChildComponent(apoOverlay_.get());
+
+    // 4. Detectar dispositivos de salida estéreo e iniciar motor WASAPI
     populateOutputDevices();
     restartAudioStream();
     scheduleDebouncedApoSync();
+
+    // 5. Verificar presencia de APO y bloquear interfaz si no está instalado
+    checkApoInstallation();
 
     setSize(960, 580);
     startTimerHz(20);
@@ -429,6 +656,32 @@ MainComponent::~MainComponent()
     setLookAndFeel(nullptr);
 }
 
+void MainComponent::checkApoInstallation()
+{
+    const bool apoInstalled = dash::audio::ApoConfigManager::isApoInstalled();
+
+    if (apoInstalled)
+    {
+        if (apoOverlay_)
+            apoOverlay_->setVisible(false);
+        tabs_.setVisible(true);
+        executeApoSync();
+    }
+    else
+    {
+        tabs_.setVisible(false);
+        if (apoOverlay_)
+        {
+            apoOverlay_->setVisible(true);
+            apoOverlay_->toFront(true);
+            apoOverlay_->setStatusMessage(
+                juce::String::fromUTF8("Equalizer APO aún no fue detectado. Asegúrate de instalarlo y reiniciar."),
+                true);
+        }
+        resized();
+    }
+}
+
 void MainComponent::paint(juce::Graphics& g)
 {
     g.fillAll(DashLookAndFeel::kBgDark);
@@ -437,6 +690,12 @@ void MainComponent::paint(juce::Graphics& g)
 void MainComponent::resized()
 {
     tabs_.setBounds(getLocalBounds());
+
+    if (apoOverlay_ && apoOverlay_->isVisible())
+    {
+        apoOverlay_->setBounds(getLocalBounds());
+        apoOverlay_->toFront(true);
+    }
 }
 
 void MainComponent::timerCallback()
@@ -571,8 +830,11 @@ void MainComponent::executeApoSync()
 {
     const auto apoConfigPath = dash::audio::ApoConfigInjector::getDefaultApoConfigPath();
     std::error_code ec;
-    if (!std::filesystem::exists(apoConfigPath.parent_path(), ec))
-        return;
+    auto parentDir = apoConfigPath.parent_path();
+    if (!parentDir.empty() && !std::filesystem::exists(parentDir, ec))
+    {
+        std::filesystem::create_directories(parentDir, ec);
+    }
 
     dash::audio::ApoChainConfig apoCfg;
     apoCfg.targetEndpointGuid = selectedEndpointGuid_;
@@ -583,7 +845,8 @@ void MainComponent::executeApoSync()
         apoCfg.bandGainsDb[i] = static_cast<double>(graphParams_.bandGainsDb[i]);
 
     const std::string directives = dash::audio::ApoConfigInjector::buildConfigContent(apoCfg, apoConfigPath);
-    dash::audio::ApoConfigManager::injectManagedSection(apoConfigPath, directives);
+    std::string err;
+    dash::audio::ApoConfigManager::injectManagedSection(apoConfigPath, directives, &err);
 }
 
 } // namespace dash::ui

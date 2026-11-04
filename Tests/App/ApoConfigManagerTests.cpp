@@ -144,4 +144,12 @@ void testEndpointGuidExtraction()
     std::filesystem::remove_all(tempDir, ec);
 }
 
+void testApoInstallationCheck()
+{
+    using namespace dash::audio;
+    // Comprueba que la detección se ejecute de forma segura sin excepciones
+    const bool installed = ApoConfigManager::isApoInstalled();
+    (void)installed;
+}
+
 } // namespace dash::test

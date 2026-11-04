@@ -98,6 +98,30 @@ bool ApoConfigManager::hasBackup(const std::filesystem::path& configPath)
     return std::filesystem::exists(configPath.string() + kBackupExt, ec);
 }
 
+bool ApoConfigManager::isApoInstalled()
+{
+    std::error_code ec;
+    const auto apoPath = ApoConfigInjector::getDefaultApoConfigPath();
+    if (std::filesystem::exists(apoPath, ec))
+        return true;
+
+    const auto parentDir = apoPath.parent_path();
+    if (!parentDir.empty() && std::filesystem::exists(parentDir, ec))
+        return true;
+
+    const auto installDir = parentDir.parent_path();
+    if (!installDir.empty() && std::filesystem::exists(installDir, ec))
+        return true;
+
+    if (std::filesystem::exists("C:\\Program Files\\EqualizerAPO\\config\\config.txt", ec) ||
+        std::filesystem::exists("C:\\Program Files\\EqualizerAPO", ec))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 ApoConfigResult ApoConfigManager::injectManagedSection(
     const std::filesystem::path& configPath,
     const std::string& managedDirectives,

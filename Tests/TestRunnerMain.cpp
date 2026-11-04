@@ -38,6 +38,7 @@ namespace dash::test
     void testApoConfigManagerNonDestructiveInjection();
     void testApoConfigManagerIdempotence();
     void testEndpointGuidExtraction();
+    void testApoInstallationCheck();
 } // namespace dash::test
 
 int main(int argc, char* argv[])
@@ -73,6 +74,7 @@ int main(int argc, char* argv[])
             testApoConfigManagerNonDestructiveInjection();
             testApoConfigManagerIdempotence();
             testEndpointGuidExtraction();
+            testApoInstallationCheck();
         }}
     };
 
