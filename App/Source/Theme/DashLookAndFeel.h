@@ -6,12 +6,14 @@ namespace dash::ui
 {
 
 /**
- * Tema Visual Táctico Estilo Consola de Audio (DashLookAndFeel).
+ * Tema Visual Táctico Cyberpunk / Hacker Gamer / Sci-Fi HUD (DashLookAndFeel).
  *
- * Diseñado específicamente para el Ecualizador Táctico Estéreo de 6 Bandas:
- *  - Faders verticales de consola de mezcla (carril oscuro hundido, marcas de nivel en dB,
- *    barra de neón luminosa y capuchón táctil con línea central).
- *  - Pestañas limpias de alto contraste ("ECUALIZADOR" y "AJUSTES").
+ * Implementa de forma nativa en el motor vectorial de JUCE:
+ *  - Geometría con esquinas biseladas a 45° (clip-path / chamfered polygon).
+ *  - Brackets angulares Sci-Fi en esquinas y líneas de escaneo (scanlines).
+ *  - Paleta Híbrida Gamer Táctica: Negro obsidiana, rojo carmesí neón, rojo rubí metálico,
+ *    verde esmeralda neón y cian neón para telemetría y datos.
+ *  - Tipografía técnica monoespaciada en mayúsculas compactas (Consolas / Fira Code).
  */
 class DashLookAndFeel : public juce::LookAndFeel_V4
 {
@@ -19,20 +21,60 @@ public:
     DashLookAndFeel();
     ~DashLookAndFeel() override = default;
 
-    static inline const juce::Colour kBgDark          { 0xff12141a }; // Fondo principal consola oscura
-    static inline const juce::Colour kBgCard          { 0xff191c24 }; // Panel de canal / tarjeta
-    static inline const juce::Colour kBgCardElevated  { 0xff222733 }; // Controles elevados
-    static inline const juce::Colour kSlotRecessed    { 0xff0b0d12 }; // Carril hundido del fader
-    static inline const juce::Colour kBorderSubtle    { 0xff2c3240 }; // Bordes sutiles
-    static inline const juce::Colour kBorderFocus     { 0xff06b6d4 }; // Borde activo neón cian
-    static inline const juce::Colour kTextMain        { 0xfff3f4f6 }; // Texto blanco nítido
-    static inline const juce::Colour kTextMuted       { 0xff8b93a7 }; // Texto secundario técnico
-    static inline const juce::Colour kAccentCyan      { 0xff06b6d4 }; // Neón cian primario
-    static inline const juce::Colour kAccentCyanGlow  { 0xff22d3ee }; // Neón cian brillante
-    static inline const juce::Colour kAccentCoral     { 0xffff384d }; // Neón coral (atenuación / bypass)
-    static inline const juce::Colour kAccentCoralLight{ 0xffff5c6c }; // Coral luminoso
-    static inline const juce::Colour kSuccessEmerald  { 0xff10b981 }; // Estado activo
+    // Paleta Cyberpunk / Sci-Fi HUD
+    static inline const juce::Colour kBgObsidian       { 0xff070204 }; // Negro obsidiana base
+    static inline const juce::Colour kBgDark           { 0xff0c0407 }; // Fondo de ventana
+    static inline const juce::Colour kBgCard           { 0xff160509 }; // Panel oscuro con tinte carmesí
+    static inline const juce::Colour kBgCardElevated   { 0xff250810 }; // Tarjeta / botón elevado
+    static inline const juce::Colour kSlotRecessed     { 0xff040102 }; // Ranura fader hundida
 
+    static inline const juce::Colour kNeonCrimson      { 0xffff1a40 }; // Rojo carmesí neón principal
+    static inline const juce::Colour kNeonCrimsonGlow  { 0xffff3d5e }; // Resplandor carmesí
+    static inline const juce::Colour kMetallicRuby     { 0xff8b0000 }; // Rojo rubí metálico oscuro
+    static inline const juce::Colour kRubyBorder       { 0xff5a0a16 }; // Borde estructural
+
+    static inline const juce::Colour kNeonCyan         { 0xff00e5ff }; // Cian neón (frecuencias / chips)
+    static inline const juce::Colour kNeonCyanGlow     { 0xff5cf0ff }; // Cian neón brillante
+    static inline const juce::Colour kNeonEmerald      { 0xff00ff88 }; // Verde esmeralda neón (óptimo / activo)
+    static inline const juce::Colour kNeonAmber        { 0xffffb700 }; // Ámbar de advertencia / backup
+
+    static inline const juce::Colour kTextMain         { 0xfff8f9fa }; // Texto blanco nítido
+    static inline const juce::Colour kTextMuted        { 0xffa88b94 }; // Texto técnico atenuado
+
+    // Utilidades de dibujo HUD Sci-Fi
+    static juce::Path createChamferedPath(
+        juce::Rectangle<float> bounds,
+        float cutSize,
+        bool cutTopLeft = true,
+        bool cutTopRight = true,
+        bool cutBottomRight = true,
+        bool cutBottomLeft = true);
+
+    static void drawHudPanel(
+        juce::Graphics& g,
+        juce::Rectangle<float> bounds,
+        float cutSize = 12.0f,
+        bool drawBrackets = true,
+        bool drawScanlines = true,
+        juce::Colour bgColour = kBgCard,
+        juce::Colour borderColour = kNeonCrimson,
+        float strokeWidth = 1.2f);
+
+    static void drawCornerBrackets(
+        juce::Graphics& g,
+        juce::Rectangle<float> bounds,
+        float bracketSize = 10.0f,
+        float cutOffset = 4.0f,
+        juce::Colour bracketColour = kNeonCrimsonGlow,
+        float strokeWidth = 1.8f);
+
+    static void drawScanlines(
+        juce::Graphics& g,
+        juce::Rectangle<float> bounds,
+        float spacing = 3.5f,
+        float alpha = 0.045f);
+
+    // Componentes nativos JUCE sobreescritos con estética Cyberpunk HUD
     void drawLinearSlider(
         juce::Graphics& g,
         int x, int y, int width, int height,
@@ -52,6 +94,12 @@ public:
         juce::Graphics& g,
         juce::Button& button,
         const juce::Colour& backgroundColour,
+        bool shouldDrawButtonAsHighlighted,
+        bool shouldDrawButtonAsDown) override;
+
+    void drawButtonText(
+        juce::Graphics& g,
+        juce::TextButton& button,
         bool shouldDrawButtonAsHighlighted,
         bool shouldDrawButtonAsDown) override;
 
@@ -76,25 +124,13 @@ public:
         const juce::Drawable* icon,
         const juce::Colour* textColour) override;
 
-    void drawTabButton(
-        juce::TabBarButton& button,
-        juce::Graphics& g,
-        bool isMouseOver,
-        bool isMouseDown) override;
-
-    int getTabButtonBestWidth(juce::TabBarButton& button, int tabDepth) override;
-
-    void drawTabAreaBehindFrontButton(
-        juce::TabbedButtonBar& bar,
-        juce::Graphics& g,
-        int w,
-        int h) override;
-
     juce::Font getTextButtonFont(juce::TextButton& button, int buttonHeight) override;
-    juce::Font getTabButtonFont(juce::TabBarButton& button, float height) override;
     juce::Font getLabelFont(juce::Label& label) override;
     juce::Font getComboBoxFont(juce::ComboBox& box) override;
     juce::Font getPopupMenuFont() override;
+
+private:
+    static juce::Font getMonospaceFont(float height, bool isBold = false);
 };
 
 } // namespace dash::ui

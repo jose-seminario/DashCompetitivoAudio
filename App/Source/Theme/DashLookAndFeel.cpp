@@ -7,31 +7,158 @@ namespace dash::ui
 
 DashLookAndFeel::DashLookAndFeel()
 {
-    setDefaultSansSerifTypefaceName("Segoe UI");
+    setDefaultSansSerifTypefaceName("Consolas");
 
-    setColour(juce::ResizableWindow::backgroundColourId, kBgDark);
-    setColour(juce::TabbedComponent::backgroundColourId, kBgDark);
+    setColour(juce::ResizableWindow::backgroundColourId, kBgObsidian);
+    setColour(juce::TabbedComponent::backgroundColourId, kBgObsidian);
     setColour(juce::TabbedComponent::outlineColourId,    juce::Colours::transparentBlack);
 
     setColour(juce::ComboBox::backgroundColourId,        kBgCardElevated);
-    setColour(juce::ComboBox::outlineColourId,           kBorderSubtle);
+    setColour(juce::ComboBox::outlineColourId,           kRubyBorder);
     setColour(juce::ComboBox::textColourId,              kTextMain);
-    setColour(juce::ComboBox::arrowColourId,             kAccentCyanGlow);
+    setColour(juce::ComboBox::arrowColourId,             kNeonCrimsonGlow);
 
     setColour(juce::PopupMenu::backgroundColourId,            kBgCardElevated);
     setColour(juce::PopupMenu::textColourId,                 kTextMain);
-    setColour(juce::PopupMenu::highlightedBackgroundColourId, kBorderSubtle);
-    setColour(juce::PopupMenu::highlightedTextColourId,       kAccentCyanGlow);
+    setColour(juce::PopupMenu::highlightedBackgroundColourId, kRubyBorder);
+    setColour(juce::PopupMenu::highlightedTextColourId,       kNeonCrimsonGlow);
 
     setColour(juce::TextButton::buttonColourId,   kBgCardElevated);
     setColour(juce::TextButton::textColourOffId,  kTextMain);
-    setColour(juce::TextButton::textColourOnId,   kAccentCyanGlow);
+    setColour(juce::TextButton::textColourOnId,   kNeonCrimsonGlow);
 
     setColour(juce::Label::textColourId, kTextMain);
-    setColour(juce::Slider::textBoxTextColourId,       kTextMain);
+    setColour(juce::Slider::textBoxTextColourId,       kNeonCyan);
     setColour(juce::Slider::textBoxBackgroundColourId, kSlotRecessed);
-    setColour(juce::Slider::textBoxOutlineColourId,    kBorderSubtle);
-    setColour(juce::Slider::trackColourId,             kAccentCyan);
+    setColour(juce::Slider::textBoxOutlineColourId,    kRubyBorder);
+    setColour(juce::Slider::trackColourId,             kNeonCrimson);
+}
+
+juce::Font DashLookAndFeel::getMonospaceFont(float height, bool isBold)
+{
+    return juce::Font(juce::FontOptions()
+        .withName("Consolas")
+        .withHeight(height)
+        .withStyle(isBold ? "Bold" : "Plain"));
+}
+
+juce::Path DashLookAndFeel::createChamferedPath(
+    juce::Rectangle<float> bounds,
+    float cutSize,
+    bool cutTopLeft,
+    bool cutTopRight,
+    bool cutBottomRight,
+    bool cutBottomLeft)
+{
+    juce::Path p;
+    const float l = bounds.getX();
+    const float t = bounds.getY();
+    const float r = bounds.getRight();
+    const float b = bounds.getBottom();
+
+    const float ctl = cutTopLeft     ? juce::jmin(cutSize, bounds.getWidth() * 0.45f, bounds.getHeight() * 0.45f) : 0.0f;
+    const float ctr = cutTopRight    ? juce::jmin(cutSize, bounds.getWidth() * 0.45f, bounds.getHeight() * 0.45f) : 0.0f;
+    const float cbr = cutBottomRight ? juce::jmin(cutSize, bounds.getWidth() * 0.45f, bounds.getHeight() * 0.45f) : 0.0f;
+    const float cbl = cutBottomLeft  ? juce::jmin(cutSize, bounds.getWidth() * 0.45f, bounds.getHeight() * 0.45f) : 0.0f;
+
+    p.startNewSubPath(l + ctl, t);
+    p.lineTo(r - ctr, t);
+    if (ctr > 0.0f) p.lineTo(r, t + ctr);
+    p.lineTo(r, b - cbr);
+    if (cbr > 0.0f) p.lineTo(r - cbr, b);
+    p.lineTo(l + cbl, b);
+    if (cbl > 0.0f) p.lineTo(l, b - cbl);
+    p.lineTo(l, t + ctl);
+    p.closeSubPath();
+
+    return p;
+}
+
+void DashLookAndFeel::drawCornerBrackets(
+    juce::Graphics& g,
+    juce::Rectangle<float> bounds,
+    float bracketSize,
+    float cutOffset,
+    juce::Colour bracketColour,
+    float strokeWidth)
+{
+    const float l = bounds.getX();
+    const float t = bounds.getY();
+    const float r = bounds.getRight();
+    const float b = bounds.getBottom();
+
+    g.setColour(bracketColour);
+
+    // Top-Left
+    g.drawLine(l, t + cutOffset + bracketSize, l, t + cutOffset, strokeWidth);
+    g.drawLine(l + cutOffset, t, l + cutOffset + bracketSize, t, strokeWidth);
+
+    // Top-Right
+    g.drawLine(r, t + cutOffset + bracketSize, r, t + cutOffset, strokeWidth);
+    g.drawLine(r - cutOffset - bracketSize, t, r - cutOffset, t, strokeWidth);
+
+    // Bottom-Right
+    g.drawLine(r, b - cutOffset - bracketSize, r, b - cutOffset, strokeWidth);
+    g.drawLine(r - cutOffset - bracketSize, b, r - cutOffset, b, strokeWidth);
+
+    // Bottom-Left
+    g.drawLine(l, b - cutOffset - bracketSize, l, b - cutOffset, strokeWidth);
+    g.drawLine(l + cutOffset, b, l + cutOffset + bracketSize, b, strokeWidth);
+}
+
+void DashLookAndFeel::drawScanlines(
+    juce::Graphics& g,
+    juce::Rectangle<float> bounds,
+    float spacing,
+    float alpha)
+{
+    g.setColour(juce::Colours::white.withAlpha(alpha));
+    const float bottom = bounds.getBottom();
+    for (float y = bounds.getY(); y < bottom; y += spacing)
+    {
+        g.drawHorizontalLine(static_cast<int>(y), bounds.getX(), bounds.getRight());
+    }
+}
+
+void DashLookAndFeel::drawHudPanel(
+    juce::Graphics& g,
+    juce::Rectangle<float> bounds,
+    float cutSize,
+    bool drawBrackets,
+    bool drawScanlinesFlag,
+    juce::Colour bgColour,
+    juce::Colour borderColour,
+    float strokeWidth)
+{
+    if (bounds.getWidth() <= 4.0f || bounds.getHeight() <= 4.0f)
+        return;
+
+    auto panelPath = createChamferedPath(bounds, cutSize);
+
+    // 1. Fondo oscuro obsidiana / carmesí
+    g.setColour(bgColour);
+    g.fillPath(panelPath);
+
+    // 2. Textura sutil de líneas de escaneo (Scanlines)
+    if (drawScanlinesFlag)
+    {
+        juce::Graphics::ScopedSaveState scanState(g);
+        g.reduceClipRegion(panelPath);
+        drawScanlines(g, bounds, 3.5f, 0.04f);
+    }
+
+    // 3. Resplandor exterior y borde biselado
+    g.setColour(borderColour.withAlpha(0.22f));
+    g.strokePath(panelPath, juce::PathStrokeType(strokeWidth + 2.5f));
+
+    g.setColour(borderColour);
+    g.strokePath(panelPath, juce::PathStrokeType(strokeWidth));
+
+    // 4. Brackets angulares en las 4 esquinas
+    if (drawBrackets)
+    {
+        drawCornerBrackets(g, bounds, cutSize * 0.9f, cutSize * 0.4f, borderColour, strokeWidth * 1.3f);
+    }
 }
 
 void DashLookAndFeel::drawLinearSlider(
@@ -55,9 +182,9 @@ void DashLookAndFeel::drawLinearSlider(
 
     if (slider.isVertical())
     {
-        const float padTop    = 12.0f;
-        const float padBottom = 12.0f;
-        const float slotWidth = juce::jlimit(10.0f, 16.0f, bounds.getWidth() * 0.18f);
+        const float padTop    = 14.0f;
+        const float padBottom = 14.0f;
+        const float slotWidth = juce::jlimit(8.0f, 14.0f, bounds.getWidth() * 0.16f);
         const float centreX   = bounds.getCentreX();
         const float slotTop   = bounds.getY() + padTop;
         const float slotH     = juce::jmax(24.0f, bounds.getHeight() - padTop - padBottom);
@@ -69,8 +196,8 @@ void DashLookAndFeel::drawLinearSlider(
             slotWidth,
             slotH);
 
-        // 1. Marcas de nivel estilo consola de audio (-18 a +18 dB en pasos de 3 dB)
-        constexpr int kNumTicks = 13; // +18, +15, +12, +9, +6, +3, 0, -3, -6, -9, -12, -15, -18
+        // 1. Escala de Ticks Tácticos Cyberpunk (-18 a +18 dB)
+        constexpr int kNumTicks = 13;
         const float tickInnerGap = slotWidth * 0.5f + 5.0f;
 
         for (int i = 0; i < kNumTicks; ++i)
@@ -80,76 +207,61 @@ void DashLookAndFeel::drawLinearSlider(
             const bool isZeroCenter = (i == (kNumTicks / 2));
             const bool isMajor      = ((i % 2) == 0);
 
-            const float tickLen = isZeroCenter ? 11.0f : (isMajor ? 7.5f : 4.5f);
+            const float tickLen = isZeroCenter ? 12.0f : (isMajor ? 7.0f : 4.0f);
             const float strokeW = isZeroCenter ? 1.8f : 1.0f;
 
-            g.setColour(isZeroCenter ? kAccentCyanGlow.withAlpha(0.85f)
-                                     : kTextMuted.withAlpha(isMajor ? 0.55f : 0.30f));
+            if (isZeroCenter)
+                g.setColour(kNeonCyanGlow);
+            else if (isMajor)
+                g.setColour(kNeonCrimson.withAlpha(0.65f));
+            else
+                g.setColour(kRubyBorder.withAlpha(0.55f));
 
             g.drawLine(centreX - tickInnerGap - tickLen, ty, centreX - tickInnerGap, ty, strokeW);
             g.drawLine(centreX + tickInnerGap, ty, centreX + tickInnerGap + tickLen, ty, strokeW);
         }
 
-        // 2. Fondo oscuro hundido del carril del fader
+        // 2. Ranura hundida del fader (ranura metálica obsidiana biselada)
+        auto slotPath = createChamferedPath(slotBounds, 3.0f);
         g.setColour(kSlotRecessed);
-        g.fillRoundedRectangle(slotBounds, slotWidth * 0.5f);
-        g.setColour(kBorderSubtle);
-        g.drawRoundedRectangle(slotBounds, slotWidth * 0.5f, 1.2f);
+        g.fillPath(slotPath);
+        g.setColour(kRubyBorder);
+        g.strokePath(slotPath, juce::PathStrokeType(1.0f));
 
-        // 3. Barra de color neón activa
+        // 3. Barra luminosa reactiva (Neón Carmesí / Neón Verde)
         const float clampedPos = juce::jlimit(slotTop, slotBot, sliderPos);
-        const juce::Colour accentBase = slider.findColour(juce::Slider::trackColourId, true);
-        const bool isBipolar = (slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0);
+        const float zeroY      = slotTop + slotH * 0.5f;
 
         if (slider.isEnabled())
         {
-            juce::Path clipPath;
-            clipPath.addRoundedRectangle(slotBounds.reduced(1.5f), (slotWidth - 3.0f) * 0.5f);
             juce::Graphics::ScopedSaveState clipState(g);
-            g.reduceClipRegion(clipPath);
+            g.reduceClipRegion(slotPath);
 
-            if (isBipolar)
+            const float topY = juce::jmin(zeroY, clampedPos);
+            const float botY = juce::jmax(zeroY, clampedPos);
+            const float barH = botY - topY;
+
+            // Relleno tenue de fondo
+            g.setColour(kNeonCrimson.withAlpha(0.12f));
+            g.fillRect(slotBounds.getX(), clampedPos, slotWidth, slotBot - clampedPos);
+
+            if (barH > 0.8f)
             {
-                const float zeroY = slotTop + slotH * 0.5f;
-                const float topY  = juce::jmin(zeroY, clampedPos);
-                const float botY  = juce::jmax(zeroY, clampedPos);
-                const float barH  = botY - topY;
+                const bool isBoost = (clampedPos < zeroY);
+                const juce::Colour cTop = isBoost ? kNeonEmerald : kNeonCrimsonGlow;
+                const juce::Colour cBot = isBoost ? kNeonCyan    : kMetallicRuby;
 
-                // Relleno tenue de referencia bajo el fader
-                g.setColour(accentBase.withAlpha(0.14f));
-                g.fillRect(slotBounds.getX(), clampedPos, slotWidth, slotBot - clampedPos);
-
-                if (barH > 0.8f)
-                {
-                    const bool isBoost = (clampedPos < zeroY);
-                    const juce::Colour cTop = isBoost ? kAccentCyanGlow : accentBase;
-                    const juce::Colour cBot = isBoost ? accentBase      : kAccentCoral;
-
-                    juce::ColourGradient neonGrad(
-                        cTop, centreX, topY,
-                        cBot, centreX, botY,
-                        false);
-                    g.setGradientFill(neonGrad);
-                    g.fillRect(slotBounds.getX(), topY, slotWidth, barH);
-                }
-            }
-            else
-            {
-                const float barH = slotBot - clampedPos;
-                if (barH > 0.8f)
-                {
-                    juce::ColourGradient neonGrad(
-                        kAccentCyanGlow, centreX, clampedPos,
-                        accentBase,      centreX, slotBot,
-                        false);
-                    g.setGradientFill(neonGrad);
-                    g.fillRect(slotBounds.getX(), clampedPos, slotWidth, barH);
-                }
+                juce::ColourGradient neonGrad(
+                    cTop, centreX, topY,
+                    cBot, centreX, botY,
+                    false);
+                g.setGradientFill(neonGrad);
+                g.fillRect(slotBounds.getX(), topY, slotWidth, barH);
             }
         }
 
-        // 4. Capuchón rectangular de fader estilo consola de mezcla profesional
-        const float capW = juce::jlimit(26.0f, 40.0f, bounds.getWidth() * 0.52f);
+        // 4. Capuchón angular Sci-Fi con esquinas biseladas a 45°
+        const float capW = juce::jlimit(28.0f, 44.0f, bounds.getWidth() * 0.58f);
         const float capH = 18.0f;
         const juce::Rectangle<float> capBounds(
             centreX - capW * 0.5f,
@@ -157,53 +269,122 @@ void DashLookAndFeel::drawLinearSlider(
             capW,
             capH);
 
-        // Sombra proyectada
-        g.setColour(juce::Colours::black.withAlpha(0.50f));
-        g.fillRoundedRectangle(capBounds.translated(0.0f, 2.5f), 4.0f);
+        auto capPath = createChamferedPath(capBounds, 4.0f);
 
-        // Cuerpo metálico oscuro del capuchón
+        // Sombra / resplandor
+        g.setColour(juce::Colours::black.withAlpha(0.70f));
+        g.fillPath(createChamferedPath(capBounds.translated(0.0f, 2.0f), 4.0f));
+
+        // Cuerpo metálico biselado
         juce::ColourGradient capGrad(
-            juce::Colour(0xff343b4d), centreX, capBounds.getY(),
-            juce::Colour(0xff1d222d), centreX, capBounds.getBottom(),
+            juce::Colour(0xff2d0b13), centreX, capBounds.getY(),
+            juce::Colour(0xff120306), centreX, capBounds.getBottom(),
             false);
         g.setGradientFill(capGrad);
-        g.fillRoundedRectangle(capBounds, 4.0f);
+        g.fillPath(capPath);
 
-        // Borde iluminado y línea indicadora central en neón
-        const juce::Colour lineCol = slider.isEnabled() ? kAccentCyanGlow : kTextMuted;
-        g.setColour(slider.isEnabled() ? accentBase.withAlpha(0.85f) : kBorderSubtle);
-        g.drawRoundedRectangle(capBounds, 4.0f, 1.3f);
+        // Borde neón carmesí con resplandor
+        g.setColour(slider.isEnabled() ? kNeonCrimsonGlow : kRubyBorder);
+        g.strokePath(capPath, juce::PathStrokeType(1.2f));
 
-        g.setColour(lineCol);
+        // Línea central luminosa indicadora (verde esmeralda o cian neón)
+        const juce::Colour indicatorCol = slider.isEnabled()
+            ? (std::abs(clampedPos - zeroY) < 1.0f ? kNeonCyanGlow : kNeonEmerald)
+            : kTextMuted;
+
+        g.setColour(indicatorCol);
         g.drawLine(
-            capBounds.getX() + 4.0f,
+            capBounds.getX() + 5.0f,
             clampedPos,
-            capBounds.getRight() - 4.0f,
+            capBounds.getRight() - 5.0f,
             clampedPos,
             2.2f);
     }
     else
     {
-        const float trackH = 8.0f;
+        // Horizontal slider fallback
+        const float trackH = 6.0f;
         const float cy     = bounds.getCentreY();
         const juce::Rectangle<float> track(bounds.getX() + 6.0f, cy - trackH * 0.5f, bounds.getWidth() - 12.0f, trackH);
 
         g.setColour(kSlotRecessed);
-        g.fillRoundedRectangle(track, trackH * 0.5f);
-        g.setColour(kBorderSubtle);
-        g.drawRoundedRectangle(track, trackH * 0.5f, 1.0f);
+        g.fillRect(track);
+        g.setColour(kRubyBorder);
+        g.drawRect(track, 1.0f);
 
         const float clampedX = juce::jlimit(track.getX(), track.getRight(), sliderPos);
         const float fillW    = clampedX - track.getX();
         if (fillW > 1.0f)
         {
-            g.setColour(kAccentCyan);
-            g.fillRoundedRectangle(track.withWidth(fillW), trackH * 0.5f);
+            g.setColour(kNeonCrimson);
+            g.fillRect(track.withWidth(fillW));
         }
 
-        g.setColour(kAccentCyanGlow);
-        g.fillEllipse(clampedX - 7.0f, cy - 7.0f, 14.0f, 14.0f);
+        g.setColour(kNeonCrimsonGlow);
+        g.fillEllipse(clampedX - 6.0f, cy - 6.0f, 12.0f, 12.0f);
     }
+}
+
+void DashLookAndFeel::drawButtonBackground(
+    juce::Graphics& g,
+    juce::Button& button,
+    const juce::Colour& backgroundColour,
+    bool shouldDrawButtonAsHighlighted,
+    bool shouldDrawButtonAsDown)
+{
+    const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
+    const float cutSize = 8.0f;
+    auto btnPath = createChamferedPath(bounds, cutSize);
+
+    juce::Colour fillCol = backgroundColour;
+    if (shouldDrawButtonAsDown)
+        fillCol = fillCol.darker(0.35f);
+    else if (shouldDrawButtonAsHighlighted)
+        fillCol = fillCol.brighter(0.20f);
+
+    g.setColour(fillCol);
+    g.fillPath(btnPath);
+
+    // Resplandor neón perimetral al pasar el cursor
+    if (shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown)
+    {
+        g.setColour(kNeonCrimsonGlow.withAlpha(0.35f));
+        g.strokePath(btnPath, juce::PathStrokeType(3.0f));
+        g.setColour(kNeonCrimsonGlow);
+        g.strokePath(btnPath, juce::PathStrokeType(1.5f));
+    }
+    else
+    {
+        g.setColour(kRubyBorder);
+        g.strokePath(btnPath, juce::PathStrokeType(1.0f));
+    }
+
+    // Pequeños acentos angulares en esquinas opuestas
+    g.setColour(shouldDrawButtonAsHighlighted ? kNeonCyan : kNeonCrimson.withAlpha(0.6f));
+    g.drawLine(bounds.getX(), bounds.getY() + cutSize + 4.0f, bounds.getX(), bounds.getY() + cutSize, 1.5f);
+    g.drawLine(bounds.getRight(), bounds.getBottom() - cutSize - 4.0f, bounds.getRight(), bounds.getBottom() - cutSize, 1.5f);
+}
+
+void DashLookAndFeel::drawButtonText(
+    juce::Graphics& g,
+    juce::TextButton& button,
+    bool shouldDrawButtonAsHighlighted,
+    bool shouldDrawButtonAsDown)
+{
+    juce::ignoreUnused(shouldDrawButtonAsDown);
+
+    auto textArea = button.getLocalBounds().reduced(8, 2);
+    const juce::Colour textCol = shouldDrawButtonAsHighlighted ? kNeonCyanGlow : kTextMain;
+
+    g.setColour(textCol);
+    g.setFont(getTextButtonFont(button, button.getHeight()));
+
+    // Texto en mayúsculas técnicas
+    g.drawFittedText(
+        button.getButtonText().toUpperCase(),
+        textArea,
+        juce::Justification::centred,
+        1);
 }
 
 void DashLookAndFeel::drawToggleButton(
@@ -217,74 +398,47 @@ void DashLookAndFeel::drawToggleButton(
     const auto bounds = button.getLocalBounds().toFloat();
     const bool isToggled = button.getToggleState();
 
-    const float switchW = 46.0f;
-    const float switchH = 24.0f;
+    const float switchW = 48.0f;
+    const float switchH = 22.0f;
     const float switchY = bounds.getCentreY() - switchH * 0.5f;
     const auto switchArea = juce::Rectangle<float>(bounds.getX() + 2.0f, switchY, switchW, switchH);
-    const float cornerRadius = switchH * 0.5f;
+    auto switchPath = createChamferedPath(switchArea, 5.0f);
 
     if (isToggled)
     {
         juce::ColourGradient grad(
-            kAccentCoralLight, switchArea.getX(), switchArea.getY(),
-            kAccentCoral, switchArea.getRight(), switchArea.getBottom(), false);
+            kNeonCrimsonGlow, switchArea.getX(), switchArea.getY(),
+            kMetallicRuby, switchArea.getRight(), switchArea.getBottom(), false);
         g.setGradientFill(grad);
-        g.fillRoundedRectangle(switchArea, cornerRadius);
-        g.setColour(kAccentCoralLight.withAlpha(0.55f));
-        g.drawRoundedRectangle(switchArea, cornerRadius, 1.2f);
+        g.fillPath(switchPath);
+        g.setColour(kNeonCrimsonGlow);
+        g.strokePath(switchPath, juce::PathStrokeType(1.4f));
     }
     else
     {
         g.setColour(kBgCardElevated);
-        g.fillRoundedRectangle(switchArea, cornerRadius);
-        g.setColour(kBorderSubtle);
-        g.drawRoundedRectangle(switchArea, cornerRadius, 1.2f);
+        g.fillPath(switchPath);
+        g.setColour(kRubyBorder);
+        g.strokePath(switchPath, juce::PathStrokeType(1.0f));
     }
 
-    const float thumbSize = switchH - 6.0f;
-    const float thumbX = isToggled ? (switchArea.getRight() - thumbSize - 3.0f) : (switchArea.getX() + 3.0f);
-    const float thumbY = switchArea.getY() + 3.0f;
+    const float thumbW = switchH - 4.0f;
+    const float thumbH = switchH - 4.0f;
+    const float thumbX = isToggled ? (switchArea.getRight() - thumbW - 2.0f) : (switchArea.getX() + 2.0f);
+    const float thumbY = switchArea.getY() + 2.0f;
+    const auto thumbRect = juce::Rectangle<float>(thumbX, thumbY, thumbW, thumbH);
+    auto thumbPath = createChamferedPath(thumbRect, 3.0f);
 
-    g.setColour(juce::Colours::black.withAlpha(0.35f));
-    g.fillEllipse(thumbX, thumbY + 1.2f, thumbSize, thumbSize);
-
-    g.setColour(juce::Colours::white);
-    g.fillEllipse(thumbX, thumbY, thumbSize, thumbSize);
+    g.setColour(isToggled ? kTextMain : kNeonEmerald);
+    g.fillPath(thumbPath);
 
     if (button.getButtonText().isNotEmpty())
     {
         const auto textArea = bounds.withTrimmedLeft(switchW + 12.0f);
         g.setColour(button.isEnabled() ? kTextMain : kTextMuted);
-        g.setFont(juce::Font(juce::FontOptions()
-            .withName("Segoe UI")
-            .withHeight(14.0f)
-            .withStyle(isToggled ? "Bold" : "Plain")));
-        g.drawFittedText(button.getButtonText(), textArea.toNearestInt(), juce::Justification::centredLeft, 1);
+        g.setFont(getMonospaceFont(13.0f, isToggled));
+        g.drawFittedText(button.getButtonText().toUpperCase(), textArea.toNearestInt(), juce::Justification::centredLeft, 1);
     }
-}
-
-void DashLookAndFeel::drawButtonBackground(
-    juce::Graphics& g,
-    juce::Button& button,
-    const juce::Colour& backgroundColour,
-    bool shouldDrawButtonAsHighlighted,
-    bool shouldDrawButtonAsDown)
-{
-    const auto bounds = button.getLocalBounds().toFloat().reduced(0.5f);
-    const float cornerRadius = 6.0f;
-
-    juce::Colour fillCol = backgroundColour;
-    if (shouldDrawButtonAsDown)
-        fillCol = fillCol.darker(0.18f);
-    else if (shouldDrawButtonAsHighlighted)
-        fillCol = fillCol.brighter(0.10f);
-
-    g.setColour(fillCol);
-    g.fillRoundedRectangle(bounds, cornerRadius);
-
-    g.setColour((shouldDrawButtonAsHighlighted || shouldDrawButtonAsDown) ? kAccentCyanGlow : kBorderSubtle);
-    g.drawRoundedRectangle(bounds, cornerRadius, 1.2f);
-    juce::ignoreUnused(button);
 }
 
 void DashLookAndFeel::drawComboBox(
@@ -299,32 +453,29 @@ void DashLookAndFeel::drawComboBox(
     juce::ignoreUnused(isButtonDown);
 
     const auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height)).reduced(0.5f);
-    const float cornerRadius = 6.0f;
+    auto boxPath = createChamferedPath(bounds, 6.0f);
 
     g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
-    g.fillRoundedRectangle(bounds, cornerRadius);
+    g.fillPath(boxPath);
 
-    g.setColour(box.hasKeyboardFocus(true) ? kBorderFocus : box.findColour(juce::ComboBox::outlineColourId));
-    g.drawRoundedRectangle(bounds, cornerRadius, 1.2f);
+    g.setColour(box.hasKeyboardFocus(true) ? kNeonCrimsonGlow : box.findColour(juce::ComboBox::outlineColourId));
+    g.strokePath(boxPath, juce::PathStrokeType(1.2f));
 
     const float arrowX = static_cast<float>(width) - 18.0f;
     const float arrowY = static_cast<float>(height) * 0.5f;
     juce::Path arrow;
-    arrow.startNewSubPath(arrowX - 4.5f, arrowY - 2.5f);
+    arrow.startNewSubPath(arrowX - 4.0f, arrowY - 2.0f);
     arrow.lineTo(arrowX, arrowY + 2.5f);
-    arrow.lineTo(arrowX + 4.5f, arrowY - 2.5f);
+    arrow.lineTo(arrowX + 4.0f, arrowY - 2.0f);
 
-    g.setColour(box.findColour(juce::ComboBox::arrowColourId));
-    g.strokePath(arrow, juce::PathStrokeType(1.8f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour(kNeonCyanGlow);
+    g.strokePath(arrow, juce::PathStrokeType(2.0f));
 }
 
 void DashLookAndFeel::drawPopupMenuBackground(juce::Graphics& g, int width, int height)
 {
     const auto bounds = juce::Rectangle<float>(0.0f, 0.0f, static_cast<float>(width), static_cast<float>(height));
-    g.setColour(kBgCardElevated);
-    g.fillRoundedRectangle(bounds, 6.0f);
-    g.setColour(kBorderSubtle);
-    g.drawRoundedRectangle(bounds.reduced(0.5f), 6.0f, 1.0f);
+    drawHudPanel(g, bounds, 8.0f, true, true, kBgCardElevated, kNeonCrimson, 1.2f);
 }
 
 void DashLookAndFeel::drawPopupMenuItem(
@@ -345,105 +496,44 @@ void DashLookAndFeel::drawPopupMenuItem(
     if (isSeparator)
     {
         auto r = area.reduced(6, 0);
-        g.setColour(kBorderSubtle);
+        g.setColour(kRubyBorder);
         g.fillRect(r.removeFromTop(1).withY(area.getCentreY()));
         return;
     }
 
     if (isHighlighted && isActive)
     {
-        g.setColour(kBorderSubtle);
-        g.fillRoundedRectangle(area.reduced(4, 1).toFloat(), 4.0f);
+        auto itemPath = createChamferedPath(area.reduced(4, 1).toFloat(), 4.0f);
+        g.setColour(kNeonCrimson.withAlpha(0.35f));
+        g.fillPath(itemPath);
+        g.setColour(kNeonCrimsonGlow);
+        g.strokePath(itemPath, juce::PathStrokeType(1.0f));
     }
 
     auto textArea = area.reduced(12, 0);
-    g.setColour(isHighlighted ? kAccentCyanGlow : (isActive ? kTextMain : kTextMuted));
-    g.setFont(juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f)));
-    g.drawFittedText(text, textArea, juce::Justification::centredLeft, 1);
-}
-
-void DashLookAndFeel::drawTabButton(
-    juce::TabBarButton& button,
-    juce::Graphics& g,
-    bool isMouseOver,
-    bool isMouseDown)
-{
-    juce::ignoreUnused(isMouseDown);
-
-    const auto activeArea = button.getActiveArea().toFloat();
-    const bool isFront = button.isFrontTab();
-
-    g.setColour(isFront ? kBgCard : kBgDark);
-    g.fillRect(activeArea);
-
-    if (isFront)
-    {
-        g.setColour(kAccentCyanGlow);
-        g.fillRect(activeArea.getX() + 10.0f, activeArea.getBottom() - 3.0f, activeArea.getWidth() - 20.0f, 3.0f);
-    }
-    else if (isMouseOver)
-    {
-        g.setColour(kBgCardElevated.withAlpha(0.55f));
-        g.fillRect(activeArea);
-    }
-
-    g.setColour(isFront ? kTextMain : (isMouseOver ? kTextMain.withAlpha(0.85f) : kTextMuted));
-    g.setFont(getTabButtonFont(button, activeArea.getHeight()));
-    g.drawFittedText(
-        button.getButtonText(),
-        button.getTextArea(),
-        juce::Justification::centred,
-        1);
-}
-
-int DashLookAndFeel::getTabButtonBestWidth(juce::TabBarButton& button, int tabDepth)
-{
-    const auto font = getTabButtonFont(button, static_cast<float>(tabDepth));
-    juce::GlyphArrangement ga;
-    ga.addLineOfText(font, button.getButtonText(), 0.0f, 0.0f);
-    const int textW = static_cast<int>(std::ceil(ga.getBoundingBox(0, -1, true).getWidth()));
-    return juce::jmax(170, textW + 56);
-}
-
-void DashLookAndFeel::drawTabAreaBehindFrontButton(
-    juce::TabbedButtonBar& /*bar*/,
-    juce::Graphics& g,
-    int w,
-    int h)
-{
-    g.setColour(kBorderSubtle);
-    g.fillRect(0, h - 1, w, 1);
+    g.setColour(isHighlighted ? kNeonCyanGlow : (isActive ? kTextMain : kTextMuted));
+    g.setFont(getMonospaceFont(12.5f, isHighlighted));
+    g.drawFittedText(text.toUpperCase(), textArea, juce::Justification::centredLeft, 1);
 }
 
 juce::Font DashLookAndFeel::getTextButtonFont(juce::TextButton&, int buttonHeight)
 {
-    return juce::Font(juce::FontOptions()
-        .withName("Segoe UI")
-        .withHeight(juce::jmin(13.5f, static_cast<float>(buttonHeight) * 0.48f))
-        .withStyle("Bold"));
-}
-
-juce::Font DashLookAndFeel::getTabButtonFont(juce::TabBarButton&, float /*height*/)
-{
-    return juce::Font(juce::FontOptions()
-        .withName("Segoe UI")
-        .withHeight(14.0f)
-        .withStyle("Bold"));
+    return getMonospaceFont(juce::jmin(13.0f, static_cast<float>(buttonHeight) * 0.44f), true);
 }
 
 juce::Font DashLookAndFeel::getLabelFont(juce::Label&)
 {
-    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.0f));
+    return getMonospaceFont(12.5f, false);
 }
 
 juce::Font DashLookAndFeel::getComboBoxFont(juce::ComboBox&)
 {
-    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f));
+    return getMonospaceFont(12.5f, false);
 }
 
 juce::Font DashLookAndFeel::getPopupMenuFont()
 {
-    return juce::Font(juce::FontOptions().withName("Segoe UI").withHeight(13.5f));
+    return getMonospaceFont(12.5f, false);
 }
 
 } // namespace dash::ui

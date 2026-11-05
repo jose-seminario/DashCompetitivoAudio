@@ -21,18 +21,25 @@ namespace dash::ui
 {
 
 /**
- * Componente Principal del Ecualizador Táctico Estéreo de 6 Bandas (MainComponent).
+ * Componente Principal del Ecualizador Táctico Cyberpunk / Sci-Fi HUD (MainComponent).
  *
- * Incluye:
- *  - Detección de Equalizer APO con pantalla de bloqueo / tutorial si no está instalado.
- *  - Interfaz de 2 pestañas ("ECUALIZADOR" con faders de ±18 dB y "AJUSTES").
- *  - Botón de auto-configuración directa de Equalizer APO en la pestaña de Ajustes.
+ * Arquitectura HUD Gamer:
+ *  - Barra Superior de Telemetría (Top Bar): Estado APO, CPU %, Latencia ms, Bypass.
+ *  - Sidebar Táctico Izquierdo: Navegación biselada, Control Preamp Maestro y Reset.
+ *  - Pantalla Central HUD Sci-Fi: Matriz de 6 bandas paramétricas con faders de ±18 dB
+ *    y marco cibernético angular con esquinas a 45°, scanlines y brackets.
  */
 class MainComponent final
     : public juce::Component,
       private juce::Timer
 {
 public:
+    enum class ActiveView
+    {
+        Equalizer,
+        Settings
+    };
+
     MainComponent();
     ~MainComponent() override;
 
@@ -40,8 +47,8 @@ public:
     void resized() override;
 
 private:
-    class EqualizerTabComponent;
-    class SettingsTabComponent;
+    class EqualizerHudView;
+    class SettingsHudView;
     class ApoOnboardingOverlay;
 
     struct OutputEndpointEntry
@@ -52,6 +59,10 @@ private:
     };
 
     void timerCallback() override;
+
+    void setView(ActiveView view);
+    void updateTelemetryVisuals(float cpuPercent, float latencyMs, bool apoActive);
+    void updateNavigationButtons();
 
     void populateOutputDevices();
     void restartAudioStream();
@@ -80,10 +91,37 @@ private:
     bool needsSettingsSave_            = false;
     int  settingsSaveDebounceCounter_  = 0;
 
-    std::unique_ptr<EqualizerTabComponent> equalizerTab_;
-    std::unique_ptr<SettingsTabComponent>  settingsTab_;
-    std::unique_ptr<ApoOnboardingOverlay>  apoOverlay_;
-    juce::TabbedComponent tabs_ { juce::TabbedButtonBar::TabsAtTop };
+    ActiveView currentView_ { ActiveView::Equalizer };
+
+    // --- Controles de la Barra Superior (Top Bar Telemetría) ---
+    juce::Rectangle<int> topBarBounds_;
+    juce::Label          appTitleLabel_;
+    juce::Label          cpuChipLabel_;
+    juce::Label          latencyChipLabel_;
+    juce::Label          apoChipLabel_;
+    juce::ToggleButton   masterBypassToggle_;
+
+    // --- Controles del Sidebar Táctico Izquierdo ---
+    juce::Rectangle<int> sidebarBounds_;
+    juce::Label          navHeaderLabel_;
+    juce::TextButton     navEqButton_;
+    juce::TextButton     navSettingsButton_;
+
+    juce::Rectangle<int> preampCardBounds_;
+    juce::Label          preampTitleLabel_;
+    juce::Label          preampSubLabel_;
+    juce::Slider         preampSlider_;
+    juce::TextButton     resetButton_;
+
+    juce::Rectangle<int> deviceCardBounds_;
+    juce::Label          deviceHeaderLabel_;
+    juce::Label          deviceActiveLabel_;
+
+    // --- Vistas Centrales HUD y Overlay ---
+    juce::Rectangle<int> centralHudBounds_;
+    std::unique_ptr<EqualizerHudView>     equalizerHudView_;
+    std::unique_ptr<SettingsHudView>      settingsHudView_;
+    std::unique_ptr<ApoOnboardingOverlay> apoOverlay_;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(MainComponent)
 };

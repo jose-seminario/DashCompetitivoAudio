@@ -16,10 +16,10 @@ juce::Image createSkullIcon(int size = 128)
     const float s = static_cast<float>(size);
     g.addTransform(juce::AffineTransform::scale(s, s));
 
-    g.setColour(juce::Colour(0xff0e1117));
+    g.setColour(juce::Colour(0xff070204));
     g.fillRoundedRectangle(0.04f, 0.04f, 0.92f, 0.92f, 0.22f);
 
-    g.setColour(juce::Colour(0xff06b6d4));
+    g.setColour(juce::Colour(0xffff1a40));
     g.drawRoundedRectangle(0.04f, 0.04f, 0.92f, 0.92f, 0.22f, 0.035f);
 
     juce::Path skull;
@@ -34,13 +34,13 @@ juce::Image createSkullIcon(int size = 128)
     skull.closeSubPath();
 
     juce::ColourGradient grad(
-        juce::Colour(0xff22d3ee), 0.5f, 0.18f,
-        juce::Colour(0xff06b6d4), 0.5f, 0.80f,
+        juce::Colour(0xffff3d5e), 0.5f, 0.18f,
+        juce::Colour(0xff8b0000), 0.5f, 0.80f,
         false);
     g.setGradientFill(grad);
     g.fillPath(skull);
 
-    g.setColour(juce::Colours::white.withAlpha(0.65f));
+    g.setColour(juce::Colours::white.withAlpha(0.75f));
     g.strokePath(skull, juce::PathStrokeType(0.02f));
 
     juce::Path leftEye;
@@ -57,7 +57,7 @@ juce::Image createSkullIcon(int size = 128)
     rightEye.lineTo(0.67f, 0.50f);
     rightEye.closeSubPath();
 
-    g.setColour(juce::Colour(0xff0e1117));
+    g.setColour(juce::Colour(0xff070204));
     g.fillPath(leftEye);
     g.fillPath(rightEye);
 
@@ -68,7 +68,7 @@ juce::Image createSkullIcon(int size = 128)
     nose.closeSubPath();
     g.fillPath(nose);
 
-    g.setColour(juce::Colour(0xff0e1117));
+    g.setColour(juce::Colour(0xff070204));
     g.drawLine(0.42f, 0.70f, 0.42f, 0.80f, 0.035f);
     g.drawLine(0.50f, 0.70f, 0.50f, 0.80f, 0.035f);
     g.drawLine(0.58f, 0.70f, 0.58f, 0.80f, 0.035f);
